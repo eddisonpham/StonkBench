@@ -1,3 +1,8 @@
-Datasets/
+# Ignore dataset contents
+Datasets/*
+
+# Keep Datasets folder
+!/Datasets/.gitkeep
+
 tester.ipynb
 .env
