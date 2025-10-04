@@ -55,12 +55,12 @@ def download_goog_history(ticker: str = "GOOG",
     return output_csv
 
 def download_multivariate_time_series_repo() -> Path:
-    """Download and extract only the exchange_rate folder from the multivariate time-series datasets repository.
+    """Download and extract only the exchange_rate.txt.gz file from the multivariate time-series datasets repository.
 
     Source: https://github.com/laiguokun/multivariate-time-series-data
 
-    The zip is fetched from the default branch and only the exchange_rate folder is extracted.
-    The exchange_rate.txt.gz file is also extracted to exchange_rate.txt.
+    The zip is fetched from the default branch and only the exchange_rate.txt.gz file is extracted
+    to the mvt-ts-data directory.
 
     Returns the extraction directory path.
     """
@@ -77,29 +77,24 @@ def download_multivariate_time_series_repo() -> Path:
     if resp.status_code != 200:
         raise RuntimeError(f"Failed to download repo zip. HTTP {resp.status_code}")
 
-    with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
-        # Extract only the exchange_rate folder
-        for file_info in zf.filelist:
-            if file_info.filename.startswith("multivariate-time-series-data-master/exchange_rate/"):
-                # Remove the top-level folder prefix and extract to target directory
-                target_path = file_info.filename.replace("multivariate-time-series-data-master/", "")
-                file_info.filename = target_path
-                zf.extract(file_info, extraction_dir)
-
-    # Extract the exchange_rate.txt.gz file
-    gz_file_path = extraction_dir / "exchange_rate" / "exchange_rate.txt.gz"
-    txt_file_path = extraction_dir / "exchange_rate" / "exchange_rate.txt"
+    # Extract and decompress the exchange_rate.txt.gz file
+    gz_file_path = "multivariate-time-series-data-master/exchange_rate/exchange_rate.txt.gz"
+    target_file_path = extraction_dir / "exchange_rate.txt"
     
-    if gz_file_path.exists():
-        with gzip.open(gz_file_path, 'rb') as gz_file:
-            with open(txt_file_path, 'wb') as txt_file:
-                txt_file.write(gz_file.read())
-        print(f"Extracted {gz_file_path} to {txt_file_path}")
-
-        gz_file_path.unlink()
-        print(f"Removed {gz_file_path}")
-    else:
-        raise FileNotFoundError(f"{gz_file_path} does not exist...")
+    with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+        if gz_file_path not in [f.filename for f in zf.filelist]:
+            raise FileNotFoundError(f"{gz_file_path} not found in the repository zip")
+        
+        # Read gzipped content and decompress it
+        with zf.open(gz_file_path) as gz_file:
+            gzipped_data = gz_file.read()
+            decompressed_data = gzip.decompress(gzipped_data)
+        
+        # Write decompressed data to target file
+        with open(target_file_path, 'wb') as output_file:
+            output_file.write(decompressed_data)
+        
+        print(f"Extracted and decompressed {gz_file_path} to {target_file_path}")
 
     return extraction_dir
 
