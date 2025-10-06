@@ -30,18 +30,61 @@ import sys
 from pathlib import Path
 import torch
 import random
-sys.path.append(str(Path(__file__).parent.parent))
+import io
+
+project_root = os.path.dirname(os.path.abspath(__file__))
+os.chdir(project_root)
+sys.path.insert(0, project_root)
+
 from utils.preprocess_utils import (
+    MinMaxScaler, 
+    TimeSeriesDataset,
     show_with_start_divider, 
     show_with_end_divider, 
     make_sure_path_exist, 
     create_dataloaders,
     find_length,
-    sliding_window_view,
-    MinMaxScaler, 
-    TimeSeriesDataset
+    sliding_window_view
 )
 from data.download import download_goog_history, download_multivariate_time_series_repo
+
+
+def read_csv_data(path):
+    """
+    Read CSV data, handling special cases like GOOG stock data.
+    Returns: numpy.ndarray
+    """
+    if 'GOOG' in path:
+        # Read GOOG CSV with pandas to handle headers properly
+        df = pd.read_csv(path)
+        # Use only numeric columns (Open, High, Low, Close, Volume)
+        numeric_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+        return df[numeric_cols].values
+    else:
+        # Generic CSV reading
+        return np.loadtxt(path, delimiter=",", skiprows=1)
+
+def read_exchange_rate_data(path):
+    """
+    Reads exchange rate data from a .txt file, adds headers in memory,
+    and returns the data as a numpy array without creating new files.
+    """
+    headers = ['Australia', 'Britain', 'Canada', 'Switzerland', 'China', 'Japan', 'New Zealand', 'Singapore']
+    # Read lines from the file
+    with open(path, 'r') as f:
+        lines = f.readlines()
+    # Prepend header to the lines and read into pandas using StringIO
+    csv_content = ','.join(headers) + '\n' + ''.join(lines)
+    df = pd.read_csv(io.StringIO(csv_content))
+    return df.values
+
+def load_pickle_file(path):
+    try:
+        with mgzip.open(path, 'rb') as f:
+            return pickle.load(f)
+    except (OSError, IOError):
+        with open(path, 'rb') as f:
+            return pickle.load(f)
 
 def preprocess_data(cfg):
     """
@@ -78,57 +121,26 @@ def preprocess_data(cfg):
     do_normalization = cfg.get('do_normalization',True)
     seed = cfg.get('seed', None)
 
-    # Read original data
     if not os.path.exists(ori_data_path):
+        curr_dir = os.getcwd()
+        print(f"Current working directory: {curr_dir}")
         show_with_end_divider(f'Original file path {ori_data_path} does not exist.')
         return None
     
     _, ext = os.path.splitext(ori_data_path)
     try:
         if ext in ['.csv']:
-            # Handle GOOG stock data CSV
-            if 'GOOG' in ori_data_path:
-                # Read GOOG CSV with pandas to handle headers properly
-                df = pd.read_csv(ori_data_path)
-                # Use only numeric columns (Open, High, Low, Close, Volume)
-                numeric_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-                ori_data = df[numeric_cols].values
-            else:
-                # Generic CSV reading
-                ori_data = np.loadtxt(ori_data_path, delimiter=",", skiprows=1)
-                
+            ori_data = read_csv_data(ori_data_path)
         elif ext in ['.txt']:
-            # Handle exchange rate data
             if 'exchange_rate' in ori_data_path:
-                # Read exchange rate data and convert to CSV format
-                ori_data = np.loadtxt(ori_data_path)
-                
-                # Convert to DataFrame with proper headers
-                headers = ['Australia', 'Britain', 'Canada', 'Switzerland', 'China', 'Japan', 'New Zealand', 'Singapore']
-                df = pd.DataFrame(ori_data, columns=headers)
-                
-                # Save as CSV for future reference
-                csv_path = ori_data_path.replace('.txt', '.csv')
-                df.to_csv(csv_path, index=False)
-                print(f"✓ Converted exchange rate data to CSV: {csv_path}")
-                
-                ori_data = df.values
+                ori_data = read_exchange_rate_data(ori_data_path)
             else:
-                # Generic text file reading
                 ori_data = np.loadtxt(ori_data_path)
-                
         elif ext in ['.pkl']:
-            try:
-                with mgzip.open(ori_data_path, 'rb') as f:
-                    ori_data = pickle.load(f)
-            except (OSError, IOError):
-                # If mgzip fails, try reading it as a regular pickle file
-                with open(ori_data_path, 'rb') as f:
-                    ori_data = pickle.load(f)
+            ori_data = load_pickle_file(ori_data_path)
         else:
             show_with_end_divider(f"Error: Unsupported file extension: {ext}")
             return None
-            
     except Exception as e:
         show_with_end_divider(f"Error: An error occurred during reading data: {e}.")
         return None
@@ -139,18 +151,12 @@ def preprocess_data(cfg):
             df = pd.DataFrame(ori_data)
         df = df.interpolate(axis=1)
         ori_data = df.to_numpy()
-
-    # Determine the data length
-    if seq_length:
-        if seq_length>0 and seq_length<=ori_data.shape[0]:
-            seq_length = int(seq_length)
-        else:
-            window_all = []
-            for i in range(ori_data.shape[1]):
-                window_all.append(find_length(ori_data[:,i]))
-
-            seq_length = int(np.mean(np.array(window_all)))
     
+    # Determine the data length
+    if seq_length is None:
+        window_all = np.apply_along_axis(find_length, axis=0, arr=ori_data)
+        seq_length = int(np.mean(window_all))
+
     # Slice the data by sliding window
     # windowed_data = np.lib.stride_tricks.sliding_window_view(ori_data, window_shape=(seq_length, ori_data.shape[1]))
     # windowed_data = np.squeeze(windowed_data, axis=1)
@@ -277,57 +283,5 @@ def create_dataset_from_preprocessed(cfg, batch_size=32, train_seed=None, valid_
     print(f"Batch size: {batch_size}, Train seed: {train_seed}, Valid seed: {valid_seed}")
     
     return train_loader, valid_loader, train_dataset, valid_dataset
-
-def save_preprocessed_csv(train_data, valid_data, dataset_name, output_dir):
-    """
-    Save preprocessed data as CSV files following TSGBench format.
-    
-    Args:
-        train_data (numpy.ndarray): Training data with shape (R_train, l, N)
-        valid_data (numpy.ndarray): Validation data with shape (R_valid, l, N)
-        dataset_name (str): Name of the dataset
-        output_dir (str): Output directory path
-        
-    Returns:
-        tuple: Paths to the created CSV files (train_csv_path, valid_csv_path)
-    """
-    make_sure_path_exist(output_dir)
-    
-    # Flatten the 3D data to 2D for CSV format: (R, l*N)
-    R_train, l, N = train_data.shape
-    R_valid = valid_data.shape[0]
-    
-    # Reshape to (R, l*N) for CSV format
-    train_flat = train_data.reshape(R_train, l * N)
-    valid_flat = valid_data.reshape(R_valid, l * N)
-    
-    # Create column names: time_0_var_0, time_0_var_1, ..., time_l-1_var_N-1
-    columns = []
-    for t in range(l):
-        for n in range(N):
-            columns.append(f'time_{t}_var_{n}')
-    
-    # Create DataFrames
-    train_df = pd.DataFrame(train_flat, columns=columns)
-    valid_df = pd.DataFrame(valid_flat, columns=columns)
-    
-    # Add metadata columns
-    train_df['split'] = 'train'
-    train_df['sequence_id'] = range(R_train)
-    valid_df['split'] = 'valid'
-    valid_df['sequence_id'] = range(R_valid)
-    
-    # Save CSV files
-    train_csv_path = os.path.join(output_dir, f'{dataset_name}_train_preprocessed.csv')
-    valid_csv_path = os.path.join(output_dir, f'{dataset_name}_valid_preprocessed.csv')
-    
-    train_df.to_csv(train_csv_path, index=False)
-    valid_df.to_csv(valid_csv_path, index=False)
-    
-    print(f"✓ Saved CSV files:")
-    print(f"  Training: {train_csv_path} (shape: {train_df.shape})")
-    print(f"  Validation: {valid_csv_path} (shape: {valid_df.shape})")
-    
-    return train_csv_path, valid_csv_path
     
 # See example_usage.py for usage examples
