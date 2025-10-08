@@ -32,10 +32,6 @@ import torch
 import random
 import io
 
-project_root = os.path.dirname(os.path.abspath(__file__))
-os.chdir(project_root)
-sys.path.insert(0, project_root)
-
 from utils.preprocess_utils import (
     MinMaxScaler, 
     TimeSeriesDataset,
