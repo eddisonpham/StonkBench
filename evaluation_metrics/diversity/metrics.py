@@ -1,41 +1,52 @@
 """
-Metrics for Diversity Taxonomy
+Intra-Class Distance (ICD) Metric for Multivariate Time Series
 
-This module provides metrics to quantify the diversity of datasets, 
-including Euclidean Distance and Dynamic Time Warping (DTW) between original and comparison datasets.
+This module computes the average pairwise distance between all
+time series samples in a dataset. It supports Euclidean and DTW (Dynamic Time Warping)
+metrics, and correctly handles multi-channel (multivariate) data.
+
+For multi-channel data, the distance between two samples is defined as
+the average of the per-channel distances.
 """
-
 import numpy as np
-from scipy.spatial.distance import cdist
 from dtaidistance import dtw
 
 
-def calculate_icd(comp_data, metric="euclidean"):
+def calculate_icd(comp_data: np.ndarray, metric: str = "euclidean") -> float:
     """
-    Calculate the average pairwise distance (including self-distances) between all points in comp_data.
-    Supports 'Euclidean' and 'DTW' (Dynamic Time Warp) metrics.
+    Calculate intra-class distance (ICD) for multivariate time series data,
+    normalized by the dataset size squared (R^2).
+
+    ICD = (1 / R^2) * sum_{i=1}^R sum_{j=1}^R D(X_i, X_j)
 
     Args:
-        comp_data (np.ndarray): Array of shape (n_samples, n_features) or (n_samples, sequence_length)
-        metric (str): 'Euclidean' or 'DTW'
+        comp_data (np.ndarray): Array of shape (R, L, N)
+            R: number of samples
+            L: length of each time series
+            N: number of channels
+        metric (str): Distance metric to use ('euclidean' or 'dtw')
 
     Returns:
-        float: The sum of all pairwise distances (including self-distances), divided by n_samples^2.
+        float: Average distance normalized by R^2.
     """
-    n_samples = comp_data.shape[0]
-    distance_matrix = np.zeros((n_samples, n_samples))
+    metric = metric.lower()
+    if metric not in ("euclidean", "dtw"):
+        raise ValueError(f"Unsupported metric: {metric}. Use 'euclidean' or 'dtw'.")
 
-    if metric == "euclidean":
-        distance_matrix = cdist(comp_data, comp_data, metric='euclidean')
-    elif metric == "dtw":
-        for i in range(n_samples):
-            for j in range(i, n_samples):
-                if i == j:
-                    distance_matrix[i, j] = 0.0
-                else:
-                    dist = dtw.distance(comp_data[i], comp_data[j])
-                    distance_matrix[i, j] = dist
-                    distance_matrix[j, i] = dist
-    else:
-        raise ValueError(f"Unsupported metric: {metric}. Use 'Euclidean' or 'DTW'.")
-    return np.sum(distance_matrix) / (n_samples ** 2)
+    R, L, N = comp_data.shape
+    distance_sum = 0.0
+
+    for i in range(R):
+        for j in range(R):
+            dist = 0.0
+            if metric == "euclidean":
+                for ch in range(N):
+                    diff = comp_data[i, :, ch] - comp_data[j, :, ch]
+                    dist += np.linalg.norm(diff)
+            elif metric == "dtw":
+                for ch in range(N):
+                    dist += dtw.distance_fast(comp_data[i, :, ch], comp_data[j, :, ch])
+            distance_sum += dist / N
+
+    icd = distance_sum / (R ** 2)
+    return icd
