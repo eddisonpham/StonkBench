@@ -1,10 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from models.base_model import DeepLearningModel
 
-# Reusing the Generator from VanillaGAN as it's typically the same structure
-# or a modified version depending on the specific WGAN variant (e.g., WGAN-GP)
 class Generator(nn.Module):
     def __init__(self, latent_dim, output_length, output_channels, hidden_dim=128):
         super().__init__()
@@ -17,13 +14,14 @@ class Generator(nn.Module):
             nn.Linear(hidden_dim, hidden_dim * 2),
             nn.LeakyReLU(0.2),
             nn.Linear(hidden_dim * 2, output_length * output_channels),
-            nn.Sigmoid(), # Ensure output is in [0, 1] for normalized time series
+            # **No Sigmoid or activation**: raw output
         )
 
     def forward(self, z):
-        return self.model(z).view(-1, self.output_length, self.output_channels)
+        out = self.model(z)
+        return out.view(-1, self.output_length, self.output_channels)
 
-# WGAN Critic (Discriminator without sigmoid output)
+
 class Critic(nn.Module):
     def __init__(self, input_length, input_channels, hidden_dim=128):
         super().__init__()
@@ -32,30 +30,33 @@ class Critic(nn.Module):
             nn.LeakyReLU(0.2),
             nn.Linear(hidden_dim * 2, hidden_dim),
             nn.LeakyReLU(0.2),
-            nn.Linear(hidden_dim, 1), # No sigmoid here
+            nn.Linear(hidden_dim, 1)
         )
 
     def forward(self, x):
         x = x.view(x.size(0), -1)
         return self.model(x)
 
-class WassersteinGAN(DeepLearningModel):
-    def __init__(self, length, num_channels, latent_dim=64, hidden_dim=128, lr=0.00005, n_critic=5, clip_value=0.01):
-        super().__init__()
+
+class WassersteinGAN:
+    def __init__(self, length, num_channels,
+                 latent_dim=64, hidden_dim=128,
+                 lr=0.00005, n_critic=5, clip_value=0.01,
+                 device=None):
         self.length = length
         self.num_channels = num_channels
         self.latent_dim = latent_dim
         self.hidden_dim = hidden_dim
         self.lr = lr
-        self.n_critic = n_critic  # Number of critic updates per generator update
-        self.clip_value = clip_value # Weight clipping value
+        self.n_critic = n_critic
+        self.clip_value = clip_value
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
 
         self.generator = Generator(latent_dim, length, num_channels, hidden_dim).to(self.device)
         self.critic = Critic(length, num_channels, hidden_dim).to(self.device)
 
         self.optimizer_g = optim.RMSprop(self.generator.parameters(), lr=lr)
         self.optimizer_c = optim.RMSprop(self.critic.parameters(), lr=lr)
-        
 
     def fit(self, data_loader, num_epochs=100):
         for epoch in range(num_epochs):
@@ -63,43 +64,43 @@ class WassersteinGAN(DeepLearningModel):
                 real_data = real_data.to(self.device)
                 batch_size = real_data.size(0)
 
-                # Train Critic
+                # === Train Critic ===
                 for _ in range(self.n_critic):
                     self.optimizer_c.zero_grad()
 
-                    # Real data
+                    # Real samples
                     c_real = self.critic(real_data).view(-1)
 
-                    # Fake data
+                    # Fake samples
                     noise = torch.randn(batch_size, self.latent_dim, device=self.device)
-                    fake_data = self.generator(noise).detach() # Detach to prevent generator training
+                    fake_data = self.generator(noise).detach()
                     c_fake = self.critic(fake_data).view(-1)
 
-                    # Wasserstein loss for critic
-                    err_c = -torch.mean(c_real) + torch.mean(c_fake)
-                    err_c.backward()
+                    # Critic loss (Wasserstein objective)
+                    loss_c = -torch.mean(c_real) + torch.mean(c_fake)
+                    loss_c.backward()
                     self.optimizer_c.step()
 
-                    # Weight clipping
+                    # Weight clipping to enforce Lipschitz
                     for p in self.critic.parameters():
                         p.data.clamp_(-self.clip_value, self.clip_value)
 
-                # Train Generator
+                # === Train Generator ===
                 self.optimizer_g.zero_grad()
                 noise = torch.randn(batch_size, self.latent_dim, device=self.device)
                 fake_data = self.generator(noise)
                 g_fake = self.critic(fake_data).view(-1)
-
-                # Wasserstein loss for generator
-                err_g = -torch.mean(g_fake)
-                err_g.backward()
+                loss_g = -torch.mean(g_fake)
+                loss_g.backward()
                 self.optimizer_g.step()
 
                 if (i + 1) % 100 == 0:
-                    print(f"Epoch [{epoch}/{num_epochs}], Batch [{i}/{len(data_loader)}] - C Loss: {err_c.item():.4f}, G Loss: {err_g.item():.4f}")
+                    print(f"Epoch [{epoch}/{num_epochs}], Batch [{i}/{len(data_loader)}], "
+                          f"Loss_C: {loss_c.item():.4f}, Loss_G: {loss_g.item():.4f}")
 
     def generate(self, num_samples):
         noise = torch.randn(num_samples, self.latent_dim, device=self.device)
         with torch.no_grad():
-            generated_data = self.generator(noise).cpu()
-        return generated_data
+            generated = self.generator(noise).cpu()
+        return generated
+
