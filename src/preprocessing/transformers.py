@@ -24,6 +24,7 @@ from scipy.signal import argrelextrema
 from src.utils.display_utils import show_divider, show_with_start_divider, show_with_end_divider
 from src.utils.path_utils import make_sure_path_exist
 
+
 class MinMaxScaler():
     """
     Min-Max normalization scaler implementing the TSGBench normalization step.
@@ -35,15 +36,6 @@ class MinMaxScaler():
     
     The normalization formula is: (x - min) / (max - min)
     The inverse transformation is: x * (max - min) + min
-    
-    This normalization is applied to the segmented sub-matrices {T_r} to ensure:
-    - Enhanced efficiency in time series generation models
-    - Numerical stability during training and inference
-    - Consistent scale across different datasets in the benchmark
-    
-    Attributes:
-        mini (numpy.ndarray): Minimum values for each variable/channel
-        range (numpy.ndarray): Range (max - min) for each variable/channel
     """
     
     def fit_transform(self, data): 
@@ -83,9 +75,6 @@ class MinMaxScaler():
             
         Returns:
             numpy.ndarray: Normalized data in range [0, 1]
-            
-        Note:
-            Adds small epsilon (1e-7) to prevent division by zero
         """
         numerator = data - self.mini
         scaled_data = numerator / (self.range + 1e-7)
@@ -136,12 +125,10 @@ class TimeSeriesDataset(Dataset):
         
         if data.ndim != 3:
             raise ValueError(f"Data must be 3D with shape (R, l, N), got shape {data.shape}")
-        
-        # Convert to PyTorch tensor
+
         self.data = torch.from_numpy(data).float()
         self.transform = transform
-        
-        # Create shuffled indices with seed support
+
         self.indices = list(range(len(data)))
         if seed is not None:
             random.seed(seed)

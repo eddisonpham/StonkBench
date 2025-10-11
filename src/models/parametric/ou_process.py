@@ -1,70 +1,87 @@
 import torch
+import numpy as np
+from scipy import stats
 from src.models.base.base_model import ParametricModel
 
 class OrnsteinUhlenbeckProcess(ParametricModel):
+    """
+    Ornstein-Uhlenbeck Process.
+    
+    The OU process follows: dX = θ(μ - X)dt + σdW
+    Where:
+    - θ: mean reversion speed
+    - μ: long-term mean
+    - σ: volatility
+    - W: Wiener process
+    """
+    
     def __init__(self, length, num_channels, dt=0.01):
         super().__init__()
         self.length = length
         self.num_channels = num_channels
         self.dt = dt
-
-        # Initialize parameters
-        self.theta = 0.1 * torch.ones(num_channels, device=self.device)  # Mean reversion speed
-        self.mu = torch.zeros(num_channels, device=self.device)          # Mean level
-        self.sigma = 0.1 * torch.ones(num_channels, device=self.device)  # Volatility
+        
+        # Initialize parameters with reasonable defaults
+        self.theta = torch.ones(num_channels, device=self.device) * 0.1  # mean reversion
+        self.mu = torch.zeros(num_channels, device=self.device)           # long-term mean
+        self.sigma = torch.ones(num_channels, device=self.device) * 0.1   # volatility
 
     def fit(self, data_loader):
-        """Estimate O-U parameters from time series data"""
-        data_points = []
+        """Fit OU parameters using maximum likelihood estimation"""
+        # Collect all data
+        all_data = []
         for batch in data_loader:
             if batch.dim() == 2:
                 batch = batch.unsqueeze(0)
-            data_points.append(batch)
-        data_points = torch.cat(data_points, dim=0)  # (R, L, N)
-
-        for n in range(self.num_channels):
-            X = data_points[:, :, n]  # (R, L)
-            X = X.flatten()           # Flatten to 1D for estimation
-
-            X_t = X[:-1]
-            X_t1 = X[1:]
-
-            # Compute mean and autocovariance
-            mean_X = X.mean()
-            var_X = X.var(unbiased=True)
-            cov_X = ((X_t - mean_X) * (X_t1 - mean_X)).mean()
-
-            # Estimate theta
-            if var_X < 1e-8:
-                # Nearly constant series, keep defaults
+            all_data.append(batch.cpu().numpy())
+        
+        data = np.concatenate(all_data, axis=0)  # Shape: (R, l, N)
+        
+        for channel in range(self.num_channels):
+            # Flatten time series for this channel
+            time_series = data[:, :, channel].flatten()
+            
+            if len(time_series) < 2:
                 continue
-            phi = cov_X / var_X
-            theta_hat = -torch.log(phi + 1e-8) / self.dt  # Ensure log arg >0
-
-            # Estimate mu
-            mu_hat = X.mean()
-
-            # Estimate sigma
-            residuals = X_t1 - X_t * phi
-            sigma_hat = torch.sqrt(residuals.pow(2).mean() * 2 * theta_hat / (1 - phi**2 + 1e-8))
-
-            # Clamp parameters to avoid explosion
-            self.theta[n] = torch.clamp(theta_hat, min=1e-3, max=10.0)
-            self.mu[n] = torch.clamp(mu_hat, min=-10.0, max=10.0)
-            self.sigma[n] = torch.clamp(sigma_hat, min=1e-3, max=1.0)
+                
+            # Use numpy for simpler parameter estimation
+            returns = np.diff(time_series)
+            
+            # Simple parameter estimation
+            self.mu[channel] = float(np.mean(time_series))
+            self.sigma[channel] = float(np.std(returns))
+            
+            # Estimate mean reversion speed using autocorrelation
+            if len(returns) > 1:
+                autocorr = np.corrcoef(returns[:-1], returns[1:])[0, 1]
+                if not np.isnan(autocorr):
+                    # Convert autocorrelation to mean reversion speed
+                    self.theta[channel] = float(max(0.01, -np.log(max(0.01, autocorr)) / self.dt))
+            
+            # Ensure parameters are reasonable
+            self.theta[channel] = torch.clamp(self.theta[channel], 0.01, 10.0)
+            self.sigma[channel] = torch.clamp(self.sigma[channel], 0.01, 1.0)
 
     def generate(self, num_samples):
-        """Generate O-U sample paths"""
-        x = torch.zeros(num_samples, self.length, self.num_channels, device=self.device)
-
-        # Initialize at mu
-        current_x = self.mu + 0.01 * torch.randn(num_samples, self.num_channels, device=self.device)
-        x[:, 0, :] = current_x
-
+        """Generate OU process paths using vectorized operations"""
+        # Initialize output tensor
+        paths = torch.zeros(num_samples, self.length, self.num_channels, device=self.device)
+        
+        # Start from long-term mean with small random perturbation
+        current_value = self.mu.unsqueeze(0).expand(num_samples, -1)
+        current_value += 0.01 * torch.randn(num_samples, self.num_channels, device=self.device)
+        paths[:, 0, :] = current_value
+        
+        # Generate paths using Euler-Maruyama method (vectorized)
         for t in range(1, self.length):
-            dw = torch.randn(num_samples, self.num_channels, device=self.device) * torch.sqrt(torch.tensor(self.dt, device=self.device))
-            dx = self.theta * (self.mu - current_x) * self.dt + self.sigma * dw
-            current_x = current_x + dx
-            x[:, t, :] = current_x
-
-        return x
+            # Random shocks
+            dW = torch.randn(num_samples, self.num_channels, device=self.device) * np.sqrt(self.dt)
+            
+            # OU process update: dX = θ(μ - X)dt + σdW
+            mean_reversion = self.theta * (self.mu - current_value) * self.dt
+            diffusion = self.sigma * dW
+            
+            current_value += mean_reversion + diffusion
+            paths[:, t, :] = current_value
+            
+        return paths

@@ -11,25 +11,33 @@ import mgzip
 import io
 
 
+import pandas as pd
+import pickle
+import mgzip
+
+REQUIRED_COLUMNS = ['Open', 'High', 'Low', 'Close', 'Volume']
+
 def read_csv_data(path):
     """
-    Read CSV data, handling special cases like GOOG stock data.
-    
+    Read CSV file containing stock or generic time series data.
+
+    If the file corresponds to GOOG stock data (identified by 'GOOG' in the filename),
+    it reads the file with pandas, expecting the following columns:
+        - Open: Open price
+        - High: Highest price
+        - Low: Lowest price
+        - Close: Closing price
+        - Volume: Trade volume
+
     Args:
-        path (str): Path to the CSV file
-        
+        path (str): Path to the CSV data file.
+
     Returns:
-        numpy.ndarray: Data from the CSV file
+        numpy.ndarray: Array of shape (n_samples, n_features) containing the relevant numeric data.
     """
-    if 'GOOG' in path:
-        # Read GOOG CSV with pandas to handle headers properly
-        df = pd.read_csv(path)
-        # Use only numeric columns (Open, High, Low, Close, Volume)
-        numeric_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-        return df[numeric_cols].values
-    else:
-        # Generic CSV reading
-        return np.loadtxt(path, delimiter=",", skiprows=1)
+    df = pd.read_csv(path)
+    if all(col in df.columns for col in REQUIRED_COLUMNS):
+        return df[REQUIRED_COLUMNS].values
 
 
 def read_exchange_rate_data(path):

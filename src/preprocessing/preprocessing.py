@@ -14,22 +14,21 @@ Standardized Preprocessing Pipeline:
 
 3. Data Shuffling: Shuffle the time series to approximate an i.i.d. sample distribution.
 
-4. Train-Test Split: Divide the data into training and testing sets in a 9:1 ratio, allocating
+4. Train-Test Split: Divide the data into training and testing sets in a 90-10 ratio, allocating
    a larger portion for training and evaluation as is common in TSG methodology.
 
 5. Normalization: Normalize the dataset to the range [0, 1] to enhance efficiency and
    numerical stability, resulting in a dataset shape of (R, l, N).
 """
+
 import numpy as np
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
-# Removed mgzip and pickle as they are now in dat-io_utils
 import sys
 from pathlib import Path
 import torch
 import random
-# Removed io as it's not used directly here anymore
 
 from src.preprocessing.transformers import (
     MinMaxScaler, 
@@ -38,16 +37,17 @@ from src.preprocessing.transformers import (
     find_length,
     sliding_window_view
 )
-from src.ingestion.data_reader import read_csv_data, read_exchange_rate_data, load_pickle_file
 from src.utils.path_utils import make_sure_path_exist
-from src.utils.dat-io_utils import save_pickle_file
-from src.utils.display_utils import show_with_start_divider, show_with_end_divider
+from src.utils.dat_io_utils import (
+    save_pickle_file,
+    load_pickle_file,
+    read_csv_data 
+)
+from src.utils.display_utils import (
+    show_with_start_divider,
+    show_with_end_divider
+)
 
-# Removed download_goog_history, download_multivariate_time_series_repo imports
-
-# Removed read_csv_data function
-# Removed read_exchange_rate_data function
-# Removed load_pickle_file function
 
 def preprocess_data(cfg):
     """
@@ -58,7 +58,7 @@ def preprocess_data(cfg):
     Args:
         cfg (dict): Configuration dictionary containing preprocessing parameters:
             - original_data_path (str): Path to the original data file
-            - output_ori_path (str): Output directory for preprocessed data (default: './artifacts/processed/')
+            - output_ori_path (str): Output directory for preprocessed data (default: './data/preprocessed/')
             - dataset_name (str): Name of the dataset (default: 'dataset')
             - seq_length (int): Manual sequence length l (default: None for auto-detection)
             - valid_ratio (float): Validation set ratio (default: 0.1 for 9:1 split)
@@ -75,9 +75,8 @@ def preprocess_data(cfg):
     """
     show_with_start_divider(f"Data preprocessing with settings:{cfg}")
 
-    # Parse configs
     ori_data_path = cfg.get('original_data_path',None)
-    output_ori_path = cfg.get('output_ori_path',r'./artifacts/processed/')
+    output_ori_path = cfg.get('output_ori_path',r'./data/preprocessed/')
     dataset_name = cfg.get('dataset_name','dataset')
     seq_length = cfg.get('seq_length',None)
     valid_ratio = cfg.get('valid_ratio',0.1)
@@ -92,14 +91,9 @@ def preprocess_data(cfg):
     
     _, ext = os.path.splitext(ori_data_path)
     try:
-        if ext in ['.csv']:
+        if ext == '.csv':
             ori_data = read_csv_data(ori_data_path)
-        elif ext in ['.txt']:
-            if 'exchange_rate' in ori_data_path:
-                ori_data = read_exchange_rate_data(ori_data_path)
-            else:
-                ori_data = np.loadtxt(ori_data_path)
-        elif ext in ['.pkl']:
+        elif ext == '.pkl':
             ori_data = load_pickle_file(ori_data_path)
         else:
             show_with_end_divider(f"Error: Unsupported file extension: {ext}")
@@ -107,25 +101,19 @@ def preprocess_data(cfg):
     except Exception as e:
         show_with_end_divider(f"Error: An error occurred during reading data: {e}.")
         return None
-    
-    # Check and interpolate missing values
+
     if np.isnan(ori_data).any():
         if not isinstance(ori_data, pd.DataFrame):
             df = pd.DataFrame(ori_data)
         df = df.interpolate(axis=1)
         ori_data = df.to_numpy()
     
-    # Determine the data length
     if seq_length is None:
         window_all = np.apply_along_axis(find_length, axis=0, arr=ori_data)
         seq_length = int(np.mean(window_all))
 
-    # Slice the data by sliding window
-    # windowed_data = np.lib.stride_tricks.sliding_window_view(ori_data, window_shape=(seq_length, ori_data.shape[1]))
-    # windowed_data = np.squeeze(windowed_data, axis=1)
     windowed_data = sliding_window_view(ori_data, seq_length)
     
-    # Shuffle with seed support
     if seed is not None:
         np.random.seed(seed)
         random.seed(seed)
@@ -142,7 +130,6 @@ def preprocess_data(cfg):
         train_data = scaler.fit_transform(train_data)
         valid_data = scaler.transform(valid_data)
     
-    # Save preprocessed data
     output_path = os.path.join(output_ori_path,dataset_name)
     make_sure_path_exist(output_path+os.sep)
     save_pickle_file(train_data, os.path.join(output_path,f'{dataset_name}_train.pkl'))
@@ -162,7 +149,7 @@ def load_preprocessed_data(cfg):
     Args:
         cfg (dict): Configuration dictionary containing loading parameters:
             - dataset_name (str): Name of the dataset to load (default: 'dataset')
-            - output_ori_path (str): Directory containing preprocessed data (default: './artifacts/processed/')
+            - output_ori_path (str): Directory containing preprocessed data (default: './data/preprocessed/')
     
     Returns:
         tuple: (train_data, valid_data) - Loaded training and validation datasets
@@ -170,15 +157,13 @@ def load_preprocessed_data(cfg):
     """
     show_with_start_divider(f"Load preprocessed data with settings:{cfg}")
 
-    # Parse configs
     dataset_name = cfg.get('dataset_name','dataset')
-    output_ori_path = cfg.get('output_ori_path',r'./artifacts/processed/')
+    output_ori_path = cfg.get('output_ori_path',r'./data/preprocessed/')
 
     file_path = os.path.join(output_ori_path,dataset_name)
     train_data_path = os.path.join(file_path,f'{dataset_name}_train.pkl')
     valid_data_path = os.path.join(file_path,f'{dataset_name}_valid.pkl')
 
-    # Read preprocessed data
     if not os.path.exists(train_data_path) or not os.path.exists(valid_data_path):
         show_with_end_divider(f'Error: Preprocessed file in {file_path} does not exist.')
         return None
@@ -216,14 +201,12 @@ def create_dataset_from_preprocessed(cfg, batch_size=32, train_seed=None, valid_
     """
     show_with_start_divider(f"Creating datasets from preprocessed data with settings: {cfg}")
     
-    # Load preprocessed data
     train_data, valid_data = load_preprocessed_data(cfg)
     
     if train_data is None or valid_data is None:
         show_with_end_divider("Failed to load preprocessed data")
         return None
-    
-    # Create datasets and dataloaders
+
     train_loader, valid_loader = create_dataloaders(
         train_data, valid_data, 
         batch_size=batch_size,
@@ -233,7 +216,6 @@ def create_dataset_from_preprocessed(cfg, batch_size=32, train_seed=None, valid_
         pin_memory=pin_memory
     )
     
-    # Also return the datasets for direct access if needed
     train_dataset = train_loader.dataset
     valid_dataset = valid_loader.dataset
     
@@ -242,5 +224,3 @@ def create_dataset_from_preprocessed(cfg, batch_size=32, train_seed=None, valid_
     print(f"Batch size: {batch_size}, Train seed: {train_seed}, Valid seed: {valid_seed}")
     
     return train_loader, valid_loader, train_dataset, valid_dataset
-    
-# See example_usage.py for usage examples

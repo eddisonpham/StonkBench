@@ -21,15 +21,12 @@ import json
 from datetime import datetime
 from typing import Dict, List, Tuple, Any
 
-# Add project root to sys.path
-project_root = Path(__file__).resolve().parents[2] # Adjust for src/experiments/evaluator.py
+project_root = Path(__file__).resolve().parents[2]
 sys.path.append(str(project_root))
 
-# Import data preprocessing utilities
-from src.preprocessing.pipeline import preprocess_data, load_preprocessed_data, create_dataset_from_preprocessed
+from src.preprocessing.preprocessing import preprocess_data, load_preprocessed_data, create_dataset_from_preprocessed
 from src.preprocessing.transformers import TimeSeriesDataset, create_dataloaders
 
-# Import models
 from src.models.base.base_model import BaseGenerativeModel, ParametricModel, DeepLearningModel
 from src.models.parametric.gbm import GeometricBrownianMotion
 from src.models.parametric.ou_process import OrnsteinUhlenbeckProcess
@@ -46,11 +43,9 @@ from src.evaluation.metrics.stylized_facts import (
 )
 from src.utils.performance_utils import measure_runtime, measure_peak_memory
 from src.evaluation.visualizations.plots import visualize_tsne, visualize_distribution
-from src.utils.path_utils import make_sure_path_exist # Import from utils
-from src.utils.display_utils import show_with_start_divider, show_with_end_divider # Import from utils
+from src.utils.path_utils import make_sure_path_exist
+from src.utils.display_utils import show_with_start_divider, show_with_end_divider
 
-
-# Removed local make_sure_path_exist function
 
 class UnifiedEvaluator:
     """
@@ -69,7 +64,7 @@ class UnifiedEvaluator:
         
         # Results storage
         self.results = {}
-        self.results_dir = Path("artifacts/evaluation_results") # Updated path
+        self.results_dir = Path("data/evaluation_results") # Updated path
         self.results_dir.mkdir(exist_ok=True)
         
         # Create timestamp for this evaluation run
@@ -373,7 +368,7 @@ def main():
     # Configuration for data preprocessing
     dataset_config = {
         'original_data_path': str(project_root / 'data' / 'raw' / 'GOOG' / 'GOOG.csv'), # Updated path
-        'output_ori_path': str(project_root / 'artifacts' / 'processed'), # Updated path
+        'output_ori_path': str(project_root / 'data' / 'preprocessed'), # Updated path
         'dataset_name': 'goog_stock_evaluation',
         'valid_ratio': 0.2,
         'do_normalization': True,

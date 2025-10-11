@@ -24,13 +24,4 @@ def make_sure_path_exist(path):
         # Extract the directory part of the path
         dir_path = os.path.dirname(path)
     os.makedirs(dir_path, exist_ok=True)
-
-
-def ensure_dir(path: Path) -> None:
-    """
-    Create directory if it does not exist (including parents).
     
-    Args:
-        path (Path): Path object to create
-    """
-    path.mkdir(exist_ok=True)
