@@ -8,6 +8,8 @@ __pycache__/
 mlruns
 
 notebooks/test_data_output/*
-
-data/raw/*
+!notebooks/test_data_output/.gitkeep
 data/preprocessed/*
+!data/preprocessed/.gitkeep
+data/raw/*
+!data/raw/.gitkeep
