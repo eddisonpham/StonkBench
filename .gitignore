@@ -7,9 +7,9 @@ __pycache__/
 
 mlruns
 
-notebooks/test_data_output/*
-!notebooks/test_data_output/.gitkeep
-data/preprocessed/*
-!data/preprocessed/.gitkeep
-data/raw/*
-!data/raw/.gitkeep
+# Ignore data type files: .csv, .txt, .pkl in all directories
+*.csv
+*.txt
+*.pkl
+
+
