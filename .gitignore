@@ -4,3 +4,10 @@ venv/
 # Ignore Python cache
 __pycache__/
 *.pyc
+
+mlruns
+
+notebooks/test_data_output/*
+
+data/raw/*
+data/preprocessed/*
