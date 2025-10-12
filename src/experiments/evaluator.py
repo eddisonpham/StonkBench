@@ -35,13 +35,13 @@ from src.models.non_parametric.wasserstein_gan import WassersteinGAN
 
 # Import evaluation metrics
 from src.evaluation.metrics.diversity import calculate_icd
+from src.evaluation.metrics.efficiency import measure_runtimes
 from src.evaluation.metrics.fidelity import (
     calculate_mdd, calculate_md, calculate_sdd, calculate_sd, calculate_kd, calculate_acd
 )
 from src.evaluation.metrics.stylized_facts import (
     heavy_tails, autocorr_raw, volatility_clustering, long_memory_abs, non_stationarity
 )
-from src.utils.performance_utils import measure_runtime, measure_peak_memory
 from src.evaluation.visualizations.plots import visualize_tsne, visualize_distribution
 from src.utils.path_utils import make_sure_path_exist
 from src.utils.display_utils import show_with_start_divider, show_with_end_divider
@@ -108,7 +108,7 @@ class UnifiedEvaluator:
             
             # 2. Generate synthetic data
             print(f"Generating {num_generated_samples} samples...")
-            # Efficiency metrics: Measure generation time and memory usage (both for 500 samples)
+            # Efficiency metrics: Measure generation time
             gen_time = measure_runtime(model.generate, num_generated_samples)
             mlflow.log_metric("generation_time_500_samples", gen_time)
             evaluation_results["generation_time_500_samples"] = gen_time
@@ -399,7 +399,6 @@ def main():
         else:
             print(f"  Training Time: {model_results.get('training_time', 'N/A'):.2f}s")
             print(f"  Generation Time (500 samples): {model_results.get('generation_time_500_samples', 'N/A'):.4f}s")
-            print(f"  Memory Usage (500 samples): {model_results.get('memory_usage_500_samples_mb', 'N/A'):.2f} MB")
             print(f"  MDD: {model_results.get('mdd', 'N/A'):.4f}")
             print(f"  MD: {model_results.get('md', 'N/A'):.4f}")
             print(f"  SDD: {model_results.get('sdd', 'N/A'):.4f}")

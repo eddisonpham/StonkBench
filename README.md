@@ -54,7 +54,7 @@ After you run the benchmark, use MLFlow’s UI to explore and compare your exper
 2. Visit [http://localhost:5000](http://localhost:5000) in your browser.
 3. For each experiment/model, you’ll see:
    - Parameters/configurations
-   - Training time, generation time (for 500 samples), peak memory
+   - Training time, generation time (for 500 samples)
    - All computed metrics (Fidelity, Diversity, Efficiency, Stylized Facts)
    - Downloadable output artifacts (e.g., metrics JSON, visualization plots)
 4. Use MLFlow to compare models across any metric, check plots, and download results.
