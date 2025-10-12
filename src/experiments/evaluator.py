@@ -4,7 +4,7 @@ Unified Evaluation Pipeline for Time Series Generative Models
 This script provides a comprehensive evaluation framework using MLFlow to track and compare
 all implemented models across different evaluation metrics:
 - Diversity: Intra-Class Distance (ICD) with Euclidean and DTW metrics
-- Efficiency: Runtime and Memory usage
+- Efficiency: Runtime
 - Fidelity: Feature-based metrics (MDD, MD, SDD, SD, KD, ACD) and Stylized Facts
 - Visual Assessment: t-SNE and Distribution plots
 """
@@ -35,13 +35,13 @@ from src.models.non_parametric.wasserstein_gan import WassersteinGAN
 
 # Import evaluation metrics
 from src.evaluation.metrics.diversity import calculate_icd
+from src.evaluation.metrics.efficiency import measure_runtimes
 from src.evaluation.metrics.fidelity import (
     calculate_mdd, calculate_md, calculate_sdd, calculate_sd, calculate_kd, calculate_acd
 )
 from src.evaluation.metrics.stylized_facts import (
     heavy_tails, autocorr_raw, volatility_clustering, long_memory_abs, non_stationarity
 )
-from src.utils.performance_utils import measure_runtime, measure_peak_memory
 from src.evaluation.visualizations.plots import visualize_tsne, visualize_distribution
 from src.utils.path_utils import make_sure_path_exist
 from src.utils.display_utils import show_with_start_divider, show_with_end_divider
@@ -75,7 +75,7 @@ class UnifiedEvaluator:
                       model_name: str,
                       real_data: np.ndarray,
                       train_loader,
-                      num_generated_samples: int = 1000) -> Dict[str, Any]:
+                      num_generated_samples: int = 500) -> Dict[str, Any]:
         """
         Evaluate a single model across all metrics.
         
@@ -108,51 +108,45 @@ class UnifiedEvaluator:
             
             # 2. Generate synthetic data
             print(f"Generating {num_generated_samples} samples...")
-            
-            # Measure generation time
+            # Efficiency metrics: Measure generation time
             gen_time = measure_runtime(model.generate, num_generated_samples)
-            mlflow.log_metric("generation_time", gen_time)
-            evaluation_results["generation_time"] = gen_time
-            
-            # Measure memory usage during generation
-            memory_usage = measure_peak_memory(model.generate, num_generated_samples)
-            mlflow.log_metric("memory_usage_mb", memory_usage)
-            evaluation_results["memory_usage_mb"] = memory_usage
-            
-            # Generate the data
-            synthetic_data = model.generate(num_generated_samples)
+            mlflow.log_metric("generation_time_500_samples", gen_time)
+            evaluation_results["generation_time_500_samples"] = gen_time
+
+            # Actually generate the synthetic data
+            generated_data = model.generate(num_generated_samples)
             
             # Convert to numpy if needed
-            if torch.is_tensor(synthetic_data):
-                synthetic_data = synthetic_data.detach().cpu().numpy()
+            if torch.is_tensor(generated_data):
+                generated_data = generated_data.detach().cpu().numpy()
             
             # Ensure same shape as real data
-            if synthetic_data.shape[1:] != real_data.shape[1:]:
-                print(f"Warning: Shape mismatch. Real: {real_data.shape}, Synthetic: {synthetic_data.shape}")
+            if generated_data.shape[1:] != real_data.shape[1:]:
+                print(f"Warning: Shape mismatch. Real: {real_data.shape}, Synthetic: {generated_data.shape}")
                 # Take only the matching dimensions
-                min_length = min(real_data.shape[1], synthetic_data.shape[1])
-                min_channels = min(real_data.shape[2], synthetic_data.shape[2])
+                min_length = min(real_data.shape[1], generated_data.shape[1])
+                min_channels = min(real_data.shape[2], generated_data.shape[2])
                 real_data = real_data[:, :min_length, :min_channels]
-                synthetic_data = synthetic_data[:, :min_length, :min_channels]
+                generated_data = generated_data[:, :min_length, :min_channels]
             
             # 3. Diversity Metrics
             print("Computing diversity metrics...")
-            diversity_results = self._evaluate_diversity(synthetic_data)
+            diversity_results = self._evaluate_diversity(generated_data)
             evaluation_results.update(diversity_results)
             
             # 4. Fidelity Metrics
             print("Computing fidelity metrics...")
-            fidelity_results = self._evaluate_fidelity(real_data, synthetic_data)
+            fidelity_results = self._evaluate_fidelity(real_data, generated_data)
             evaluation_results.update(fidelity_results)
             
             # 5. Stylized Facts (for financial data)
             print("Computing stylized facts...")
-            stylized_results = self._evaluate_stylized_facts(real_data, synthetic_data)
+            stylized_results = self._evaluate_stylized_facts(real_data, generated_data)
             evaluation_results.update(stylized_results)
             
             # 6. Visual Assessments
             print("Creating visual assessments...")
-            self._create_visual_assessments(real_data, synthetic_data, model_name)
+            self._create_visual_assessments(real_data, generated_data, model_name)
             
             # Log all metrics to MLFlow
             for metric_name, value in evaluation_results.items():
@@ -169,7 +163,7 @@ class UnifiedEvaluator:
             
             # Save synthetic data
             synthetic_path = self.results_dir / f"synthetic_{model_name}_{self.timestamp}.npy"
-            np.save(synthetic_path, synthetic_data)
+            np.save(synthetic_path, generated_data)
             mlflow.log_artifact(str(synthetic_path))
             
             print(f"Evaluation completed for {model_name}")
@@ -271,9 +265,9 @@ class UnifiedEvaluator:
     def run_complete_evaluation(self, 
                               dataset_config: Dict[str, Any],
                               models_config: Dict[str, Any],
-                              num_samples: int = 1000) -> Dict[str, Any]:
+                              num_samples: int = 500) -> Dict[str, Any]:
         """
-        Run complete evaluation on all models.
+        Run complete evaluation on all models with 500 generated samples per model.
         
         Args:
             dataset_config: Configuration for data preprocessing
@@ -392,7 +386,7 @@ def main():
     results = evaluator.run_complete_evaluation(
         dataset_config=dataset_config,
         models_config=models_config,
-        num_samples=1000
+        num_samples=500
     )
     
     # Print summary
@@ -404,8 +398,7 @@ def main():
             print(f"  Error: {model_results['error']}")
         else:
             print(f"  Training Time: {model_results.get('training_time', 'N/A'):.2f}s")
-            print(f"  Generation Time: {model_results.get('generation_time', 'N/A'):.4f}s")
-            print(f"  Memory Usage: {model_results.get('memory_usage_mb', 'N/A'):.2f} MB")
+            print(f"  Generation Time (500 samples): {model_results.get('generation_time_500_samples', 'N/A'):.4f}s")
             print(f"  MDD: {model_results.get('mdd', 'N/A'):.4f}")
             print(f"  MD: {model_results.get('md', 'N/A'):.4f}")
             print(f"  SDD: {model_results.get('sdd', 'N/A'):.4f}")

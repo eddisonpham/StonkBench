@@ -7,7 +7,9 @@ __pycache__/
 
 mlruns
 
-notebooks/test_data_output/*
+# Ignore data type files: .csv, .txt, .pkl in all directories
+*.csv
+*.txt
+*.pkl
 
-data/raw/*
-data/preprocessed/*
+
