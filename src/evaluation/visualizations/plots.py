@@ -6,9 +6,6 @@ from sklearn.manifold import TSNE
 
 from src.utils.path_utils import make_sure_path_exist
 
-# Adapted from https://github.com/jsyoon0823/TimeGAN, https://openreview.net/forum?id=ez6VHWvuXEx
-
-# Removed make_sure_path_exist function
 
 def visualize_tsne(ori_data, gen_data, result_path, save_file_name):
     """

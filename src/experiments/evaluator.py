@@ -43,7 +43,6 @@ from src.evaluation.metrics.stylized_facts import (
     heavy_tails, autocorr_raw, volatility_clustering, long_memory_abs, non_stationarity
 )
 from src.evaluation.visualizations.plots import visualize_tsne, visualize_distribution
-from src.utils.path_utils import make_sure_path_exist
 from src.utils.display_utils import show_with_start_divider, show_with_end_divider
 
 
