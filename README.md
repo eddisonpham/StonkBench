@@ -70,13 +70,11 @@ Unified-benchmark-for-SDGFTS-main/
   ├─ src/
   │   ├─ models/                 # Generative model implementations
   │   ├─ preprocessing/          # Data preprocessing and transformations
-  │   ├─ evaluation_measures/
-  │   │   ├─ metrics/
-  │   │   │   ├─ diversity.py        # Diversity metrics (e.g., ICD, ED, DTW)
-  │   │   │   ├─ efficiency.py       # Efficiency metrics (runtime, memory)
-  │   │   │   ├─ fidelity.py         # Fidelity/feature metrics (MDD, MD, SDD, KD, ACD, etc.)
-  │   │   │   └─ stylized_facts.py   # Stylized facts metrics (tails, autocorr, volatility)
-  │   │   └─ visualizations/     # Visualization scripts (t-SNE, dist plots, etc.)
+  │   ├─ taxonomies/
+  │   │   ├─ diversity.py        # Diversity metrics (e.g., ICD, ED, DTW)
+  │   │   ├─ efficiency.py       # Efficiency metrics (runtime, memory)
+  │   │   ├─ fidelity.py         # Fidelity/feature metrics (MDD, MD, SDD, KD, ACD, etc.)
+  │   │   └─ stylized_facts.py   # Stylized facts metrics (tails, autocorr, volatility)
   │   ├─ utils/                  # Utility modules, IO, math, paths, etc
   │   ├─ data_downloader.py      # Dataset download utility
   │   └─ evaluator.py            # Main pipeline and evaluation runner

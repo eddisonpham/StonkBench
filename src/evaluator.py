@@ -36,15 +36,14 @@ from src.models.parametric.ou_process import OrnsteinUhlenbeckProcess
 from src.models.non_parametric.vanilla_gan import VanillaGAN
 from src.models.non_parametric.wasserstein_gan import WassersteinGAN
 
-from src.evaluation_measures.metrics.diversity import calculate_icd
-from src.evaluation_measures.metrics.efficiency import measure_runtimes
-from src.evaluation_measures.metrics.fidelity import (
-    calculate_mdd, calculate_md, calculate_sdd, calculate_sd, calculate_kd, calculate_acd
+from src.taxonomies.diversity import calculate_icd
+from src.taxonomies.efficiency import measure_runtimes
+from src.taxonomies.fidelity import (
+    calculate_mdd, calculate_md, calculate_sdd, calculate_sd, calculate_kd, calculate_acd, visualize_tsne, visualize_distribution
 )
-from src.evaluation_measures.metrics.stylized_facts import (
+from src.taxonomies.stylized_facts import (
     heavy_tails, autocorr_raw, volatility_clustering, long_memory_abs, non_stationarity
 )
-from src.evaluation_measures.visualizations.plots import visualize_tsne, visualize_distribution
 
 from src.utils.display_utils import show_with_start_divider, show_with_end_divider
 from src.utils.transformations_utils import (

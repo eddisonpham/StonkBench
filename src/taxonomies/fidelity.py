@@ -1,9 +1,11 @@
 """
-Feature-based metrics for evaluating the fidelity of generated time series data.
+Feature-based metrics and visualizations for evaluating the fidelity of generated time series data.
 
-This module provides a set of metrics that compare the statistical properties of generated data
-to real/original data, focusing on feature-level distributions and moments. The metrics include:
+This module provides a set of metrics and visualizations for assessing how well generated data
+matches the statistical and distributional characteristics of real/original data, focusing on
+feature-level properties and summary statistics.
 
+Feature-based Metrics:
 - Marginal Distribution Distance (MDD): Histogram-based distance between real and generated data.
 - Mean Distance (MD): Difference in means between real and generated data.
 - Standard Deviation Distance (SDD): Difference in standard deviations.
@@ -11,15 +13,25 @@ to real/original data, focusing on feature-level distributions and moments. The 
 - Kurtosis Distance (KD): Difference in kurtosis.
 - Autocorrelation Distance (ACD): Difference in autocorrelation structure.
 
+Visualizations:
+- t-SNE visualization: 2D projection to compare overall structure of real and generated samples.
+- Marginal Distribution Plot: Kernel density estimate (KDE) comparing sample distributions.
+
 All metrics are implemented as PyTorch modules for easy integration with deep learning workflows.
 """
 
+import os
 import torch
 import numpy as np
 from torch import nn
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
 from typing import List, Tuple
 
 from src.utils.math_utils import histogram_torch, acf_torch, non_stationary_acf_torch, skew_torch, kurtosis_torch, acf_diff
+from src.utils.path_utils import make_sure_path_exist
+
 
 class Loss(nn.Module):
     """
@@ -328,3 +340,109 @@ def calculate_kd(ori_data, gen_data):
     kd = kurtosis.compute(gen_data).mean()
     kd = float(kd.numpy())
     return kd
+
+def visualize_tsne(ori_data, gen_data, result_path, save_file_name):
+    """
+    Visualize the similarity between original and generated data using t-SNE.
+
+    This function projects both original and generated data into a 2D space using t-SNE,
+    and saves a scatter plot showing the two distributions for visual comparison.
+
+    Args:
+        ori_data (np.ndarray): Original data of shape (n_samples, ...).
+        gen_data (np.ndarray): Generated data of shape (n_samples, ...).
+        result_path (str): Directory where the plot will be saved.
+        save_file_name (str): Suffix for the saved plot filename.
+
+    Notes:
+        - Only up to 1000 samples are randomly selected for visualization.
+        - Each sample is reduced to its mean across axis=1 before t-SNE.
+        - The resulting plot is saved as 'tsne_{save_file_name}.png' in result_path.
+    """
+    sample_num = min([1000, len(ori_data)])
+    idx = np.random.permutation(len(ori_data))[:sample_num]
+
+    ori_data = ori_data[idx]
+    gen_data = gen_data[idx]
+
+    # Reduce each sample to its mean value (flattening across features/timesteps)
+    prep_data = np.mean(ori_data, axis=1)
+    prep_data_hat = np.mean(gen_data, axis=1)
+
+    # Assign colors for plotting: C0 for original, C1 for generated
+    colors = ["C0" for _ in range(sample_num)] + ["C1" for _ in range(sample_num)]    
+    
+    # Concatenate original and generated data for joint t-SNE
+    prep_data_final = np.concatenate((prep_data, prep_data_hat), axis=0)
+    
+    # Fit t-SNE to the combined data
+    tsne = TSNE(n_components=2, verbose=0, perplexity=30, n_iter=1000, random_state=42)
+    tsne_results = tsne.fit_transform(prep_data_final)
+
+    # Create scatter plot
+    fig, ax = plt.subplots(1, 1, figsize=(2, 2))
+    ax.scatter(tsne_results[:sample_num, 0], tsne_results[:sample_num, 1], 
+               c=colors[:sample_num], alpha=0.5, label="Original", s=5)
+    ax.scatter(tsne_results[sample_num:, 0], tsne_results[sample_num:, 1], 
+               c=colors[sample_num:], alpha=0.5, label="Generated", s=5)
+
+    # Remove grid and axis ticks for a cleaner look
+    ax.grid(False)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xlabel('')
+    ax.set_ylabel('')
+    for pos in ['top', 'bottom', 'left', 'right']:
+        ax.spines[pos].set_visible(False)
+
+    # Save the plot
+    save_path = os.path.join(result_path, 'tsne_' + save_file_name + '.png')
+    make_sure_path_exist(save_path)
+    plt.savefig(save_path, dpi=400, bbox_inches='tight')
+
+
+def visualize_distribution(ori_data, gen_data, result_path, save_file_name):
+    """
+    Visualize the marginal distributions of original and generated data using KDE plots.
+
+    This function plots the kernel density estimate (KDE) of the mean values of each sample
+    from both the original and generated datasets, allowing for visual comparison of their
+    distributions.
+
+    Args:
+        ori_data (np.ndarray): Original data of shape (n_samples, ...).
+        gen_data (np.ndarray): Generated data of shape (n_samples, ...).
+        result_path (str): Directory where the plot will be saved.
+        save_file_name (str): Suffix for the saved plot filename.
+
+    Notes:
+        - Only up to 1000 samples are randomly selected for visualization.
+        - Each sample is reduced to its mean across axis=1 before plotting.
+        - The resulting plot is saved as 'distribution_{save_file_name}.png' in result_path.
+        - The x-axis is limited to [0, 1] for consistency.
+    """
+    sample_num = min([1000, len(ori_data)])
+    idx = np.random.permutation(len(ori_data))[:sample_num]
+
+    ori_data = ori_data[idx]
+    gen_data = gen_data[idx]
+
+    # Reduce each sample to its mean value (flattening across features/timesteps)
+    prep_data = np.mean(ori_data, axis=1)
+    prep_data_hat = np.mean(gen_data, axis=1)
+
+    # Create KDE plots for both original and generated data
+    fig, ax = plt.subplots(1, 1, figsize=(2, 2))
+    sns.kdeplot(prep_data.flatten(), color='C0', linewidth=2, label='Original', ax=ax)
+    sns.kdeplot(prep_data_hat.flatten(), color='C1', linewidth=2, linestyle='--', label='Generated', ax=ax)
+
+    ax.set_xlabel('')
+    ax.set_ylabel('')
+    ax.set_xlim(0, 1)
+    for pos in ['top', 'right']:
+        ax.spines[pos].set_visible(False)
+
+    # Save the plot
+    save_path = os.path.join(result_path, 'distribution_' + save_file_name + '.png')
+    make_sure_path_exist(save_path)
+    plt.savefig(save_path, dpi=400, bbox_inches='tight')
