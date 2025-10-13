@@ -9,10 +9,7 @@ Key Features:
 - Path management and directory creation
 - Display utilities for progress tracking
 """
-import os
-import mgzip
-import pickle
-import json
+
 import torch
 import numpy as np
 import pandas as pd
@@ -22,7 +19,6 @@ from torch.utils.data import Dataset, DataLoader
 from scipy.signal import argrelextrema
 
 from src.utils.display_utils import show_divider, show_with_start_divider, show_with_end_divider
-from src.utils.path_utils import make_sure_path_exist
 
 
 class MinMaxScaler():

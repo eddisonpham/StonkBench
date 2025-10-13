@@ -38,11 +38,8 @@ from src.preprocessing.transformers import (
     sliding_window_view
 )
 from src.utils.path_utils import make_sure_path_exist
-from src.utils.dat_io_utils import (
-    save_pickle_file,
-    load_pickle_file,
-    read_csv_data 
-)
+from src.utils.dat_io_utils import read_csv_data 
+
 from src.utils.display_utils import (
     show_with_start_divider,
     show_with_end_divider
@@ -51,50 +48,55 @@ from src.utils.display_utils import (
 
 def preprocess_data(cfg):
     """
-    Implement the complete TSGBench standardized preprocessing pipeline.
-    
-    The final dataset has shape (R, l, N) where R = L - l + 1, l is sequence length, N is variables.
-    
+    Implements the complete TSGBench standardized preprocessing pipeline for both parametric and non-parametric model types.
+
+    For non-parametric models:
+        - Outputs: Dataset of shape (R, l, N), where R = L - l + 1, l is the sub-sequence length, and N is the number of variables.
+        - Process: Data is segmented into overlapping sub-sequences of length l with a stride of 1, optionally normalized.
+
+    For parametric models:
+        - Outputs: The original (or interpolated) data of shape (l, N) (no segmentation; l = original sequence length).
+        - Process: No sub-sequencing is performed; only missing values are imputed if present.
+
     Args:
         cfg (dict): Configuration dictionary containing preprocessing parameters:
-            - original_data_path (str): Path to the original data file
-            - output_ori_path (str): Output directory for preprocessed data (default: './data/preprocessed/')
-            - dataset_name (str): Name of the dataset (default: 'dataset')
-            - seq_length (int): Manual sequence length l (default: None for auto-detection)
-            - valid_ratio (float): Validation set ratio (default: 0.1 for 9:1 split)
-            - do_normalization (bool): Whether to normalize to [0, 1] (default: True)
-            - seed (int, optional): Random seed for reproducible shuffling (default: None)
-    
+            - original_data_path (str): Path to the original data file.
+            - seq_length (int, optional): Sub-sequence length l for segmentation (default: None; automatically determined if not supplied).
+            - valid_ratio (float, optional): Fraction of data for validation (default: 0.1, corresponds to 9:1 train-validation split).
+            - do_normalization (bool, optional): Whether to normalize data to [0, 1] (default: True).
+            - is_parametric (bool, optional): If True, run parametric preprocessing (no segmentation); if False, run non-parametric (default: False).
+            - seed (int, optional): Random seed for reproducibility.
+
     Returns:
-        tuple: (train_data, valid_data) - Preprocessed datasets with shape (R_train, l, N), (R_valid, l, N)
-               Returns None if preprocessing fails
-        
-    Output Files:
-        - {dataset_name}_train.pkl: Compressed training data with shape (R_train, l, N)
-        - {dataset_name}_valid.pkl: Compressed validation data with shape (R_valid, l, N)
+        tuple or None: 
+            - If successful: (train_data, valid_data)
+                * For non-parametric (np.ndarray): arrays of shape (R_train, l, N) and (R_valid, l, N)
+                * For parametric (torch.Tensor): arrays of shape (l, N) for both train and validation splits (if splitting applied)
+            - If preprocessing fails: None
     """
     show_with_start_divider(f"Data preprocessing with settings:{cfg}")
 
+    # Extract preprocessing configurations
     ori_data_path = cfg.get('original_data_path',None)
-    output_ori_path = cfg.get('output_ori_path',r'./data/preprocessed/')
-    dataset_name = cfg.get('dataset_name','dataset')
     seq_length = cfg.get('seq_length',None)
     valid_ratio = cfg.get('valid_ratio',0.1)
     do_normalization = cfg.get('do_normalization',True)
+    is_parametric = cfg.get('is_parametric', False)
     seed = cfg.get('seed', None)
 
+    # Data path exists?
     if not os.path.exists(ori_data_path):
         curr_dir = os.getcwd()
         print(f"Current working directory: {curr_dir}")
         show_with_end_divider(f'Original file path {ori_data_path} does not exist.')
         return None
     
+    # Determine extension to read from
     _, ext = os.path.splitext(ori_data_path)
     try:
         if ext == '.csv':
+            # Read the CSV data and convert Date (ISO 8601) to seconds since epoch
             ori_data = read_csv_data(ori_data_path)
-        elif ext == '.pkl':
-            ori_data = load_pickle_file(ori_data_path)
         else:
             show_with_end_divider(f"Error: Unsupported file extension: {ext}")
             return None
@@ -102,125 +104,53 @@ def preprocess_data(cfg):
         show_with_end_divider(f"Error: An error occurred during reading data: {e}.")
         return None
 
+    # Impute missing value with interpolation
     if np.isnan(ori_data).any():
         if not isinstance(ori_data, pd.DataFrame):
             df = pd.DataFrame(ori_data)
         df = df.interpolate(axis=1)
         ori_data = df.to_numpy()
-    
-    if seq_length is None:
-        window_all = np.apply_along_axis(find_length, axis=0, arr=ori_data)
-        seq_length = int(np.mean(window_all))
 
-    windowed_data = sliding_window_view(ori_data, seq_length)
-    
-    if seed is not None:
-        np.random.seed(seed)
-        random.seed(seed)
-    idx = np.random.permutation(len(windowed_data))
-    data = windowed_data[idx]
-    print('Data shape:', data.shape) 
+    # Early return entire preprocessed dataset if parametric
+    if is_parametric:
+        ori_data = torch.from_numpy(ori_data)
+        print('Data shape:', tuple(ori_data.size()))
+        train_len = int(ori_data.shape[0] * (1 - valid_ratio))
+        train_data = ori_data[:train_len]
+        valid_data = ori_data[train_len:]
+        return train_data, valid_data
+    else:
+        if seq_length is None:
+            window_all = np.apply_along_axis(find_length, axis=0, arr=ori_data[:, 1:])
+            seq_length = int(np.mean(window_all))
 
-    train_len = int(data.shape[0] * (1 - valid_ratio))
-    train_data = data[:train_len]
-    valid_data = data[train_len:]
-
-    if do_normalization:
-        scaler = MinMaxScaler()        
-        train_data = scaler.fit_transform(train_data)
-        valid_data = scaler.transform(valid_data)
-    
-    output_path = os.path.join(output_ori_path,dataset_name)
-    make_sure_path_exist(output_path+os.sep)
-    save_pickle_file(train_data, os.path.join(output_path,f'{dataset_name}_train.pkl'))
-    save_pickle_file(valid_data, os.path.join(output_path,f'{dataset_name}_valid.pkl'))
-
-    show_with_end_divider(f'Preprocessing done. Preprocessed files saved to {output_path}.')
-    return train_data, valid_data
-
-def load_preprocessed_data(cfg):
-    """
-    Load previously preprocessed time series data from compressed pickle files.
-    
-    This function loads training and validation datasets that were previously processed
-    by the preprocess_data function. The data is stored in compressed pickle format
-    using mgzip for efficient storage and loading.
-    
-    Args:
-        cfg (dict): Configuration dictionary containing loading parameters:
-            - dataset_name (str): Name of the dataset to load (default: 'dataset')
-            - output_ori_path (str): Directory containing preprocessed data (default: './data/preprocessed/')
-    
-    Returns:
-        tuple: (train_data, valid_data) - Loaded training and validation datasets
-               Returns None if loading fails or files don't exist
-    """
-    show_with_start_divider(f"Load preprocessed data with settings:{cfg}")
-
-    dataset_name = cfg.get('dataset_name','dataset')
-    output_ori_path = cfg.get('output_ori_path',r'./data/preprocessed/')
-
-    file_path = os.path.join(output_ori_path,dataset_name)
-    train_data_path = os.path.join(file_path,f'{dataset_name}_train.pkl')
-    valid_data_path = os.path.join(file_path,f'{dataset_name}_valid.pkl')
-
-    if not os.path.exists(train_data_path) or not os.path.exists(valid_data_path):
-        show_with_end_divider(f'Error: Preprocessed file in {file_path} does not exist.')
-        return None
-    try:
-        train_data = load_pickle_file(train_data_path)
-        valid_data = load_pickle_file(valid_data_path)
-    except Exception as e:
-        show_with_end_divider(f"Error: An error occurred during reading data: {e}.")
-        return None
-
-    show_with_end_divider(f'Preprocessed dataset {dataset_name} loaded.')
-    return train_data, valid_data
-
-def create_dataset_from_preprocessed(cfg, batch_size=32, train_seed=None, valid_seed=None, 
-                                   num_workers=0, pin_memory=False):
-    """
-    Create PyTorch datasets and dataloaders from preprocessed data files.
-    
-    This function loads preprocessed data and creates properly configured PyTorch
-    datasets and dataloaders with seed support for reproducible training.
-    
-    Args:
-        cfg (dict): Configuration dictionary containing:
-            - dataset_name (str): Name of the dataset to load
-            - output_ori_path (str): Directory containing preprocessed data
-        batch_size (int): Batch size for DataLoaders (default: 32)
-        train_seed (int, optional): Seed for training data shuffling (default: None)
-        valid_seed (int, optional): Seed for validation data shuffling (default: None)
-        num_workers (int): Number of worker processes for data loading (default: 0)
-        pin_memory (bool): Whether to pin memory for faster GPU transfer (default: False)
+        windowed_data = sliding_window_view(ori_data, seq_length)
         
-    Returns:
-        tuple: (train_loader, valid_loader, train_dataset, valid_dataset)
-               Returns None if loading fails
-    """
-    show_with_start_divider(f"Creating datasets from preprocessed data with settings: {cfg}")
-    
-    train_data, valid_data = load_preprocessed_data(cfg)
-    
-    if train_data is None or valid_data is None:
-        show_with_end_divider("Failed to load preprocessed data")
-        return None
+        if seed is not None:
+            np.random.seed(seed)
+            random.seed(seed)
+        idx = np.random.permutation(len(windowed_data))
+        data = windowed_data[idx]
+        print('Data shape:', data.shape) 
 
-    train_loader, valid_loader = create_dataloaders(
-        train_data, valid_data, 
-        batch_size=batch_size,
-        train_seed=train_seed,
-        valid_seed=valid_seed,
-        num_workers=num_workers,
-        pin_memory=pin_memory
-    )
-    
-    train_dataset = train_loader.dataset
-    valid_dataset = valid_loader.dataset
-    
-    show_with_end_divider(f'Created datasets and dataloaders successfully')
-    print(f"Train batches: {len(train_loader)}, Valid batches: {len(valid_loader)}")
-    print(f"Batch size: {batch_size}, Train seed: {train_seed}, Valid seed: {valid_seed}")
-    
-    return train_loader, valid_loader, train_dataset, valid_dataset
+        train_len = int(data.shape[0] * (1 - valid_ratio))
+        train_data = data[:train_len]
+        valid_data = data[train_len:]
+
+        if do_normalization:
+            scaler = MinMaxScaler()
+
+            # All but the timestamp channel
+            train_feats = train_data[:, :, 1:]
+            valid_feats = valid_data[:, :, 1:]
+
+            # Fit multivariate MinMaxScaler on all but timestamp channel
+            train_feats = scaler.fit_transform(train_feats)
+            valid_feats = scaler.transform(valid_feats)
+
+            # Concatenate channelwise
+            train_data = np.concatenate([train_data[:, :, [0]], train_feats], axis=-1)
+            valid_data = np.concatenate([valid_data[:, :, [0]], valid_feats], axis=-1)
+
+    show_with_end_divider(f'Preprocessing done.')
+    return train_data, valid_data
