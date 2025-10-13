@@ -30,7 +30,7 @@ from pathlib import Path
 import torch
 import random
 
-from src.preprocessing.transformers import (
+from src.utils.transformations_utils import (
     MinMaxScaler, 
     TimeSeriesDataset,
     create_dataloaders,

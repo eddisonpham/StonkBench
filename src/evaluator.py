@@ -25,25 +25,32 @@ project_root = Path(__file__).resolve().parents[2]
 sys.path.append(str(project_root))
 
 from src.preprocessing.preprocessing import preprocess_data
-from src.preprocessing.transformers import TimeSeriesDataset, create_dataloaders
 
-from src.models.base.base_model import BaseGenerativeModel, ParametricModel, DeepLearningModel
+from src.models.base.base_model import (
+    BaseGenerativeModel,
+    ParametricModel,
+    DeepLearningModel
+)
 from src.models.parametric.gbm import GeometricBrownianMotion
 from src.models.parametric.ou_process import OrnsteinUhlenbeckProcess
 from src.models.non_parametric.vanilla_gan import VanillaGAN
 from src.models.non_parametric.wasserstein_gan import WassersteinGAN
 
-# Import evaluation metrics
-from src.evaluation.metrics.diversity import calculate_icd
-from src.evaluation.metrics.efficiency import measure_runtimes
-from src.evaluation.metrics.fidelity import (
+from src.evaluation_measures.metrics.diversity import calculate_icd
+from src.evaluation_measures.metrics.efficiency import measure_runtimes
+from src.evaluation_measures.metrics.fidelity import (
     calculate_mdd, calculate_md, calculate_sdd, calculate_sd, calculate_kd, calculate_acd
 )
-from src.evaluation.metrics.stylized_facts import (
+from src.evaluation_measures.metrics.stylized_facts import (
     heavy_tails, autocorr_raw, volatility_clustering, long_memory_abs, non_stationarity
 )
-from src.evaluation.visualizations.plots import visualize_tsne, visualize_distribution
+from src.evaluation_measures.visualizations.plots import visualize_tsne, visualize_distribution
+
 from src.utils.display_utils import show_with_start_divider, show_with_end_divider
+from src.utils.transformations_utils import (
+    TimeSeriesDataset,
+    create_dataloaders
+)
 
 
 class UnifiedEvaluator:
@@ -108,7 +115,7 @@ class UnifiedEvaluator:
             # 2. Generate synthetic data
             print(f"Generating {num_generated_samples} samples...")
             # Efficiency metrics: Measure generation time
-            gen_time = measure_runtime(model.generate, num_generated_samples)
+            gen_time = measure_runtimes(model.generate, num_generated_samples)
             mlflow.log_metric("generation_time_500_samples", gen_time)
             evaluation_results["generation_time_500_samples"] = gen_time
 
@@ -360,8 +367,8 @@ def main():
     
     # Configuration for data preprocessing
     dataset_config = {
-        'original_data_path': str(project_root / 'data' / 'raw' / 'GOOG' / 'GOOG.csv'), # Updated path
-        'output_ori_path': str(project_root / 'data' / 'preprocessed'), # Updated path
+        'original_data_path': str(project_root / 'data' / 'raw' / 'GOOG' / 'GOOG.csv'),
+        'output_ori_path': str(project_root / 'data' / 'preprocessed'),
         'dataset_name': 'goog_stock_evaluation',
         'valid_ratio': 0.2,
         'do_normalization': True,
