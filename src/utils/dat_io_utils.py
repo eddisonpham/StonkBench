@@ -10,7 +10,7 @@ import pickle
 import mgzip
 import io
 
-REQUIRED_COLUMNS = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+REQUIRED_COLUMNS = ['Date', 'Open', 'High', 'Low', 'Close']
 
 def read_csv_data(path):
     """

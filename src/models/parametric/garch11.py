@@ -143,27 +143,42 @@ class GARCH11(ParametricModel):
 
         return {"mu": self.mu, "omega": self.omega, "alpha": self.alpha, "beta": self.beta}
 
-    # -----------------------
-    # --- Sample / Generate ---
-    # -----------------------
-    def _get_dt_sequence(self, l_out: int):
-        # The logic here is fine for providing the sequence length, but the GARCH model
-        # ignores the magnitude of dt. We only need the length L.
-        if l_out <= 1:
-            return np.array([], dtype=np.float32)
-        if hasattr(self, "timestamps") and self.timestamps is not None and len(self.timestamps) > 1:
-            dt_seq = np.diff(self.timestamps).astype(np.float32)
-            if len(dt_seq) >= l_out - 1:
-                return dt_seq[: l_out - 1]
-            # Pad with the last observed dt
-            pad = np.full((l_out - 1 - len(dt_seq),), dt_seq[-1], dtype=np.float32)
-            return np.concatenate([dt_seq, pad])
+    def _get_dt_sequence(self, l_out: int, linear_timestamps: bool = False):
+        """
+        Return a dt sequence of length l_out (dt for steps between samples).
+
+        If linear_timestamps=True, generate l_out timestamps that are linearly spaced
+        with each increment equal to mean(dt). The output dt_seq is of length l_out-1.
+
+        If linear_timestamps=False, use fitted per-step dt where possible, and fill by mean_dt or last dt.
+
+        Args:
+            l_out (int): Number of output timestamps (so returned sequence is length l_out-1)
+            linear_timestamps (bool): If True, ignore fitted timestamps and generate uniform dt sequence.
+
+        Returns:
+            numpy.ndarray: Array of dt increments of length l_out-1.
+        """
+        assert hasattr(self, "timestamps"), "Timestamps attribute is required to generate a dt sequence, but was not found on this object."
+        
+        fitted_dt = np.diff(self.timestamps).astype(np.float64)
+        mean_dt = float(np.mean(fitted_dt)) if len(fitted_dt) > 0 else 1.0
+
+        if linear_timestamps:
+            return np.full((l_out - 1,), mean_dt, dtype=np.float32)
         else:
-            # Fallback to unit time steps if no data was fitted
-            return np.ones(l_out - 1, dtype=np.float32)
+            if len(fitted_dt) == l_out - 1:
+                return fitted_dt.astype(np.float32)
+            if len(fitted_dt) > l_out - 1:
+                return fitted_dt[: l_out - 1].astype(np.float32)
+            else:
+                pad = np.full((l_out - 1 - len(fitted_dt),), fitted_dt[-1] if len(fitted_dt) > 0 else mean_dt, dtype=np.float32)
+                return np.concatenate([fitted_dt.astype(np.float32), pad]).astype(np.float32)
 
     def generate(self, num_samples: int, initial_value: Optional[np.ndarray] = None,
-                 output_length: Optional[int] = None, seed: Optional[int] = None):
+            output_length: Optional[int] = None, seed: Optional[int] = None,
+            linear_timestamps: Optional[bool] = None
+        ):
         if seed is not None:
             torch.manual_seed(seed)
             np.random.seed(seed)
@@ -173,7 +188,7 @@ class GARCH11(ParametricModel):
         N = self.num_channels
         channels = N - 1
 
-        dt_seq = self._get_dt_sequence(L)
+        dt_seq = self._get_dt_sequence(L, linear_timestamps=linear_timestamps)
 
         # ... (Timestamp and initial value setup is correct and unchanged) ...
         # timestamps
