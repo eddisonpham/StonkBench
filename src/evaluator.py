@@ -14,27 +14,24 @@ import os
 import numpy as np
 import torch
 import mlflow
-import mlflow.pytorch
 from pathlib import Path
 import time
 import json
 from datetime import datetime
-from typing import Dict, List, Tuple, Any
+from typing import Dict, Any, Union
 
-project_root = Path(__file__).resolve().parents[2]
+project_root = Path().resolve().parents[0]
 sys.path.append(str(project_root))
 
 from src.preprocessing.preprocessing import preprocess_data
 
-from src.models.base.base_model import (
-    BaseGenerativeModel,
-    ParametricModel,
-    DeepLearningModel
-)
+from src.models.base.base_model import ParametricModel, DeepLearningModel
 from src.models.parametric.gbm import GeometricBrownianMotion
 from src.models.parametric.ou_process import OrnsteinUhlenbeckProcess
-from src.models.non_parametric.vanilla_gan import VanillaGAN
-from src.models.non_parametric.wasserstein_gan import WassersteinGAN
+from src.models.parametric.merton_jump_diffusion import MertonJumpDiffusion
+from src.models.parametric.garch11 import GARCH11
+from src.models.parametric.de_jump_diffusion import DoubleExponentialJumpDiffusion
+from src.models.non_parametric.time_gan import TimeGAN
 
 from src.taxonomies.diversity import calculate_icd
 from src.taxonomies.efficiency import measure_runtimes
@@ -46,10 +43,7 @@ from src.taxonomies.stylized_facts import (
 )
 
 from src.utils.display_utils import show_with_start_divider, show_with_end_divider
-from src.utils.transformations_utils import (
-    TimeSeriesDataset,
-    create_dataloaders
-)
+from src.utils.transformations_utils import create_dataloaders
 
 
 class UnifiedEvaluator:
@@ -76,7 +70,7 @@ class UnifiedEvaluator:
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
     def evaluate_model(self, 
-                      model: BaseGenerativeModel, 
+                      model: Union[DeepLearningModel, ParametricModel], 
                       model_name: str,
                       real_data: np.ndarray,
                       train_loader,
@@ -153,13 +147,21 @@ class UnifiedEvaluator:
             print("Creating visual assessments...")
             self._create_visual_assessments(real_data, generated_data, model_name)
             
-            # Log all metrics to MLFlow
+            # Log all metrics to MLFlow and save to results dictionary
             for metric_name, value in evaluation_results.items():
                 if isinstance(value, (int, float)):
                     mlflow.log_metric(metric_name, value)
                 elif isinstance(value, np.ndarray):
                     mlflow.log_metric(f"{metric_name}_mean", float(np.mean(value)))
                     mlflow.log_metric(f"{metric_name}_std", float(np.std(value)))
+                # Save all metrics to results dictionary
+                self.results[model_name] = evaluation_results
+
+            # Save evaluation results to JSON
+            results_path = self.results_dir / f"metrics_{model_name}_{self.timestamp}.json"
+            with open(results_path, 'w') as f:
+                json.dump(evaluation_results, f, indent=2, default=str)
+            mlflow.log_artifact(str(results_path))
             
             # Save model
             model_path = self.results_dir / f"{model_name}_{self.timestamp}"
@@ -284,11 +286,18 @@ class UnifiedEvaluator:
         """
         show_with_start_divider("Starting Complete Evaluation Pipeline")
         
-        # 1. Preprocess data
-        print("Preprocessing data...")
-        train_data_np, valid_data_np = preprocess_data(dataset_config)
+        # Separate preprocessing for parametric and non-parametric models
+        print("Preprocessing data for non-parametric models...")
+        non_parametric_config = dataset_config.copy()
+        non_parametric_config['is_parametric'] = False
+        train_data_np, valid_data_np = preprocess_data(non_parametric_config)
         
-        # Create data loaders
+        print("Preprocessing data for parametric models...")
+        parametric_config = dataset_config.copy()
+        parametric_config['is_parametric'] = True
+        train_data_param, valid_data_param = preprocess_data(parametric_config)
+        
+        # Create data loaders for non-parametric models
         batch_size = 32
         train_loader, valid_loader = create_dataloaders(
             train_data_np, valid_data_np,
@@ -301,58 +310,57 @@ class UnifiedEvaluator:
         
         # Get data dimensions
         num_samples_real, length, num_channels = train_data_np.shape
-        print(f"Data shape: {train_data_np.shape}")
+        print(f"Non-parametric data shape: {train_data_np.shape}")
+        print(f"Parametric data shape: {train_data_param.shape}")
         
-        # 2. Initialize models
+        # Initialize models
         models = {}
         
         # Parametric models
         models["GBM"] = GeometricBrownianMotion(length=length, num_channels=num_channels)
         models["OU_Process"] = OrnsteinUhlenbeckProcess(length=length, num_channels=num_channels)
-        
+        models["Merton_Jump_Diffusion"] = MertonJumpDiffusion(length=length, num_channels=num_channels)
+        models["GARCH11"] = GARCH11(length=length, num_channels=num_channels)
+        models["Double_Exponential_Jump_Diffusion"] = DoubleExponentialJumpDiffusion(length=length, num_channels=num_channels)
+
         # Non-parametric models
-        models["Vanilla_GAN"] = VanillaGAN(
-            length=length, 
-            num_channels=num_channels, 
+        models["TimeGAN"] = TimeGAN(
+            l=length,
+            N=num_channels,
             latent_dim=models_config.get("latent_dim", 64),
             hidden_dim=models_config.get("hidden_dim", 128),
             lr=models_config.get("lr", 0.0002)
         )
         
-        # Fix WassersteinGAN to inherit properly
-        models["Wasserstein_GAN"] = WassersteinGAN(
-            length=length, 
-            num_channels=num_channels,
-            latent_dim=models_config.get("latent_dim", 64),
-            hidden_dim=models_config.get("hidden_dim", 128),
-            lr=models_config.get("wgan_lr", 0.00005),
-            n_critic=models_config.get("n_critic", 5),
-            clip_value=models_config.get("clip_value", 0.01)
-        )
-        
-        # 3. Evaluate each model
+        # Evaluate each model
         all_results = {}
         for model_name, model in models.items():
             try:
-                results = self.evaluate_model(
-                    model=model,
-                    model_name=model_name,
-                    real_data=valid_data_np,  # Use validation data for evaluation
-                    train_loader=train_loader,
-                    num_generated_samples=num_samples
-                )
+                if isinstance(model, ParametricModel):
+                    results = self.evaluate_model(
+                        model=model,
+                        model_name=model_name,
+                        real_data=valid_data_param,  # Parametric data
+                        train_loader=None,  # Not used for parametric models
+                        num_generated_samples=num_samples
+                    )
+                else:
+                    results = self.evaluate_model(
+                        model=model,
+                        model_name=model_name,
+                        real_data=valid_data_np,  # Non-parametric data
+                        train_loader=train_loader,  # DataLoader for non-parametric models
+                        num_generated_samples=num_samples
+                    )
                 all_results[model_name] = results
-                
             except Exception as e:
                 print(f"Error evaluating {model_name}: {e}")
                 all_results[model_name] = {"error": str(e)}
         
-        # 4. Save comprehensive results
+        # Save comprehensive results for all models
         results_file = self.results_dir / f"complete_evaluation_{self.timestamp}.json"
         with open(results_file, 'w') as f:
-            json.dump(all_results, f, indent=2, default=str)
-        
-        # Log results to MLFlow
+            json.dump(self.results, f, indent=2, default=str)
         mlflow.log_artifact(str(results_file))
         
         show_with_end_divider("EVALUATION COMPLETE")
@@ -367,8 +375,6 @@ def main():
     # Configuration for data preprocessing
     dataset_config = {
         'original_data_path': str(project_root / 'data' / 'raw' / 'GOOG' / 'GOOG.csv'),
-        'output_ori_path': str(project_root / 'data' / 'preprocessed'),
-        'dataset_name': 'goog_stock_evaluation',
         'valid_ratio': 0.2,
         'do_normalization': True,
         'seed': 42
@@ -379,7 +385,6 @@ def main():
         'latent_dim': 64,
         'hidden_dim': 128,
         'lr': 0.0002,
-        'wgan_lr': 0.00005,
         'n_critic': 5,
         'clip_value': 0.01
     }

@@ -165,7 +165,7 @@ class TimeGAN(DeepLearningModel):
         self.mean_dt = np.mean(all_dts)
         print(f"Average normalized Δt from training: {self.mean_dt:.4f}")
 
-    def generate(self, num_samples, timestamps=None, linear_timestamps=False, future_length=None):
+    def generate(self, num_samples, timestamps=None, linear_timestamps=False, future_length=None, initial_price=0):
         self.generator.eval()
         self.supervisor.eval()
         self.recovery.eval()
