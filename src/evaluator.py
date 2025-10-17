@@ -10,7 +10,6 @@ all implemented models across different evaluation metrics:
 """
 
 import sys
-import os
 import numpy as np
 import torch
 import mlflow
@@ -20,7 +19,8 @@ import json
 from datetime import datetime
 from typing import Dict, Any, Union
 
-project_root = Path().resolve().parents[0]
+# Dynamically set the project root based on the script's location
+project_root = Path(__file__).resolve().parent.parent
 sys.path.append(str(project_root))
 
 from src.preprocessing.preprocessing import preprocess_data

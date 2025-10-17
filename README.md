@@ -31,17 +31,19 @@ python src/evaluator.py
 ```
 
 **What happens:**
-- ⚙️ Data is preprocessed (see configs in `main()` of `src/evaluator.py`)
-- 🤖 Several generative models are trained
-- 🧬 Each model generates exactly **500 samples**
-- 📊 All taxonomy metrics (fidelity, diversity, efficiency and utility) are computed.
+- ⚙️ **Data Preprocessing**:
+  - **Non-parametric models**: The data is segmented into overlapping sub-sequences of shape `(R, l, N)` where `R` is the number of sequences, `l` is the sequence length, and `N` is the number of features.
+  - **Parametric models**: The original time series is used without segmentation, resulting in data of shape `(l, N)`.
+- 🤖 Several generative models (both parametric and non-parametric) are trained.
+- 🧬 Each model generates exactly **500 samples**.
+- 📊 All taxonomy metrics (fidelity, diversity, efficiency, and stylized facts) are computed.
 - Results are:
-  - 🖥️ Printed in the console
-  - 📝 Saved to a detailed JSON file in the results directory
-  - 📦 Tracked as an experiment in **MLFlow** with all parameters, scores, and output artifacts
+  - 🖥️ Printed in the console.
+  - 📝 Saved to a detailed JSON file in the results directory.
+  - 📦 Tracked as an experiment in **MLFlow** with all parameters, scores, and output artifacts.
 
 #### Customizing runs:
-- ✍️ Edit `dataset_config` and `models_config` dictionaries in [`src/evaluator.py`](src/experiments/evaluator.py) to change paths, sample counts, model parameters, etc.
+- ✍️ Edit `dataset_config` and `models_config` dictionaries in [`src/evaluator.py`](src/evaluator.py) to change paths, sample counts, model parameters, etc.
 
 ### 4. 📊 Viewing Results in MLFlow
 
@@ -75,7 +77,7 @@ Unified-benchmark-for-SDGFTS-main/
   │   │   ├─ efficiency.py       # Efficiency metrics (runtime, memory)
   │   │   ├─ fidelity.py         # Fidelity/feature metrics (MDD, MD, SDD, KD, ACD, etc.)
   │   │   └─ stylized_facts.py   # Stylized facts metrics (tails, autocorr, volatility)
-  │   ├─ utils/                  # Utility modules, IO, math, paths, etc
+  │   ├─ utils/                  # Utility modules, IO, math, paths, etc.
   │   ├─ data_downloader.py      # Dataset download utility
   │   └─ evaluator.py            # Main pipeline and evaluation runner
   ├─ configs/                    # Experiment and preprocessing config templates
@@ -105,6 +107,7 @@ The benchmark supports a range of both traditional parametric models and modern 
 
 - <kbd>Vanilla GAN</kbd>
 - <kbd>Wasserstein GAN</kbd>
+- <kbd>TimeGAN</kbd>
 
 </details>
 
@@ -113,7 +116,6 @@ The benchmark supports a range of both traditional parametric models and modern 
 ---
 
 ## 📏 Metrics & Evaluation
-
 
 ### 1. Fidelity Metrics
 - **Feature-based Distances**
@@ -142,13 +144,14 @@ The benchmark supports a range of both traditional parametric models and modern 
 - **Long Memory in Volatility**
 - **Non-Stationarity Detection**
 
-Refer to `src/evaluation/metrics/` for implementation details and to `src/evaluation/visualizations/plots.py` for visualization code.
+Refer to `src/taxonomies/` for implementation details and to `src/utils/` for utility functions.
+
 ---
 
 ## ➕ How To Add Your Own Model
 
-1. Implement your model in `src/models/` and ensure you inherit from the appropriate base class.
-2. Register your model in `src/experiments/evaluator.py` under the `models` dict in `run_complete_evaluation`.
+1. Implement your model in `src/models/` and ensure you inherit from the appropriate base class (`ParametricModel` or `DeepLearningModel`).
+2. Register your model in `src/evaluator.py` under the `models` dictionary in `run_complete_evaluation`.
 3. Rerun the pipeline and review your new runs in MLFlow!
 
 ---
@@ -157,8 +160,8 @@ Refer to `src/evaluation/metrics/` for implementation details and to `src/evalua
 
 All results are available in:
 - 🖥️ The console (summary tables per model)
-- 📁 `results/` directory (detailed JSON for each run)
-- 📊 **MLFlow UI** (`mlruns/` directory, browsable at [http://localhost:5000](http://localhost:5000)) — all metrics, parameters, and artifacts are logged automatically
+- 📁 `data/evaluation_results/` directory (detailed JSON for each run)
+- 📊 **MLFlow UI** (`mlruns/` directory, browsable at [http://localhost:5000](http://localhost:5000)) — all metrics, parameters, and artifacts are logged automatically.
 
 ---
 
@@ -176,12 +179,6 @@ All results are available in:
 
 - For detailed examples and model-by-model usage, see `notebooks/`.
 - To report issues or contribute, see the **Contributing** section below.
-
----
-
-## 📄 Citation, License, Contact, Contributing
-
-TBD
 
 ---
 
