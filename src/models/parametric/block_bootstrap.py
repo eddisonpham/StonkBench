@@ -1,8 +1,9 @@
 import torch
 import numpy as np
+from src.models.base.base_model import ParametricModel
 
 
-class BlockBootstrap:
+class BlockBootstrap(ParametricModel):
     """
     Block Bootstrap model for multichannel time series generation.
     
@@ -25,6 +26,7 @@ class BlockBootstrap:
         block_size: int = 10,
         device: str = "cpu",
     ):
+        super().__init__()
         self.length = length
         self.num_channels = num_channels
         self.block_size = block_size
@@ -38,7 +40,7 @@ class BlockBootstrap:
         if not torch.is_tensor(data):
             data = torch.tensor(data, dtype=torch.float32)
         self.data = data.to(self.device)
-        self.length, self.num_channels = self.X.shape
+        self.length, self.num_channels = self.data.shape
         return self
 
     def _resample_once(self) -> torch.Tensor:
@@ -51,7 +53,7 @@ class BlockBootstrap:
         while total_needed > 0:
             start = np.random.randint(0, self.length - self.block_size)
             end = start + min(self.block_size, total_needed)
-            samples.append(self.X[start:end])
+            samples.append(self.data[start:end])
             total_needed -= (end - start)
 
         return torch.cat(samples, dim=0)
@@ -66,7 +68,7 @@ class BlockBootstrap:
         Returns:
             torch.Tensor: Generated data of shape (num_samples, length, num_channels)
         """
-        if self.X is None:
+        if self.data is None:
             raise ValueError("Model must be fitted before calling generate().")
 
         generated = []

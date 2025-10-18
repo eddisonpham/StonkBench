@@ -4,6 +4,7 @@ Display utility functions.
 This module provides utilities for formatting console output.
 """
 
+
 def show_divider():
     """
     Print a visual divider line for console output formatting.
@@ -12,7 +13,6 @@ def show_divider():
     in console output for better readability.
     """
     print("=" * 20)
-
 
 def show_with_start_divider(content):
     """
@@ -23,7 +23,6 @@ def show_with_start_divider(content):
     """
     show_divider()
     print(content)
-
 
 def show_with_end_divider(content):
     """
