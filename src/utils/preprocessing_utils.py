@@ -1,13 +1,5 @@
 """
 Preprocessing utility functions
-
-This module provides essential utility functions supporting the TSGBench standardized
-preprocessing pipeline.
-
-Key Features:
-- MinMaxScaler: Implements the normalization step from TSGBench pipeline
-- Path management and directory creation
-- Display utilities for progress tracking
 """
 
 import os
@@ -28,74 +20,33 @@ from src.utils.display_utils import (
 REQUIRED_COLUMNS = ['Open', 'High', 'Low', 'Close']
 
 
-class MinMaxScaler():
+class LogReturnTransformation:
     """
-    Min-Max normalization scaler implementing the TSGBench normalization step.
-    
-    This class implements the normalization step from the TSGBench preprocessing pipeline,
-    which normalizes the dataset to the range [0, 1] to enhance efficiency and numerical
-    stability. This is the final step in the TSGBench pipeline, applied after segmentation,
-    shuffling, and train-test splitting.
-    
-    The normalization formula is: (x - min) / (max - min)
-    The inverse transformation is: x * (max - min) + min
+    Transform a price series into log returns and provide an inverse transformation
+    to reconstruct the original prices.
     """
-    
-    def fit_transform(self, data): 
-        """
-        Fit the scaler to the data and transform it in one step.
-        
-        Args:
-            data (numpy.ndarray): Input data to fit and transform
-            
-        Returns:
-            numpy.ndarray: Normalized data in range [0, 1]
-        """
-        self.fit(data)
-        scaled_data = self.transform(data)
-        return scaled_data
-
-    def fit(self, data):    
-        """
-        Compute the minimum and range values for normalization.
-        
-        Args:
-            data (numpy.ndarray): Input data to compute statistics from
-            
-        Returns:
-            self: Returns self for method chaining
-        """
-        self.mini = np.min(data, 0)
-        self.range = np.max(data, 0) - self.mini
-        return self
-        
     def transform(self, data):
         """
-        Apply the normalization transformation to the data.
-        
+        Compute log returns.
+        """
+        data = np.asarray(data)
+        return np.log(data[1:] / data[:-1])
+
+    def inverse_transform(self, log_returns, initial_value):
+        """
+        Reconstruct the original price series from log returns.
+
         Args:
-            data (numpy.ndarray): Input data to normalize
-            
+            log_returns (np.ndarray): Log returns of shape (L-1, N)
+            initial_value (np.ndarray or float): Initial price(s)
+
         Returns:
-            numpy.ndarray: Normalized data in range [0, 1]
+            np.ndarray: Reconstructed price series of shape (L, N)
         """
-        numerator = data - self.mini
-        scaled_data = numerator / (self.range + 1e-7)
-        return scaled_data
-    
-    def inverse_transform(self, data):
-        """
-        Reverse the normalization transformation.
-        
-        Args:
-            data (numpy.ndarray): Normalized data in range [0, 1]
-            
-        Returns:
-            numpy.ndarray: Data transformed back to original scale
-        """
-        data *= self.range
-        data += self.mini
-        return data
+        prices = [np.asarray(initial_value)]
+        for r in log_returns:
+            prices.append(prices[-1] * np.exp(r))
+        return np.vstack(prices)
 
 class TimeSeriesDataset(Dataset):
     """
@@ -271,7 +222,7 @@ def preprocess_data(cfg, supress_cfg_message = False):
             - original_data_path (str): Path to input CSV file.
             - seq_length (int, optional): Sub-sequence length; auto-determined if None.
             - valid_ratio (float, optional): Validation split ratio (default 0.1).
-            - do_normalization (bool, optional): Apply normalization (default True).
+            - do_transformation (bool, optional): Apply log return transformation (default True).
             - is_parametric (bool, optional): If True, skip segmentation (default False).
             - seed (int, optional): Random seed for reproducibility.
         supress_cfg_message (bool): If True, suppress preprocessing logs.
@@ -282,10 +233,10 @@ def preprocess_data(cfg, supress_cfg_message = False):
     if not supress_cfg_message:
         show_with_start_divider(f"Data preprocessing with settings:{cfg}")
 
-    ori_data_path = cfg.get('original_data_path',None)
-    seq_length = cfg.get('seq_length',None)
-    valid_ratio = cfg.get('valid_ratio',0.1)
-    do_normalization = cfg.get('do_normalization',True)
+    ori_data_path = cfg.get('original_data_path', None)
+    seq_length = cfg.get('seq_length', None)
+    valid_ratio = cfg.get('valid_ratio', 0.1)
+    do_transformation = cfg.get('do_transformation', True)
     is_parametric = cfg.get('is_parametric', False)
     seed = cfg.get('seed', None)
 
@@ -294,44 +245,42 @@ def preprocess_data(cfg, supress_cfg_message = False):
         print(f"Current working directory: {curr_dir}")
         show_with_end_divider(f'Original file path {ori_data_path} does not exist.')
         return None
-    
+
     _, ext = os.path.splitext(ori_data_path)
     try:
         if ext != '.csv':
             show_with_end_divider(f"Error: Unsupported file extension: {ext}")
             return None
         df = pd.read_csv(ori_data_path)
-        ori_data = df[REQUIRED_COLUMNS].values # (L, N)
+        ori_data = df[REQUIRED_COLUMNS].values  # (L, N)
     except Exception as e:
         show_with_end_divider(f"Error: An error occurred during reading data: {e}.")
         return None
+
+    if seq_length is None:
+        seq_length = int(np.mean(np.apply_along_axis(find_length, 0, ori_data)))
+
+    if do_transformation:
+        scaler = LogReturnTransformation()
+        ori_data = scaler.transform(ori_data)
 
     if is_parametric:
         ori_data = torch.from_numpy(ori_data)
         print('Data shape:', tuple(ori_data.size()))
         split = int(ori_data.shape[0] * (1 - valid_ratio))
-
         show_with_end_divider(f'Preprocessing for parametric models done.')
         return ori_data[:split], ori_data[split:]
 
-    if seq_length is None:
-        seq_length = int(np.mean(np.apply_along_axis(find_length, 0, ori_data)))
-    
-    data = sliding_window_view(ori_data, seq_length) # (R, l, N)
-
-    if seed is not None:
-        np.random.seed(seed)
-        random.seed(seed)
-    np.random.shuffle(data) # (R', l, N)
-
+    data = sliding_window_view(ori_data, seq_length)  # (R, l, N)
     print('Data shape:', data.shape)
     split = int(data.shape[0] * (1 - valid_ratio))
     train_data, valid_data = data[:split], data[split:]
 
-    if do_normalization:
-        scaler = MinMaxScaler()
-        train_data = scaler.fit_transform(train_data)
-        valid_data = scaler.transform(valid_data)
+    if seed is not None:
+        np.random.seed(seed)
+        random.seed(seed)
+    np.random.shuffle(train_data)
+    np.random.shuffle(valid_data)
 
     show_with_end_divider(f'Preprocessing for non-parametric models done.')
     return train_data, valid_data

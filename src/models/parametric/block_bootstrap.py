@@ -9,6 +9,7 @@ class BlockBootstrap(ParametricModel):
     
     Assumptions:
       - Input array shape: (length, num_channels)
+      - Input data is already in log returns (no internal preprocessing)
       - All channels are feature signals (no timestamp channel)
       - Evenly spaced time steps (linear)
       - Resamples contiguous blocks to preserve short-term dependencies
@@ -36,10 +37,10 @@ class BlockBootstrap(ParametricModel):
 
     def fit(self, data: torch.Tensor):
         """
-        Fit the model by storing the original time series.
+        Fit the model by storing the original log returns time series.
         
         Args:
-            data: Input time series of shape (length, num_channels)
+            data: Input log returns time series of shape (length, num_channels)
         """
         if not torch.is_tensor(data):
             data = torch.tensor(data, dtype=torch.float32)
@@ -52,28 +53,29 @@ class BlockBootstrap(ParametricModel):
         Generate one bootstrap sample by resampling contiguous blocks.
         
         Returns:
-            Resampled time series of shape (length, num_channels)
+            Resampled log returns time series of shape (length, num_channels)
         """
         samples = []
         total_needed = self.length
 
         while total_needed > 0:
-            start = np.random.randint(0, self.length - self.block_size)
+            start = np.random.randint(0, self.length - self.block_size + 1)
             end = start + min(self.block_size, total_needed)
             samples.append(self.data[start:end])
             total_needed -= (end - start)
 
-        return torch.cat(samples, dim=0)
+        result = torch.cat(samples, dim=0)[:self.length]
+        return result
 
     def generate(self, num_samples: int) -> torch.Tensor:
         """
-        Generate new time series using block bootstrap.
+        Generate new log returns time series using block bootstrap.
 
         Args:
             num_samples (int): Number of bootstrap samples to generate.
 
         Returns:
-            torch.Tensor: Generated data of shape (num_samples, length, num_channels)
+            torch.Tensor: Generated log returns data of shape (num_samples, length, num_channels)
         """
         if self.data is None:
             raise ValueError("Model must be fitted before calling generate().")
