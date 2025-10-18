@@ -10,15 +10,22 @@ Key Features:
 - Display utilities for progress tracking
 """
 
-import torch
+import os
+import random
 import numpy as np
 import pandas as pd
-import random
+import torch
 from statsmodels.tsa.stattools import acf
 from torch.utils.data import Dataset, DataLoader
 from scipy.signal import argrelextrema
 
-from src.utils.display_utils import show_divider, show_with_start_divider, show_with_end_divider
+from src.utils.display_utils import (
+    show_divider,
+    show_with_start_divider,
+    show_with_end_divider
+)
+
+REQUIRED_COLUMNS = ['Open', 'High', 'Low', 'Close']
 
 
 class MinMaxScaler():
@@ -179,109 +186,152 @@ class TimeSeriesDataset(Dataset):
         self.indices = list(range(len(self.data)))
         random.shuffle(self.indices)
 
-def create_dataloaders(train_data, valid_data, batch_size=32, train_seed=None, valid_seed=None, 
-                      num_workers=0, pin_memory=False):
+def create_dataloaders(
+    train_data, 
+    valid_data, 
+    batch_size=32, 
+    train_seed=None, 
+    valid_seed=None,
+    num_workers=0, 
+    pin_memory=False
+):
     """
-    Create PyTorch DataLoaders for training and validation time series data.
-    
-    This function creates properly configured DataLoaders that handle time series batching
-    with seed support for reproducible training.
-    
+    Create train/validation DataLoaders for time series data.
+
     Args:
-        train_data (numpy.ndarray): Training data with shape (R_train, l, N)
-        valid_data (numpy.ndarray): Validation data with shape (R_valid, l, N)
-        batch_size (int): Batch size for DataLoaders (default: 32)
-        train_seed (int, optional): Seed for training data shuffling (default: None)
-        valid_seed (int, optional): Seed for validation data shuffling (default: None)
-        num_workers (int): Number of worker processes for data loading (default: 0)
-        pin_memory (bool): Whether to pin memory for faster GPU transfer (default: False)
-        
+        train_data, valid_data (np.ndarray): Arrays of shape (R, l, N)
+        batch_size (int): Batch size (default=32)
+        train_seed, valid_seed (int): Shuffle seeds
+        num_workers (int): DataLoader workers
+        pin_memory (bool): Pin memory for GPU (default=False)
+
     Returns:
-        tuple: (train_loader, valid_loader) - PyTorch DataLoader objects
+        tuple: (train_loader, valid_loader)
     """
-    # Create datasets with seed support
     train_dataset = TimeSeriesDataset(train_data, seed=train_seed)
     valid_dataset = TimeSeriesDataset(valid_data, seed=valid_seed)
-    
-    # Create DataLoaders
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        pin_memory=pin_memory
-    )
-    
-    valid_loader = DataLoader(
-        valid_dataset,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        pin_memory=pin_memory
-    )
-    
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size,
+                              num_workers=num_workers, pin_memory=pin_memory)
+    valid_loader = DataLoader(valid_dataset, batch_size=batch_size,
+                              num_workers=num_workers, pin_memory=pin_memory)
     return train_loader, valid_loader
 
-def find_length(data):
+
+def find_length(data, default_l=125):
     """
-    Determine the optimal sequence length l using autocorrelation functions as per TSGBench methodology.
-    
-    This function implements the sequence length determination step from the TSGBench preprocessing
-    pipeline. It employs autocorrelation functions to ensure that each segmented sub-matrix T_r
-    encompasses at least one time series period, preserving meaningful temporal structures.
-    
-    Args:
-        data (numpy.ndarray): 1D time series data array
-        
-    Returns:
-        int: Optimal sequence length l (default: 125 if analysis fails or produces invalid results)
+    Simple heuristic to find time series segment length using ACF peaks.
     """
-    if len(data.shape)>1:
-        return 0
-    data = data[:min(20000, len(data))]
-    base = 3
+    data = np.asarray(data).flatten()  # handle 1D or 2D
+    data = data[:min(20000, len(data))]  # keep manageable size
+
     nobs = len(data)
+    if nobs < 20:
+        return default_l
+
     nlags = int(min(10 * np.log10(nobs), nobs - 1))
-    auto_corr = acf(data, nlags=nlags, fft=True)[base:]
+    auto_corr = acf(data, nlags=nlags, fft=True)[3:]
     local_max = argrelextrema(auto_corr, np.greater)[0]
-    try:
-        max_local_max = np.argmax([auto_corr[lcm] for lcm in local_max])
-        if local_max[max_local_max]<3 or local_max[max_local_max]>300:
-            return 125
-        return local_max[max_local_max]+base
-    except:
-        return 125
+
+    if len(local_max) == 0:
+        return default_l
+
+    best = local_max[np.argmax(auto_corr[local_max])]
+    if 3 <= best <= 300:
+        return int(best + 3)
+    return default_l
 
 def sliding_window_view(data, window_size, step=1):
     """
-    Implement time series segmentation as per TSGBench preprocessing pipeline.
-    
-    This function segments long time series T into shorter sub-matrices {T1, T2, T3, ...}
-    with specified sequence length l and stride of 1, creating R overlapping sub-matrices {T_r}
-    where R = L - l + 1 and each T_r has the same length l.
-    
+    Segment a 2D time series (L, N) into overlapping windows (R, l, N).
+
     Args:
-        data (numpy.ndarray): 2D array of shape (L, N) where L is length and N is number of variables
-        window_size (int): Sequence length l for each sub-matrix T_r
-        step (int, optional): Stride between windows. Defaults to 1 (overlapping windows)
-        
+        data (np.ndarray): Input array of shape (L, N)
+        window_size (int): Length of each segment (l)
+        step (int): Stride between windows (default=1)
+
     Returns:
-        numpy.ndarray: 3D array of shape (R, l, N) where R = L - l + 1
+        np.ndarray: 3D array of shape (R, l, N)
     """
-    if data.ndim != 2:
-        raise ValueError("Input array must be 2D")
-    L, C = data.shape  # Length and Channels
-    if L < window_size:
-        raise ValueError("Window size must be less than or equal to the length of the array")
+    assert data.ndim == 2, "Input array must be 2D"
+    L, N = data.shape
+    assert L >= window_size, "Window size must be <= sequence length"
 
-    # Calculate the number of windows B
     B = L - window_size + 1
-    
-    # Shape of the output array
-    new_shape = (B, window_size, C)
-    
-    # Calculate strides
-    original_strides = data.strides
-    new_strides = (original_strides[0],) + original_strides  # (stride for L, stride for W, stride for C)
+    new_shape = (B, window_size, N)
+    new_strides = (data.strides[0],) + data.strides
+    return np.lib.stride_tricks.as_strided(data, shape=new_shape, strides=new_strides)
 
-    # Create the sliding window view
-    strided_array = np.lib.stride_tricks.as_strided(data, shape=new_shape, strides=new_strides)
-    return strided_array
+def preprocess_data(cfg, supress_cfg_message = False):
+    """
+    Preprocess time series data for parametric or non-parametric models.
+
+    Args:
+        cfg (dict): Configuration options:
+            - original_data_path (str): Path to input CSV file.
+            - seq_length (int, optional): Sub-sequence length; auto-determined if None.
+            - valid_ratio (float, optional): Validation split ratio (default 0.1).
+            - do_normalization (bool, optional): Apply normalization (default True).
+            - is_parametric (bool, optional): If True, skip segmentation (default False).
+            - seed (int, optional): Random seed for reproducibility.
+        supress_cfg_message (bool): If True, suppress preprocessing logs.
+
+    Returns:
+        tuple: (train_data, valid_data) as np.ndarray or torch.Tensor, or None on failure.
+    """
+    if not supress_cfg_message:
+        show_with_start_divider(f"Data preprocessing with settings:{cfg}")
+
+    ori_data_path = cfg.get('original_data_path',None)
+    seq_length = cfg.get('seq_length',None)
+    valid_ratio = cfg.get('valid_ratio',0.1)
+    do_normalization = cfg.get('do_normalization',True)
+    is_parametric = cfg.get('is_parametric', False)
+    seed = cfg.get('seed', None)
+
+    if not os.path.exists(ori_data_path):
+        curr_dir = os.getcwd()
+        print(f"Current working directory: {curr_dir}")
+        show_with_end_divider(f'Original file path {ori_data_path} does not exist.')
+        return None
+    
+    _, ext = os.path.splitext(ori_data_path)
+    try:
+        if ext != '.csv':
+            show_with_end_divider(f"Error: Unsupported file extension: {ext}")
+            return None
+        df = pd.read_csv(ori_data_path)
+        ori_data = df[REQUIRED_COLUMNS].values # (L, N)
+    except Exception as e:
+        show_with_end_divider(f"Error: An error occurred during reading data: {e}.")
+        return None
+
+    if is_parametric:
+        ori_data = torch.from_numpy(ori_data)
+        print('Data shape:', tuple(ori_data.size()))
+        split = int(ori_data.shape[0] * (1 - valid_ratio))
+
+        show_with_end_divider(f'Preprocessing for parametric models done.')
+        return ori_data[:split], ori_data[split:]
+
+    if seq_length is None:
+        seq_length = int(np.mean(np.apply_along_axis(find_length, 0, ori_data)))
+    
+    data = sliding_window_view(ori_data, seq_length) # (R, l, N)
+
+    if seed is not None:
+        np.random.seed(seed)
+        random.seed(seed)
+    np.random.shuffle(data) # (R', l, N)
+
+    print('Data shape:', data.shape)
+    split = int(data.shape[0] * (1 - valid_ratio))
+    train_data, valid_data = data[:split], data[split:]
+
+    if do_normalization:
+        scaler = MinMaxScaler()
+        train_data = scaler.fit_transform(train_data)
+        valid_data = scaler.transform(valid_data)
+
+    show_with_end_divider(f'Preprocessing for non-parametric models done.')
+    return train_data, valid_data
