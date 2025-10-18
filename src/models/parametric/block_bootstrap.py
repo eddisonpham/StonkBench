@@ -9,7 +9,8 @@ class BlockBootstrap(ParametricModel):
     
     Assumptions:
       - Input array shape: (length, num_channels)
-      - Evenly spaced time steps
+      - All channels are feature signals (no timestamp channel)
+      - Evenly spaced time steps (linear)
       - Resamples contiguous blocks to preserve short-term dependencies
 
     Args:
@@ -36,6 +37,9 @@ class BlockBootstrap(ParametricModel):
     def fit(self, data: torch.Tensor):
         """
         Fit the model by storing the original time series.
+        
+        Args:
+            data: Input time series of shape (length, num_channels)
         """
         if not torch.is_tensor(data):
             data = torch.tensor(data, dtype=torch.float32)
@@ -46,6 +50,9 @@ class BlockBootstrap(ParametricModel):
     def _resample_once(self) -> torch.Tensor:
         """
         Generate one bootstrap sample by resampling contiguous blocks.
+        
+        Returns:
+            Resampled time series of shape (length, num_channels)
         """
         samples = []
         total_needed = self.length

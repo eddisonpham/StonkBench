@@ -2,12 +2,7 @@
 Intra-Class Distance (ICD) Metric for Multivariate Time Series
 
 This module computes the average pairwise distance between all time series samples
-in a dataset. It supports Euclidean and DTW (Dynamic Time Warping) metrics, and
-correctly handles multi-channel (multivariate) data with a standardized input shape
-of (A, B, C): A samples, B timesteps, C features.
-
-If a leading timestamp channel exists, it will be dropped automatically so that
-distances are computed only over feature/value channels.
+in a dataset. It supports Euclidean and DTW (Dynamic Time Warping) base metrics.
 """
 import numpy as np
 import torch
