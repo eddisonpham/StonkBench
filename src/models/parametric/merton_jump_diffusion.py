@@ -73,6 +73,10 @@ class MertonJumpDiffusion(ParametricModel):
             jump_vals = returns[jumps]
 
             if len(jump_vals) > 1:
+                num_jumps = len(jump_vals)
+                total_time = np.sum(dt)
+                lamb[ch] = num_jumps / total_time if total_time > 0 else 1e-6
+                
                 mu_j[ch] = np.mean(jump_vals)
                 sigma_j[ch] = np.std(jump_vals, ddof=0) + 1e-6 
             else:
