@@ -29,15 +29,15 @@ class BlockBootstrap:
         self.num_channels = num_channels
         self.block_size = block_size
         self.device = device
-        self.X = None
+        self.data = None
 
-    def fit(self, X: torch.Tensor):
+    def fit(self, data: torch.Tensor):
         """
         Fit the model by storing the original time series.
         """
-        if not torch.is_tensor(X):
-            X = torch.tensor(X, dtype=torch.float32)
-        self.X = X.to(self.device)
+        if not torch.is_tensor(data):
+            data = torch.tensor(data, dtype=torch.float32)
+        self.data = data.to(self.device)
         self.length, self.num_channels = self.X.shape
         return self
 

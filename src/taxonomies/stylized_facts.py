@@ -18,25 +18,23 @@ and are intended for use in assessing the fidelity of synthetic data relative to
 import numpy as np
 from scipy.stats import kurtosis
 
-PRICE_IDX = [0, 1, 2, 3, 4]  # Open, High, Low, Close, Adj Close
-RELEVANT_PRICE_IDX = [3, 4]  # Close, Adj Close
-VOLUME_IDX = [5]             # Volume
+from src.utils.conversion_utils import to_numpy_abc
 
 
-def log_returns(data: np.ndarray, channels: list = PRICE_IDX) -> np.ndarray:
+def log_returns(data: np.ndarray) -> np.ndarray:
     """
     Compute log returns for selected price channels.
 
     Args:
-        data (np.ndarray): Array of shape (R, l, N)
-        channels (list): Indices of price channels to compute log returns
+        data (np.ndarray): Array of shape (A, B, C)
 
     Returns:
         np.ndarray: Same shape array with log returns for selected channels
     """
+    data = to_numpy_abc(data)
     data_ret = np.copy(data)
-    for ch in channels:
-        data_ret[:, 1:, ch] = np.log(data[:, 1:, ch]) - np.log(data[:, :-1, ch])
+    for ch in range(data.shape[2]):
+        data_ret[:, 1:, ch] = np.log(data[:, 1:, ch] + 1e-12) - np.log(data[:, :-1, ch] + 1e-12)
         data_ret[:, 0, ch] = 0.0
     return data_ret
 
@@ -46,14 +44,15 @@ def heavy_tails(data: np.ndarray) -> np.ndarray:
     Excess kurtosis (heavy tails) for Close and Adj Close.
 
     Args:
-        data (np.ndarray): Array of shape (R, l, 6)
+        data (np.ndarray): Array of shape (A, B, C)
 
     Returns:
-        np.ndarray: Excess kurtosis per channel (Close, Adj Close)
+        np.ndarray: Excess kurtosis per channel
     """
-    data_ret = log_returns(data, PRICE_IDX)
+    data_ret = log_returns(data)
+    A, B, C = data_ret.shape
     kurt_vals = []
-    for ch in RELEVANT_PRICE_IDX:
+    for ch in range(C):
         x = data_ret[:, :, ch].flatten()
         kurt_vals.append(kurtosis(x, fisher=True))
     return np.array(kurt_vals)
@@ -64,19 +63,23 @@ def autocorr_raw(data: np.ndarray, lag: int = 1) -> np.ndarray:
     Lag-1 autocorrelation of raw log returns for Close and Adj Close.
 
     Args:
-        data (np.ndarray): Array of shape (R, l, 6)
+        data (np.ndarray): Array of shape (A, B, C)
         lag (int): Lag for autocorrelation
 
     Returns:
         np.ndarray: Autocorrelation per channel
     """
-    data_ret = log_returns(data, PRICE_IDX)
+    data_ret = log_returns(data)
+    A, B, C = data_ret.shape
     ac_vals = []
-    for ch in RELEVANT_PRICE_IDX:
+    for ch in range(C):
         x = data_ret[:, :, ch].flatten()
+        if len(x) <= lag:
+            ac_vals.append(np.nan)
+            continue
         x_mean = np.mean(x)
         numerator = np.sum((x[:-lag] - x_mean) * (x[lag:] - x_mean))
-        denominator = np.sum((x - x_mean) ** 2)
+        denominator = np.sum((x - x_mean) ** 2) + 1e-12
         ac_vals.append(numerator / denominator)
     return np.array(ac_vals)
 
@@ -86,19 +89,23 @@ def volatility_clustering(data: np.ndarray) -> np.ndarray:
     Lag-1 autocorrelation of squared log returns for Close and Adj Close.
 
     Args:
-        data (np.ndarray): Array of shape (R, l, 6)
+        data (np.ndarray): Array of shape (A, B, C)
 
     Returns:
         np.ndarray: Autocorrelation of squared returns per channel
     """
-    data_ret = log_returns(data, PRICE_IDX)
+    data_ret = log_returns(data)
+    A, B, C = data_ret.shape
     ac_sq_vals = []
-    for ch in RELEVANT_PRICE_IDX:
+    for ch in range(C):
         x = data_ret[:, :, ch].flatten()
+        if len(x) <= 1:
+            ac_sq_vals.append(np.nan)
+            continue
         x_sq = x ** 2
         x_mean = np.mean(x_sq)
         numerator = np.sum((x_sq[:-1] - x_mean) * (x_sq[1:] - x_mean))
-        denominator = np.sum((x_sq - x_mean) ** 2)
+        denominator = np.sum((x_sq - x_mean) ** 2) + 1e-12
         ac_sq_vals.append(numerator / denominator)
     return np.array(ac_sq_vals)
 
@@ -108,23 +115,24 @@ def long_memory_abs(data: np.ndarray, max_lag: int = 10) -> np.ndarray:
     Average autocorrelation of absolute log returns for Close and Adj Close.
 
     Args:
-        data (np.ndarray): Array of shape (R, l, 6)
+        data (np.ndarray): Array of shape (A, B, C)
         max_lag (int): Maximum lag to compute
 
     Returns:
         np.ndarray: Average autocorrelation per channel
     """
-    data_ret = log_returns(data, PRICE_IDX)
+    data_ret = log_returns(data)
+    A, B, C = data_ret.shape
     avg_ac_abs = []
-    for ch in RELEVANT_PRICE_IDX:
+    for ch in range(C):
         x = np.abs(data_ret[:, :, ch].flatten())
         ac_vals = []
         for lag in range(1, min(max_lag + 1, len(x))):
             x_mean = np.mean(x)
             numerator = np.sum((x[:-lag] - x_mean) * (x[lag:] - x_mean))
-            denominator = np.sum((x - x_mean) ** 2)
+            denominator = np.sum((x - x_mean) ** 2) + 1e-12
             ac_vals.append(numerator / denominator)
-        avg_ac_abs.append(np.mean(ac_vals))
+        avg_ac_abs.append(np.mean(ac_vals) if ac_vals else np.nan)
     return np.array(avg_ac_abs)
 
 
@@ -134,15 +142,16 @@ def non_stationarity(data: np.ndarray, window: int = 50) -> np.ndarray:
     Applied to Close, Adj Close, and Volume.
 
     Args:
-        data (np.ndarray): Array of shape (R, l, 6)
+        data (np.ndarray): Array of shape (A, B, C)
         window (int): Rolling window length
 
     Returns:
         np.ndarray: Non-stationarity measure per channel
     """
-    channels = RELEVANT_PRICE_IDX + VOLUME_IDX  # Close, Adj Close, Volume
+    data = to_numpy_abc(data)
+    A, B, C = data.shape
     nonstat_vals = []
-    for ch in channels:
+    for ch in range(C):
         x = data[:, :, ch].flatten()
         if len(x) < window:
             nonstat_vals.append(np.nan)

@@ -11,7 +11,7 @@ class GeometricBrownianMotion(ParametricModel):
 
     Assumptions:
       - Input arrays shaped (l, N) where channel 0 is timestamp (monotonic),
-        channels 1..N-1 are the signals (e.g., OHLCV: Open, Close, High, Low, Volume).
+        channels 1..N-1 are the signals (e.g., OHLC: Open, Close, High, Low).
       - This treats each non-time channel as an independent GBM.
       - Timestamps can be unevenly spaced. Estimation uses the MLE that handles varying dt:
             Y_i = log(S_{t_{i+1}}) - log(S_{t_i}) ~ N((mu - 0.5*sigma^2)*dt_i, sigma^2 * dt_i).
@@ -139,7 +139,6 @@ class GeometricBrownianMotion(ParametricModel):
         OHLC handling assumptions:
           - If the input channels are interpreted as [Open, Close, High, Low] (or subset),
             we simulate Close via GBM, set Open = previous Close, and High/Low = max/min(Open, Close).
-            Volume is simulated as GBM as well (or you can override).
         """
         if seed is not None:
             torch.manual_seed(seed)

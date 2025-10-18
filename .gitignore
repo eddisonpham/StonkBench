@@ -5,11 +5,12 @@ venv/
 __pycache__/
 *.pyc
 
-mlruns
+mlruns/
+**/mlruns/
 
 # Ignore data type files: .csv, .txt, .pkl in all directories
 *.csv
 *.txt
 *.pkl
 
-
+results

@@ -37,8 +37,7 @@ from src.utils.transformations_utils import (
     find_length,
     sliding_window_view
 )
-from src.utils.path_utils import make_sure_path_exist
-from src.utils.dat_io_utils import read_csv_data 
+from src.utils.path_utils import read_and_format_data 
 
 from src.utils.display_utils import (
     show_with_start_divider,
@@ -46,7 +45,7 @@ from src.utils.display_utils import (
 )
 
 
-def preprocess_data(cfg):
+def preprocess_data(cfg, supress_cfg_message = False):
     """
     Implements the complete TSGBench standardized preprocessing pipeline for both parametric and non-parametric model types.
 
@@ -66,6 +65,7 @@ def preprocess_data(cfg):
             - do_normalization (bool, optional): Whether to normalize data to [0, 1] (default: True).
             - is_parametric (bool, optional): If True, run parametric preprocessing (no segmentation); if False, run non-parametric (default: False).
             - seed (int, optional): Random seed for reproducibility.
+        supress_cfg_message (bool, optional): Whether to suppress the configuration message (default: False).
 
     Returns:
         tuple or None: 
@@ -74,7 +74,8 @@ def preprocess_data(cfg):
                 * For parametric (torch.Tensor): arrays of shape (l, N) for both train and validation splits (if splitting applied)
             - If preprocessing fails: None
     """
-    show_with_start_divider(f"Data preprocessing with settings:{cfg}")
+    if not supress_cfg_message:
+        show_with_start_divider(f"Data preprocessing with settings:{cfg}")
 
     # Extract preprocessing configurations
     ori_data_path = cfg.get('original_data_path',None)
@@ -96,20 +97,13 @@ def preprocess_data(cfg):
     try:
         if ext == '.csv':
             # Read the CSV data and convert Date (ISO 8601) to seconds since epoch
-            ori_data = read_csv_data(ori_data_path)
+            ori_data = read_and_format_data(ori_data_path)
         else:
             show_with_end_divider(f"Error: Unsupported file extension: {ext}")
             return None
     except Exception as e:
         show_with_end_divider(f"Error: An error occurred during reading data: {e}.")
         return None
-
-    # Impute missing value with interpolation
-    if np.isnan(ori_data).any():
-        if not isinstance(ori_data, pd.DataFrame):
-            df = pd.DataFrame(ori_data)
-        df = df.interpolate(axis=1)
-        ori_data = df.to_numpy()
 
     # Early return entire preprocessed dataset if parametric
     if is_parametric:
@@ -140,15 +134,12 @@ def preprocess_data(cfg):
         if do_normalization:
             scaler = MinMaxScaler()
 
-            # All but the timestamp channel
             train_feats = train_data[:, :, 1:]
             valid_feats = valid_data[:, :, 1:]
 
-            # Fit multivariate MinMaxScaler on all but timestamp channel
             train_feats = scaler.fit_transform(train_feats)
             valid_feats = scaler.transform(valid_feats)
 
-            # Concatenate channelwise
             train_data = np.concatenate([train_data[:, :, [0]], train_feats], axis=-1)
             valid_data = np.concatenate([valid_data[:, :, [0]], valid_feats], axis=-1)
 
