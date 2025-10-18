@@ -1,0 +1,10 @@
+nonparametric_dataset_cfgs:
+  original_data_path: "data/raw/GOOG/GOOG.csv"
+  valid_ratio: 0.2
+  do_normalization: true
+  seed: 42
+
+parametric_dataset_cfg:
+  original_data_path: "data/raw/GOOG/GOOG.csv"
+  is_parametric: true
+  seed: 42

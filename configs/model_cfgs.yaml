@@ -1,0 +1,6 @@
+TimeGAN_model_cfg:
+  latent_dim: 64
+  hidden_dim: 128
+  lr: 0.0002
+  n_critic: 5
+  clip_value: 0.01

@@ -1,87 +1,97 @@
+"""
+Base classes for time series generative models.
+
+This module defines abstract base classes for two main types of generative time series models:
+
+1. ParametricModel:
+    - An abstract interface for statistical (parametric) generative models, such as GBM, O-U Process, GARCH, etc.
+    - Assumes direct fitting to arrays/tensors representing time series data.
+    - Provides methods to fit model parameters, generate synthetic series, and save/load model state.
+
+2. DeepLearningModel:
+    - An abstract interface for non-parametric (deep learning) generative models using PyTorch.
+    - Assumes usage of DataLoader-based training and batch processing.
+    - Provides methods for training (fit), sample generation, and saving/loading PyTorch model weights.
+
+Custom model classes should inherit from one of these base classes.
+"""
+
 import torch
-import os
 from abc import ABC, abstractmethod
 
-from src.utils.path_utils import make_sure_path_exist
 
-class BaseGenerativeModel(ABC):
+class ParametricModel(ABC):
     """
-    Abstract base class for all generative models.
-    Defines the interface for fitting, generating, saving, and loading models.
+    Abstract base class for parametric (statistical) generative time series models.
+
+    - Expects as input for fitting: a single time series of shape (l, N) where
+      l is the sequence length and N is the number of channels/features.
+    - Outputs generated samples of shape (R, l, N) where R is the number of simulated realizations.
     """
 
     def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     @abstractmethod
-    def fit(self, data_loader, *args, **kwargs):
+    def fit(self, data, *args, **kwargs):
         """
-        Trains the model on the provided data.
+        Fits the model parameters using the entire time series.
 
         Args:
-            data_loader (torch.utils.data.DataLoader): DataLoader containing the training data.
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
+            data (np.ndarray or torch.Tensor): Input data of shape (l, N)
+            *args, **kwargs: Extra keyword arguments for specialized models.
         """
         pass
 
     @abstractmethod
     def generate(self, num_samples, *args, **kwargs):
         """
-        Generates new time series samples.
+        Generates synthetic time series realizations.
 
         Args:
-            num_samples (int): The number of samples to generate.
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
+            num_samples (int): Number of simulated samples (R).
+            *args, **kwargs: Extra keyword arguments.
 
         Returns:
-            torch.Tensor: Generated time series data of shape (num_samples, length, channels).
+            np.ndarray or torch.Tensor: Generated series of shape (R, l, N)
         """
         pass
 
-    def save_model(self, path):
+class DeepLearningModel(torch.nn.Module, ABC):
+    """
+    Abstract base class for non-parametric (deep learning) time series generative models.
+
+    - Expects as input for fitting: a DataLoader yielding batches of shape (batch_size, l, N)
+      suitable for gradient-based training.
+    - Outputs generated samples of shape (R, l, N).
+    """
+
+    def __init__(self):
+        torch.nn.Module.__init__(self)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.to(self.device)
+
+    @abstractmethod
+    def fit(self, data_loader, *args, **kwargs):
         """
-        Saves the model's state to the specified path.
-        For ParametricModel, saves relevant attributes as a dictionary.
-        For DeepLearningModel, saves the state_dict (handled by nn.Module inheritance).
+        Trains the network via a DataLoader with batches.
 
         Args:
-            path (str): The directory path to save the model.
+            data_loader (torch.utils.data.DataLoader): Batches of (batch_size, l, N)
+            *args, **kwargs: Extra training keyword arguments.
         """
-        make_sure_path_exist(path)
-        model_state = {key: value for key, value in self.__dict__.items() if not key.startswith('_') and isinstance(value, (torch.Tensor, float, int, str, bool))}
-        torch.save(model_state, os.path.join(path, f'{self.__class__.__name__}_model.pth'))
-        print(f"Model state saved to {os.path.join(path, f'{self.__class__.__name__}_model.pth')}")
+        pass
 
-    def load_model(self, path):
+    @abstractmethod
+    def generate(self, num_samples, *args, **kwargs):
         """
-        Loads the model's state from the specified path.
+        Generates synthetic samples after training.
 
         Args:
-            path (str): The directory path from which to load the model.
+            num_samples (int): Number of simulated samples (R).
+            *args, **kwargs: Optional arguments.
+
+        Returns:
+            torch.Tensor: Generated series of shape (R, l, N)
         """
-        state = torch.load(os.path.join(path, f'{self.__class__.__name__}_model.pth'), map_location=self.device)
-        for key, value in state.items():
-            setattr(self, key, value)
-        print(f"Model state loaded from {os.path.join(path, f'{self.__class__.__name__}_model.pth')}")
-
-
-class ParametricModel(BaseGenerativeModel, ABC):
-    """
-    Abstract base class for parametric stochastic time series models.
-    These models rely on statistical parameter estimation.
-    They DO NOT inherit from torch.nn.Module.
-    """
-    def __init__(self):
-        super().__init__()
-
-
-class DeepLearningModel(torch.nn.Module, BaseGenerativeModel, ABC):
-    """
-    Abstract base class for non-parametric deep learning generative models (e.g., GANs, VAEs).
-    These models are trained using neural networks and inherit from torch.nn.Module.
-    """
-    def __init__(self):
-        BaseGenerativeModel.__init__(self) # Explicitly call BaseGenerativeModel's init
-        torch.nn.Module.__init__(self)    # Explicitly call nn.Module's init
+        pass
