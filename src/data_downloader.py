@@ -1,40 +1,61 @@
 """
-Dataset Downloader
-
-download_goog_history: GOOG stock price history (CSV)
-
-The outputs are saved under their respective subfolders.
+Utility script to download and save OHLC stock data using yfinance, for given tickers.
 """
 
+import argparse
 from pathlib import Path
+import pandas as pd
 import yfinance as yf
 
-def download_goog_history(period: str = "5y",
-                          interval: str = "1d") -> Path:
-    """Download history for a Google (GOOG) ticker to CSV.
 
-    - Uses yfinance for robust data access.
-    - Default period is 5 years of daily candles.
+def download_stock_history(ticker: str) -> Path | None:
+    """Download full OHLC history for a single ticker, only OHLC, no extra rows."""
+    output_dir = Path("data/raw") / ticker.upper()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_csv = output_dir / f"{ticker.upper()}.csv"
 
-    Returns the CSV file path.
-    """
-    ticker = "GOOG"
-    output_dir = Path("data/raw") / f"{ticker}"
-    output_dir.mkdir(exist_ok=True)
-    output_csv = output_dir / f"{ticker}.csv"
+    if output_csv.exists():
+        print(f"[SKIP] {ticker}: already exists at {output_csv}")
+        return output_csv
 
-    ticker_obj = yf.Ticker(ticker)
-    df = ticker_obj.history(period=period, interval=interval, auto_adjust=False)
+    print(f"[DOWNLOADING] {ticker} ...", flush=True)
+    df = yf.download(ticker, period="max", interval="1d", auto_adjust=False, progress=False)
 
     if df is None or df.empty:
-        raise RuntimeError("No data returned from Yahoo Finance for the requested period.")
+        print(f"[WARNING] No data returned for {ticker}. Skipping.")
+        return None
 
-    df.to_csv(output_csv, index=True)
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [col[0].title() for col in df.columns]
+    else:
+        df.columns = [c.title() for c in df.columns]
+
+    ohlc_cols = ['Open', 'High', 'Low', 'Close']
+    df_ohlc = df.loc[:, df.columns.intersection(ohlc_cols)].copy()
+
+    if df_ohlc.empty:
+        print(f"[WARNING] {ticker}: OHLC columns missing. Skipping.")
+        return None
+
+    df_ohlc.to_csv(output_csv, index=False, header=True)
+
+    print(f"[SAVED] {ticker}: {len(df_ohlc)} rows → {output_csv}")
     return output_csv
 
+
+def main():
+    parser = argparse.ArgumentParser(description="Download OHLC data via Yahoo Finance (yfinance).")
+    parser.add_argument(
+        "--tickers",
+        nargs="+",
+        required=True,
+        help="List of stock tickers to download (e.g. AAPL MSFT GOOG)."
+    )
+    args = parser.parse_args()
+
+    for ticker in args.tickers:
+        download_stock_history(ticker)
+
+
 if __name__ == "__main__":
-    print("Downloading GOOG history ...", flush=True)
-    path = download_goog_history()
-    print(f"Saved: {path}")
-
-
+    main()

@@ -24,13 +24,24 @@ import os
 import torch
 import numpy as np
 from torch import nn
-import seaborn as sns
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.manifold import TSNE
-from typing import List, Tuple
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 
-from src.utils.math_utils import histogram_torch, acf_torch, non_stationary_acf_torch, skew_torch, kurtosis_torch, acf_diff
-from src.utils.conversion_utils import to_torch_features_abc, to_numpy_features_for_visualization
+from src.utils.math_utils import (
+    histogram_torch,
+    acf_torch,
+    non_stationary_acf_torch,
+    skew_torch,
+    kurtosis_torch,
+    acf_diff,
+)
+from src.utils.conversion_utils import (
+    to_torch_features_abc,
+    to_numpy_features_for_visualization,
+)
 
 
 class Loss(nn.Module):
@@ -356,64 +367,42 @@ def calculate_kd(ori_data, gen_data):
     kd = kurtosis.compute(gen).mean()
     return float(kd.detach().cpu().item())
 
-def visualize_tsne(ori_data, gen_data, result_path, save_file_name):
-    """
-    Visualize the similarity between original and generated data using t-SNE.
 
-    This function projects both original and generated data into a 2D space using t-SNE,
-    and saves a scatter plot showing the two distributions for visual comparison.
+def make_sure_path_exist(path):
+    if os.path.isdir(path) and not path.endswith(os.sep):
+        dir_path = path
+    else:
+        # Extract the directory part of the path
+        dir_path = os.path.dirname(path)
+    os.makedirs(dir_path, exist_ok=True)
 
-    Args:
-        ori_data (np.ndarray): Original data of shape (n_samples, ...).
-        gen_data (np.ndarray): Generated data of shape (n_samples, ...).
-        result_path (str): Directory where the plot will be saved.
-        save_file_name (str): Suffix for the saved plot filename.
-
-    Notes:
-        - Only up to 1000 samples are randomly selected for visualization.
-        - Each sample is reduced to its mean across axis=1 before t-SNE.
-        - The resulting plot is saved as 'tsne_{save_file_name}.png' in result_path.
-    """
-    # Convert and drop timestamp channel
-    ori_np = to_numpy_features_for_visualization(ori_data)
-    gen_np = to_numpy_features_for_visualization(gen_data)
-
-    # Use the minimum of both datasets to ensure we have matching samples
-    sample_num = min(1000, len(ori_np), len(gen_np))
-    idx_ori = np.random.permutation(len(ori_np))[:sample_num]
-    idx_gen = np.random.permutation(len(gen_np))[:sample_num]
-
-    ori_np = ori_np[idx_ori]
-    gen_np = gen_np[idx_gen]
-
-    # Reduce each sample to its mean across time
-    prep_data = np.mean(ori_np, axis=1)
-    prep_data_hat = np.mean(gen_np, axis=1)
-
-    # Assign colors for plotting: C0 for original, C1 for generated
-    colors = ["C0" for _ in range(sample_num)] + ["C1" for _ in range(sample_num)]    
+def visualize_tsne(ori_data, gen_data, result_path, save_file_name, max_samples=1000):
+    # Subsample independently
+    ori_sample_num = min(max_samples, len(ori_data))
+    gen_sample_num = min(max_samples, len(gen_data))
     
-    # Concatenate original and generated data for joint t-SNE
-    prep_data_final = np.concatenate((prep_data, prep_data_hat), axis=0)
+    ori_idx = np.random.permutation(len(ori_data))[:ori_sample_num]
+    gen_idx = np.random.permutation(len(gen_data))[:gen_sample_num]
     
-    # Fit t-SNE to the combined data
-    # Perplexity must be less than n_samples
-    # Use min(30, (n_samples - 1) // 2) to be safe, with minimum of 2
-    n_total_samples = len(prep_data_final)
-    if n_total_samples < 4:
-        print(f"Warning: Too few samples ({n_total_samples}) for t-SNE visualization. Skipping.")
-        return
-    perplexity = min(30, max(2, (n_total_samples - 1) // 2))
-    tsne = TSNE(n_components=2, verbose=0, perplexity=perplexity, max_iter=1000, random_state=42)
+    ori_data = ori_data[ori_idx]
+    gen_data = gen_data[gen_idx]
+    
+    # Use mean across time axis for visualization
+    prep_ori = np.mean(ori_data, axis=1)
+    prep_gen = np.mean(gen_data, axis=1)
+    
+    prep_data_final = np.concatenate((prep_ori, prep_gen), axis=0)
+    colors = ["C0"]*ori_sample_num + ["C1"]*gen_sample_num
+    
+    tsne = TSNE(n_components=2, verbose=0, perplexity=30, max_iter=1000, random_state=42)
     tsne_results = tsne.fit_transform(prep_data_final)
-
-    # Create scatter plot
-    fig, ax = plt.subplots(1, 1, figsize=(2, 2))
-    ax.scatter(tsne_results[:sample_num, 0], tsne_results[:sample_num, 1], 
-               c=colors[:sample_num], alpha=0.5, label="Original", s=5)
-    ax.scatter(tsne_results[sample_num:, 0], tsne_results[sample_num:, 1], 
-               c=colors[sample_num:], alpha=0.5, label="Generated", s=5)
-
+    
+    fig, ax = plt.subplots(1,1,figsize=(4,4))
+    ax.scatter(tsne_results[:ori_sample_num,0], tsne_results[:ori_sample_num,1], 
+               c="C0", alpha=0.5, label="Original", s=5)
+    ax.scatter(tsne_results[ori_sample_num:,0], tsne_results[ori_sample_num:,1], 
+               c="C1", alpha=0.5, label="Generated", s=5)
+    
     ax.grid(False)
     ax.set_xticks([])
     ax.set_yticks([])
@@ -421,66 +410,44 @@ def visualize_tsne(ori_data, gen_data, result_path, save_file_name):
     ax.set_ylabel('')
     for pos in ['top', 'bottom', 'left', 'right']:
         ax.spines[pos].set_visible(False)
-
-    save_path = os.path.join(result_path, 'tsne_' + save_file_name + '.png')
-    if os.path.isdir(save_path) and not save_path.endswith(os.sep):
-        dir_path = save_path
-    else:
-        dir_path = os.path.dirname(save_path)
-    os.makedirs(dir_path, exist_ok=True)
+    
+    save_path = os.path.join(result_path, 'tsne_'+save_file_name+'.png')
+    make_sure_path_exist(save_path)
     plt.savefig(save_path, dpi=400, bbox_inches='tight')
+    plt.close()
 
-
-def visualize_distribution(ori_data, gen_data, result_path, save_file_name):
-    """
-    Visualize the marginal distributions of original and generated data using KDE plots.
-
-    This function plots the kernel density estimate (KDE) of the mean values of each sample
-    from both the original and generated datasets, allowing for visual comparison of their
-    distributions.
-
-    Args:
-        ori_data (np.ndarray): Original data of shape (n_samples, ...).
-        gen_data (np.ndarray): Generated data of shape (n_samples, ...).
-        result_path (str): Directory where the plot will be saved.
-        save_file_name (str): Suffix for the saved plot filename.
-
-    Notes:
-        - Only up to 1000 samples are randomly selected for visualization.
-        - Each sample is reduced to its mean across axis=1 before plotting.
-        - The resulting plot is saved as 'distribution_{save_file_name}.png' in result_path.
-        - The x-axis is limited to [0, 1] for consistency.
-    """
-    ori_np = to_numpy_features_for_visualization(ori_data)
-    gen_np = to_numpy_features_for_visualization(gen_data)
-
-    # Use the minimum of both datasets to ensure we have matching samples
-    sample_num = min(1000, len(ori_np), len(gen_np))
-    idx_ori = np.random.permutation(len(ori_np))[:sample_num]
-    idx_gen = np.random.permutation(len(gen_np))[:sample_num]
-
-    ori_np = ori_np[idx_ori]
-    gen_np = gen_np[idx_gen]
-
-    # Reduce each sample to its mean across time
-    prep_data = np.mean(ori_np, axis=1)
-    prep_data_hat = np.mean(gen_np, axis=1)
-
-    # Create KDE plots for both original and generated data
-    fig, ax = plt.subplots(1, 1, figsize=(2, 2))
-    sns.kdeplot(prep_data.flatten(), color='C0', linewidth=2, label='Original', ax=ax)
-    sns.kdeplot(prep_data_hat.flatten(), color='C1', linewidth=2, linestyle='--', label='Generated', ax=ax)
-
+def visualize_distribution(ori_data, gen_data, result_path, save_file_name, max_samples=1000):
+    # Subsample independently
+    ori_sample_num = min(max_samples, len(ori_data))
+    gen_sample_num = min(max_samples, len(gen_data))
+    
+    ori_idx = np.random.permutation(len(ori_data))[:ori_sample_num]
+    gen_idx = np.random.permutation(len(gen_data))[:gen_sample_num]
+    
+    ori_data = ori_data[ori_idx]
+    gen_data = gen_data[gen_idx]
+    
+    prep_ori = np.mean(ori_data, axis=1)
+    prep_gen = np.mean(gen_data, axis=1)
+    
+    fig, ax = plt.subplots(1,1,figsize=(4,4))
+    
+    # KDE plots with normalized density
+    sns.kdeplot(prep_ori.flatten(), color='C0', linewidth=2, label='Original', ax=ax, fill=False)
+    sns.kdeplot(prep_gen.flatten(), color='C1', linewidth=2, linestyle='--', label='Generated', ax=ax, fill=False)
+    
     ax.set_xlabel('')
     ax.set_ylabel('')
-    ax.set_xlim(0, 1)
-    for pos in ['top', 'right']:
+    
+    # Auto x-limits based on data range
+    min_val = min(prep_ori.min(), prep_gen.min())
+    max_val = max(prep_ori.max(), prep_gen.max())
+    ax.set_xlim(min_val, max_val)
+    
+    for pos in ['top','right']:
         ax.spines[pos].set_visible(False)
-
-    save_path = os.path.join(result_path, 'distribution_' + save_file_name + '.png')
-    if os.path.isdir(save_path) and not save_path.endswith(os.sep):
-        dir_path = save_path
-    else:
-        dir_path = os.path.dirname(save_path)
-    os.makedirs(dir_path, exist_ok=True)
+    
+    save_path = os.path.join(result_path, 'distribution_'+save_file_name+'.png')
+    make_sure_path_exist(save_path)
     plt.savefig(save_path, dpi=400, bbox_inches='tight')
+    plt.close()

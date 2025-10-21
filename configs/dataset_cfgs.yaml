@@ -1,11 +1,13 @@
-nonparametric_dataset_cfgs:
-  original_data_path: "data/raw/GOOG/GOOG.csv"
+nonparametric_dataset_cfg:
+  ticker: "AAPL"
+  original_data_path: "data/raw/${ticker}/${ticker}.csv"
   valid_ratio: 0.2
   do_transformation: true
   seed: 42
 
 parametric_dataset_cfg:
-  original_data_path: "data/raw/GOOG/GOOG.csv"
+  ticker: "AAPL"
+  original_data_path: "data/raw/${ticker}/${ticker}.csv"
   valid_ratio: 0.2
   is_parametric: true
   do_transformation: true

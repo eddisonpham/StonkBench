@@ -21,59 +21,45 @@ from scipy.stats import kurtosis
 from src.utils.conversion_utils import to_numpy_abc
 
 
-def log_returns(data: np.ndarray) -> np.ndarray:
-    """
-    Compute log returns for selected price channels.
-
-    Args:
-        data (np.ndarray): Array of shape (A, B, C)
-
-    Returns:
-        np.ndarray: Same shape array with log returns for selected channels
-    """
-    data = to_numpy_abc(data)
-    data_ret = np.copy(data)
-    for ch in range(data.shape[2]):
-        data_ret[:, 1:, ch] = np.log(data[:, 1:, ch] + 1e-12) - np.log(data[:, :-1, ch] + 1e-12)
-        data_ret[:, 0, ch] = 0.0
-    return data_ret
-
-
 def heavy_tails(data: np.ndarray) -> np.ndarray:
     """
-    Excess kurtosis (heavy tails) for Close and Adj Close.
+    Excess kurtosis (heavy tails) for all channels.
+    
+    Assumes data is already in log-return form.
 
     Args:
-        data (np.ndarray): Array of shape (A, B, C)
+        data (np.ndarray): Array of shape (A, B, C) in log-return form
 
     Returns:
         np.ndarray: Excess kurtosis per channel
     """
-    data_ret = log_returns(data)
-    A, B, C = data_ret.shape
+    data = to_numpy_abc(data)
+    A, B, C = data.shape
     kurt_vals = []
     for ch in range(C):
-        x = data_ret[:, :, ch].flatten()
+        x = data[:, :, ch].flatten()
         kurt_vals.append(kurtosis(x, fisher=True))
     return np.array(kurt_vals)
 
 
 def autocorr_raw(data: np.ndarray, lag: int = 1) -> np.ndarray:
     """
-    Lag-1 autocorrelation of raw log returns for Close and Adj Close.
+    Lag-1 autocorrelation of raw log returns for all channels.
+    
+    Assumes data is already in log-return form.
 
     Args:
-        data (np.ndarray): Array of shape (A, B, C)
+        data (np.ndarray): Array of shape (A, B, C) in log-return form
         lag (int): Lag for autocorrelation
 
     Returns:
         np.ndarray: Autocorrelation per channel
     """
-    data_ret = log_returns(data)
-    A, B, C = data_ret.shape
+    data = to_numpy_abc(data)
+    A, B, C = data.shape
     ac_vals = []
     for ch in range(C):
-        x = data_ret[:, :, ch].flatten()
+        x = data[:, :, ch].flatten()
         if len(x) <= lag:
             ac_vals.append(np.nan)
             continue
@@ -86,19 +72,21 @@ def autocorr_raw(data: np.ndarray, lag: int = 1) -> np.ndarray:
 
 def volatility_clustering(data: np.ndarray) -> np.ndarray:
     """
-    Lag-1 autocorrelation of squared log returns for Close and Adj Close.
+    Lag-1 autocorrelation of squared log returns for all channels.
+    
+    Assumes data is already in log-return form.
 
     Args:
-        data (np.ndarray): Array of shape (A, B, C)
+        data (np.ndarray): Array of shape (A, B, C) in log-return form
 
     Returns:
         np.ndarray: Autocorrelation of squared returns per channel
     """
-    data_ret = log_returns(data)
-    A, B, C = data_ret.shape
+    data = to_numpy_abc(data)
+    A, B, C = data.shape
     ac_sq_vals = []
     for ch in range(C):
-        x = data_ret[:, :, ch].flatten()
+        x = data[:, :, ch].flatten()
         if len(x) <= 1:
             ac_sq_vals.append(np.nan)
             continue
@@ -112,20 +100,22 @@ def volatility_clustering(data: np.ndarray) -> np.ndarray:
 
 def long_memory_abs(data: np.ndarray, max_lag: int = 10) -> np.ndarray:
     """
-    Average autocorrelation of absolute log returns for Close and Adj Close.
+    Average autocorrelation of absolute log returns for all channels.
+    
+    Assumes data is already in log-return form.
 
     Args:
-        data (np.ndarray): Array of shape (A, B, C)
+        data (np.ndarray): Array of shape (A, B, C) in log-return form
         max_lag (int): Maximum lag to compute
 
     Returns:
         np.ndarray: Average autocorrelation per channel
     """
-    data_ret = log_returns(data)
-    A, B, C = data_ret.shape
+    data = to_numpy_abc(data)
+    A, B, C = data.shape
     avg_ac_abs = []
     for ch in range(C):
-        x = np.abs(data_ret[:, :, ch].flatten())
+        x = np.abs(data[:, :, ch].flatten())
         ac_vals = []
         for lag in range(1, min(max_lag + 1, len(x))):
             x_mean = np.mean(x)
@@ -139,10 +129,12 @@ def long_memory_abs(data: np.ndarray, max_lag: int = 10) -> np.ndarray:
 def non_stationarity(data: np.ndarray, window: int = 50) -> np.ndarray:
     """
     Non-stationarity via coefficient of variation of rolling variance.
-    Applied to Close, Adj Close, and Volume.
+    
+    Assumes data is already in log-return form. Measures time-varying variance
+    (heteroscedasticity) in the log-return series.
 
     Args:
-        data (np.ndarray): Array of shape (A, B, C)
+        data (np.ndarray): Array of shape (A, B, C) in log-return form
         window (int): Rolling window length
 
     Returns:

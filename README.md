@@ -16,12 +16,12 @@
 
 ### 2. 📥 Download Dataset
 
-Fetch the required (Google stock, 5 years daily) dataset:
+Fetch the required dataset:
 ```bash
-python src/data_downloader.py
+python src/data_downloader.py --ticker `[ticker name]`
 ```
 
-This will save the data as `data/raw/GOOG/GOOG.csv`.
+This will save the data as `data/raw/[ticker name]/[ticker name].csv`.
 
 ### 3. ▶️ Run the Benchmark
 
