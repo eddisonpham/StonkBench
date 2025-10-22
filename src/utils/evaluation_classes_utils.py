@@ -101,7 +101,7 @@ class VisualAssessmentEvaluator(TaxonomyEvaluator):
 
     def evaluate(self, model_name: str):
         try:
-            model_results_dir = self.results_dir / f"visualizations_{model_name}_{self.timestamp}"
+            model_results_dir = self.results_dir / f"visualizations_{model_name}"
             model_results_dir.mkdir(parents=True, exist_ok=True)
 
             visualize_tsne(self.ori_data, self.syn_data, str(model_results_dir), model_name)

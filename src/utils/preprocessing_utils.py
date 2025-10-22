@@ -213,6 +213,32 @@ def sliding_window_view(data, window_size, step=1):
     new_strides = (data.strides[0],) + data.strides
     return np.lib.stride_tricks.as_strided(data, shape=new_shape, strides=new_strides)
 
+def _preprocess_parametric(ori_data, valid_ratio):
+    """
+    Preprocessing steps for parametric models.
+    """
+    idx = np.arange(ori_data.shape[0])
+    np.random.shuffle(idx)
+    ori_data = ori_data[idx]
+    ori_data = torch.from_numpy(ori_data)
+    print('Data shape:', tuple(ori_data.size()))
+    split = int(ori_data.shape[0] * (1 - valid_ratio))
+    show_with_end_divider(f'Preprocessing for parametric models done.')
+    return ori_data[:split], ori_data[split:]
+
+def _preprocess_non_parametric(ori_data, seq_length, valid_ratio, seed=None):
+    """
+    Preprocessing steps for non-parametric models.
+    """
+    data = sliding_window_view(ori_data, seq_length)  # (R, l, N)
+    print('Data shape:', data.shape)
+    
+    np.random.shuffle(data)
+    split = int(data.shape[0] * (1 - valid_ratio))
+    train_data, valid_data = data[:split], data[split:]
+    show_with_end_divider(f'Preprocessing for non-parametric models done.')
+    return train_data, valid_data
+
 def preprocess_data(cfg, supress_cfg_message = False):
     """
     Preprocess time series data for parametric or non-parametric models.
@@ -264,23 +290,10 @@ def preprocess_data(cfg, supress_cfg_message = False):
         scaler = LogReturnTransformation()
         ori_data = scaler.transform(ori_data)
 
-    if is_parametric:
-        ori_data = torch.from_numpy(ori_data)
-        print('Data shape:', tuple(ori_data.size()))
-        split = int(ori_data.shape[0] * (1 - valid_ratio))
-        show_with_end_divider(f'Preprocessing for parametric models done.')
-        return ori_data[:split], ori_data[split:]
-
-    data = sliding_window_view(ori_data, seq_length)  # (R, l, N)
-    print('Data shape:', data.shape)
-    split = int(data.shape[0] * (1 - valid_ratio))
-    train_data, valid_data = data[:split], data[split:]
-
     if seed is not None:
         np.random.seed(seed)
         random.seed(seed)
-    np.random.shuffle(train_data)
-    np.random.shuffle(valid_data)
 
-    show_with_end_divider(f'Preprocessing for non-parametric models done.')
-    return train_data, valid_data
+    if is_parametric:
+        return _preprocess_parametric(ori_data, valid_ratio)
+    return _preprocess_non_parametric(ori_data, seq_length, valid_ratio)
