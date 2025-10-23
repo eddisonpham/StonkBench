@@ -217,9 +217,6 @@ def _preprocess_parametric(ori_data, valid_ratio):
     """
     Preprocessing steps for parametric models.
     """
-    idx = np.arange(ori_data.shape[0])
-    np.random.shuffle(idx)
-    ori_data = ori_data[idx]
     ori_data = torch.from_numpy(ori_data)
     print('Data shape:', tuple(ori_data.size()))
     split = int(ori_data.shape[0] * (1 - valid_ratio))

@@ -32,7 +32,6 @@ class MetricPlot:
         self.dpi = dpi
         self.models = list(data.keys())
         
-        # Set up plotting style
         plt.style.use('seaborn-v0_8-whitegrid')
         sns.set_palette("husl")
     
@@ -49,7 +48,6 @@ class MetricPlot:
             ax.text(bar.get_x() + bar.get_width()/2., height,
                    f'{value:.3f}', ha='center', va='bottom', fontsize=fontsize, fontweight='bold')
 
-
 class PerformancePlot(MetricPlot):
     """Plot performance metrics (generation time)."""
     
@@ -63,12 +61,9 @@ class PerformancePlot(MetricPlot):
         ax.set_ylabel('Generation Time (seconds)')
         ax.set_title('Model Performance: Generation Time for 1000 Samples')
         ax.tick_params(axis='x', rotation=45)
-        
-        # Add value labels on bars
-        self.add_value_labels(bars, times, ax)
-        
-        self.save_plot('performance_generation_time.png')
 
+        self.add_value_labels(bars, times, ax)
+        self.save_plot('performance_generation_time.png')
 
 class DistributionPlot(MetricPlot):
     """Plot distribution metrics comparison."""
@@ -77,26 +72,21 @@ class DistributionPlot(MetricPlot):
         """Generate distribution metrics plot."""
         metrics = ['mdd', 'md', 'sdd', 'sd', 'kd', 'acd']
         
-        # Create subplots
         fig, axes = plt.subplots(2, 3, figsize=(15, 10), dpi=self.dpi)
         axes = axes.flatten()
         
         for i, metric in enumerate(metrics):
             ax = axes[i]
             values = [self.data[model][metric] for model in self.models]
-            
             bars = ax.bar(self.models, values, color=sns.color_palette("husl", len(self.models)))
             ax.set_title(f'{metric.upper()}')
             ax.set_ylabel('Value')
             ax.tick_params(axis='x', rotation=45)
-            
-            # Add value labels
             self.add_value_labels(bars, values, ax, fontsize=8)
-        
+
         plt.tight_layout()
         plt.savefig(self.output_dir / 'distribution_metrics.png', bbox_inches='tight', dpi=self.dpi)
         plt.close()
-
 
 class SimilarityPlot(MetricPlot):
     """Plot similarity metrics."""
@@ -111,17 +101,13 @@ class SimilarityPlot(MetricPlot):
         for i, (metric, title) in enumerate(zip(metrics, titles)):
             ax = axes[i]
             values = [self.data[model][metric] for model in self.models]
-            
             bars = ax.bar(self.models, values, color=sns.color_palette("husl", len(self.models)))
             ax.set_title(title)
             ax.set_ylabel('Distance')
             ax.tick_params(axis='x', rotation=45)
-            
-            # Add value labels
             self.add_value_labels(bars, values, ax)
         
         self.save_plot('similarity_metrics.png')
-
 
 class StylizedFactsPlot(MetricPlot):
     """Plot stylized facts comparison between real and synthetic data."""
@@ -140,20 +126,16 @@ class StylizedFactsPlot(MetricPlot):
     def _plot_single_stylized_fact(self, fact_name: str) -> None:
         """Plot a single stylized fact comparison."""
         fig, axes = plt.subplots(1, 3, figsize=self.figsize, dpi=self.dpi)
-        
-        # Extract data for this stylized fact
         real_key = f"{fact_name}_real"
         synth_key = f"{fact_name}_synth"
         diff_key = f"{fact_name}_diff"
-        
-        # Check if all models have this metric
+
         models_with_metric = [model for model in self.models 
                              if real_key in self.data[model]]
         
         if not models_with_metric:
             return
         
-        # Real vs Synthetic comparison
         ax1 = axes[0]
         real_values = [np.mean(self.data[model][real_key]) for model in models_with_metric]
         synth_values = [np.mean(self.data[model][synth_key]) for model in models_with_metric]
@@ -172,7 +154,6 @@ class StylizedFactsPlot(MetricPlot):
         ax1.legend(fontsize=11)
         ax1.grid(True, alpha=0.3)
         
-        # Difference plot
         ax2 = axes[1]
         diff_values = [np.mean(self.data[model][diff_key]) for model in models_with_metric]
         colors = ['red' if val > 0 else 'blue' for val in diff_values]
@@ -185,17 +166,14 @@ class StylizedFactsPlot(MetricPlot):
         ax2.axhline(y=0, color='black', linestyle='-', alpha=0.3)
         ax2.grid(True, alpha=0.3)
         
-        # Add value labels on bars for better readability
         for bar, value in zip(bars, diff_values):
             height = bar.get_height()
             ax2.text(bar.get_x() + bar.get_width()/2., height,
                    f'{value:.3f}', ha='center', va='bottom' if height >= 0 else 'top', 
                    fontsize=9, fontweight='bold')
         
-        # Heatmap of all lags
         ax3 = axes[2]
         if len(self.data[models_with_metric[0]][real_key]) > 1:
-            # Create heatmap data
             heatmap_data = []
             for model in models_with_metric:
                 real_vals = self.data[model][real_key]
@@ -214,7 +192,6 @@ class StylizedFactsPlot(MetricPlot):
             ax3.set_xlabel('Data Type', fontsize=12)
             ax3.set_ylabel('Models', fontsize=12)
         else:
-            # If only one lag, create a simple comparison plot
             ax3.bar(['Real', 'Synthetic'], 
                    [np.mean(self.data[models_with_metric[0]][real_key]), 
                     np.mean(self.data[models_with_metric[0]][synth_key])], 
@@ -234,7 +211,6 @@ class ComprehensiveComparisonPlot(MetricPlot):
     
     def plot(self) -> None:
         """Generate comprehensive comparison heatmap."""
-        # Prepare data for heatmap
         metrics = ['mdd', 'md', 'sdd', 'sd', 'kd', 'acd', 'icd_euclidean', 'icd_dtw']
         
         heatmap_data = []
@@ -251,7 +227,6 @@ class ComprehensiveComparisonPlot(MetricPlot):
                                 index=self.models,
                                 columns=[m.upper() for m in metrics])
         
-        # Create the heatmap
         fig, ax = plt.subplots(figsize=(10, 8), dpi=self.dpi)
         sns.heatmap(heatmap_df, annot=True, fmt='.3f', cmap='viridis', 
                    ax=ax, cbar_kws={'label': 'Metric Value'})
@@ -267,7 +242,6 @@ class ModelRankingPlot(MetricPlot):
     
     def plot(self) -> None:
         """Generate model ranking plot."""
-        # Define ranking criteria (lower is better for most metrics)
         ranking_metrics = {
             'generation_time_1000_samples': 'lower',
             'mdd': 'lower', 
@@ -277,15 +251,12 @@ class ModelRankingPlot(MetricPlot):
             'icd_dtw': 'lower'
         }
         
-        # Calculate rankings
         rankings = {}
         for metric, direction in ranking_metrics.items():
             values = [self.data[model][metric] for model in self.models]
             if direction == 'lower':
-                # Lower values are better
                 sorted_models = [model for _, model in sorted(zip(values, self.models))]
             else:
-                # Higher values are better
                 sorted_models = [model for _, model in sorted(zip(values, self.models), reverse=True)]
             
             for i, model in enumerate(sorted_models):
@@ -293,11 +264,9 @@ class ModelRankingPlot(MetricPlot):
                     rankings[model] = []
                 rankings[model].append(i + 1)
         
-        # Calculate average ranking
         avg_rankings = {model: np.mean(ranks) for model, ranks in rankings.items()}
         sorted_models = sorted(avg_rankings.items(), key=lambda x: x[1])
         
-        # Plot rankings
         fig, ax = plt.subplots(figsize=(10, 6), dpi=self.dpi)
         models = [item[0] for item in sorted_models]
         ranks = [item[1] for item in sorted_models]
@@ -307,7 +276,5 @@ class ModelRankingPlot(MetricPlot):
         ax.set_title('Model Performance Ranking')
         ax.tick_params(axis='x', rotation=45)
         
-        # Add value labels
         self.add_value_labels(bars, ranks, ax)
-        
         self.save_plot('model_ranking.png')

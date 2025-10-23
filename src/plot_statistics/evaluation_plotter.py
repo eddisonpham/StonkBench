@@ -8,8 +8,8 @@ from typing import Dict, Any
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from utils.eval_plot_utils import find_latest_evaluation_folder, load_evaluation_data, create_output_directory
-from utils.plot_classes_utils import (
+from utils.metric_plot_utils import find_latest_evaluation_folder, load_evaluation_data, create_output_directory
+from utils.metric_plot_classes_utils import (
     PerformancePlot, DistributionPlot, SimilarityPlot, 
     StylizedFactsPlot, ComprehensiveComparisonPlot, ModelRankingPlot
 )
@@ -83,11 +83,11 @@ def main():
         print("Generating all plots...")
         plotter.generate_all_plots()
         
-        print("✅ All plots generated successfully!")
-        print(f"📁 Plots saved to: {output_dir}")
+        print("All plots generated successfully!")
+        print(f"Plots saved to: {output_dir}")
         
     except Exception as e:
-        print(f"❌ Error generating plots: {str(e)}")
+        print(f"Error generating plots: {str(e)}")
         sys.exit(1)
 
 
