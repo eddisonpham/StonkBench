@@ -54,7 +54,7 @@ class TimeGAN(DeepLearningModel):
 
         self.to(self.device)
 
-    def fit(self, data_loader: DataLoader, epochs=50):
+    def fit(self, data_loader: DataLoader, epochs=10):
         self.train()
         for epoch in range(epochs):
             epoch_loss = 0.0
