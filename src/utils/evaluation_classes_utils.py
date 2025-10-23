@@ -72,6 +72,7 @@ class RuntimeEvaluator(TaxonomyEvaluator):
 
 class StylizedFactsEvaluator(TaxonomyEvaluator):
     def evaluate(self) -> Dict[str, Any]:
+
         fact_functions = {
             "heavy_tails": heavy_tails,
             "autocorr_raw": autocorr_raw,

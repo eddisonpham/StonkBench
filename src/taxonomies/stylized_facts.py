@@ -11,7 +11,7 @@ in real-world financial markets, such as:
 - Long memory in absolute returns
 - Non-stationarity in price and volume series
 
-The provided functions operate on multivariate time series data (e.g., Open, High, Low, Close, Adj Close, Volume)
+The provided functions operate on multivariate time series data (e.g., Open, High, Low, Close)
 and are intended for use in assessing the fidelity of synthetic data relative to real financial data.
 """
 
@@ -28,15 +28,15 @@ def heavy_tails(data: np.ndarray) -> np.ndarray:
     Assumes data is already in log-return form.
 
     Args:
-        data (np.ndarray): Array of shape (A, B, C) in log-return form
+        data (np.ndarray): Array of shape (R, l, N) in log-return form
 
     Returns:
         np.ndarray: Excess kurtosis per channel
     """
     data = to_numpy_abc(data)
-    A, B, C = data.shape
+    R, l, N = data.shape
     kurt_vals = []
-    for ch in range(C):
+    for ch in range(N):
         x = data[:, :, ch].flatten()
         kurt_vals.append(kurtosis(x, fisher=True))
     return np.array(kurt_vals)
@@ -49,16 +49,16 @@ def autocorr_raw(data: np.ndarray, lag: int = 1) -> np.ndarray:
     Assumes data is already in log-return form.
 
     Args:
-        data (np.ndarray): Array of shape (A, B, C) in log-return form
+        data (np.ndarray): Array of shape (R, l, N) in log-return form
         lag (int): Lag for autocorrelation
 
     Returns:
         np.ndarray: Autocorrelation per channel
     """
     data = to_numpy_abc(data)
-    A, B, C = data.shape
+    R, l, N = data.shape
     ac_vals = []
-    for ch in range(C):
+    for ch in range(N):
         x = data[:, :, ch].flatten()
         if len(x) <= lag:
             ac_vals.append(np.nan)
@@ -77,15 +77,15 @@ def volatility_clustering(data: np.ndarray) -> np.ndarray:
     Assumes data is already in log-return form.
 
     Args:
-        data (np.ndarray): Array of shape (A, B, C) in log-return form
+        data (np.ndarray): Array of shape (R, l, N) in log-return form
 
     Returns:
         np.ndarray: Autocorrelation of squared returns per channel
     """
     data = to_numpy_abc(data)
-    A, B, C = data.shape
+    R, l, N = data.shape
     ac_sq_vals = []
-    for ch in range(C):
+    for ch in range(N):
         x = data[:, :, ch].flatten()
         if len(x) <= 1:
             ac_sq_vals.append(np.nan)
@@ -105,16 +105,16 @@ def long_memory_abs(data: np.ndarray, max_lag: int = 10) -> np.ndarray:
     Assumes data is already in log-return form.
 
     Args:
-        data (np.ndarray): Array of shape (A, B, C) in log-return form
+        data (np.ndarray): Array of shape (R, l, N) in log-return form
         max_lag (int): Maximum lag to compute
 
     Returns:
         np.ndarray: Average autocorrelation per channel
     """
     data = to_numpy_abc(data)
-    A, B, C = data.shape
+    R, l, N = data.shape
     avg_ac_abs = []
-    for ch in range(C):
+    for ch in range(N):
         x = np.abs(data[:, :, ch].flatten())
         ac_vals = []
         for lag in range(1, min(max_lag + 1, len(x))):
@@ -134,16 +134,16 @@ def non_stationarity(data: np.ndarray, window: int = 50) -> np.ndarray:
     (heteroscedasticity) in the log-return series.
 
     Args:
-        data (np.ndarray): Array of shape (A, B, C) in log-return form
+        data (np.ndarray): Array of shape (R, l, N) in log-return form
         window (int): Rolling window length
 
     Returns:
         np.ndarray: Non-stationarity measure per channel
     """
     data = to_numpy_abc(data)
-    A, B, C = data.shape
+    R, l, N = data.shape
     nonstat_vals = []
-    for ch in range(C):
+    for ch in range(N):
         x = data[:, :, ch].flatten()
         if len(x) < window:
             nonstat_vals.append(np.nan)

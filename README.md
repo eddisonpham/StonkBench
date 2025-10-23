@@ -45,21 +45,35 @@ Execute the full benchmark and get all evaluation metrics, synthetic data, and l
 - `configs/model_cfgs.yaml`: Configurations for deep learning models (or non-parametric).
 
 
-### 4. 📊 Viewing Results in MLFlow
+### 4. 📊 Viewing Results
 
-After you run the benchmark, use MLFlow’s UI to explore and compare your experiments:
+#### Option A: MLFlow UI
+After you run the benchmark, use MLFlow's UI to explore and compare your experiments:
 
 1. Start the MLFlow tracking UI (in your project root):
    ```bash
    mlflow ui
    ```
 2. Visit [http://localhost:5000](http://localhost:5000) in your browser.
-3. For each experiment/model, you’ll see:
+3. For each experiment/model, you'll see:
    - Parameters/configurations
    - Training time, generation time (for 500 samples)
    - All computed metrics (Fidelity, Diversity, Efficiency, Stylized Facts)
    - Downloadable output artifacts (e.g., metrics JSON, visualization plots)
 4. Use MLFlow to compare models across any metric, check plots, and download results.
+
+#### Option B: Publication-Ready Plots
+Generate comprehensive, publication-ready plots for all evaluation metrics:
+
+```bash
+python src/plot_statistics/evaluation_plotter.py
+```
+
+This will:
+- Automatically find the latest evaluation results
+- Generate publication-quality plots (300 DPI) for all metrics
+- Save plots to `evaluation_plots/` directory
+- Include performance metrics, distribution analysis, similarity measures, stylized facts, and model rankings
 
 ---
 
@@ -69,6 +83,8 @@ After you run the benchmark, use MLFlow’s UI to explore and compare your exper
 Unified-benchmark-for-SDGFTS-main/
   ├─ data/                       # Raw and preprocessed datasets
   ├─ notebooks/                  # Validate functionality of parts of the pipeline
+  ├─ results/                    # Evaluation results (JSON files)
+  ├─ evaluation_plots/           # Publication-ready plots (generated)
   ├─ src/
   │   ├─ models/                 # Generative model implementations
   │   ├─ taxonomies/
@@ -76,7 +92,10 @@ Unified-benchmark-for-SDGFTS-main/
   │   │   ├─ efficiency.py       # Efficiency metrics (runtime, memory)
   │   │   ├─ fidelity.py         # Fidelity/feature metrics + Visualization (MDD, MD, SDD, KD, ACD, t-SNE, Distrib. Plots)
   │   │   └─ stylized_facts.py   # Stylized facts metrics (tails, autocorr, volatility)
+  │   ├─ plot_statistics/        # Plotting functionality for evaluation results
+  │   │   └─ evaluation_plotter.py  # Main plotting script (executable)
   │   ├─ utils/                  # Configs, display, math, evaluation classes, preprocessing, etc.
+  │   │   └─ eval_plot_utils.py  # Utilities for evaluation plotting
   │   └─ data_downloader.py      # Dataset download utility
   ├─ configs/                    # Experiment and preprocessing config templates
   ├─ requirements.txt

@@ -1,14 +1,14 @@
 nonparametric_dataset_cfg:
   ticker: "AAPL"
   original_data_path: "data/raw/${ticker}/${ticker}.csv"
-  valid_ratio: 0.1
+  valid_ratio: 0.15
   do_transformation: true
   seed: 42
 
 parametric_dataset_cfg:
   ticker: "AAPL"
   original_data_path: "data/raw/${ticker}/${ticker}.csv"
-  valid_ratio: 0.1
+  valid_ratio: 0.15
   is_parametric: true
   do_transformation: true
   seed: 42

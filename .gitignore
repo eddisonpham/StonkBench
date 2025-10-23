@@ -14,3 +14,4 @@ mlruns/
 *.pkl
 
 results
+evaluation_plots
