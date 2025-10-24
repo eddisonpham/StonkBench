@@ -230,9 +230,10 @@ def _preprocess_non_parametric(ori_data, seq_length, valid_ratio, seed=None):
     data = sliding_window_view(ori_data, seq_length)  # (R, l, N)
     print('Data shape:', data.shape)
     
-    np.random.shuffle(data)
     split = int(data.shape[0] * (1 - valid_ratio))
     train_data, valid_data = data[:split], data[split:]
+    np.random.shuffle(train_data)
+    np.random.shuffle(valid_data)
     show_with_end_divider(f'Preprocessing for non-parametric models done.')
     return train_data, valid_data
 

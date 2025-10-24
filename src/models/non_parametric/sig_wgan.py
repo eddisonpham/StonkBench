@@ -1,24 +1,22 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import DataLoader
+from abc import ABC, abstractmethod
 from tqdm import tqdm
 
-from src.models.base.base_model import DeepLearningModel
-
-
+# --------------------------
+# Temporal Block (for Conv1D VAE encoder/decoder)
+# --------------------------
 class TemporalBlock(nn.Module):
     def __init__(self, n_inputs, n_hidden, n_outputs, kernel_size, dilation):
         super(TemporalBlock, self).__init__()
         self.conv1 = nn.Conv1d(n_inputs, n_hidden, kernel_size, stride=1, dilation=dilation, padding='same')
-
         self.relu1 = nn.PReLU()
         self.conv2 = nn.Conv1d(n_hidden, n_outputs, kernel_size, stride=1, dilation=dilation, padding='same')
         self.relu2 = nn.PReLU()
-
         self.net = nn.Sequential(self.conv1, self.relu1, self.conv2, self.relu2)
-
         self.downsample = nn.Conv1d(n_inputs, n_outputs, 1) if n_inputs != n_outputs else None
-
         self.init_weights()
 
     def init_weights(self):
@@ -32,6 +30,9 @@ class TemporalBlock(nn.Module):
         res = x if self.downsample is None else self.downsample(x)
         return out + res
 
+# --------------------------
+# Temporal Convolutional Network (TCN)
+# --------------------------
 class TCN(nn.Module):
     def __init__(self, input_size, output_size, n_hidden=80):
         super(TCN, self).__init__()
@@ -47,11 +48,14 @@ class TCN(nn.Module):
 
     def init_weights(self):
         self.conv.weight.data.normal_(0, 0.01)
-    
+
     def forward(self, x):
         y1 = self.net(x.transpose(1, 2))
         return self.conv(y1).transpose(1, 2)
 
+# --------------------------
+# Generator
+# --------------------------
 class Generator(nn.Module):
     def __init__(self, input_size, output_size):
         super(Generator, self).__init__()
@@ -60,6 +64,9 @@ class Generator(nn.Module):
     def forward(self, x):
         return torch.tanh(self.net(x))
 
+# --------------------------
+# Discriminator (Critic)
+# --------------------------
 class Discriminator(nn.Module):
     def __init__(self, input_size, output_size):
         super(Discriminator, self).__init__()
@@ -68,12 +75,17 @@ class Discriminator(nn.Module):
     def forward(self, x):
         return torch.sigmoid(self.net(x))
 
-class QuantGAN(DeepLearningModel):
+# --------------------------
+# Sig-WGAN Model
+# --------------------------
+class SigWGAN(DeepLearningModel):
     """
-    QuantGAN: Temporal Convolutional GAN for Financial Time Series Generation.
-    
-    Implements a Wasserstein GAN (WGAN) using TCN-based Generator and Discriminator.
-    
+    Sig-WGAN: Signature-Wasserstein GAN for Time Series Generation.
+
+    Implements a Wasserstein GAN using TCN-based Generator and Discriminator,
+    enhanced with Signature-Wasserstein distance for improved training stability
+    and sample quality.
+
     Inputs:
         - seq_length: Length of each time series segment (l)
         - num_features: Number of output channels (N)
@@ -113,7 +125,7 @@ class QuantGAN(DeepLearningModel):
 
     def fit(self, data_loader, num_epochs: int = 10, verbose: bool = True):
         """
-        Train QuantGAN on time series data using Wasserstein GAN training loop.
+        Train Sig-WGAN on time series data using Wasserstein GAN training loop.
 
         Args:
             data_loader (torch.utils.data.DataLoader): batches of (batch_size, seq_len, num_features)
@@ -175,7 +187,7 @@ class QuantGAN(DeepLearningModel):
             torch.Tensor: Generated synthetic samples (R, l, N)
         """
         if not self.trained:
-            raise RuntimeError("QuantGAN must be trained before generation.")
+            raise RuntimeError("Sig-WGAN must be trained before generation.")
 
         self.generator.eval()
         seq_length = seq_length or self.seq_length
