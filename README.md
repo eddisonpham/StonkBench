@@ -42,8 +42,6 @@ Execute the full benchmark and get all evaluation metrics, synthetic data, and l
 
 #### Customizing runs:
 - `configs/dataset_cfgs.yaml`: Modify the preprocessing of the dataset for *parametric/non-parametric*.
-- `configs/model_cfgs.yaml`: Configurations for deep learning models (or non-parametric).
-
 
 ### 4. 📊 Viewing Results
 
@@ -123,6 +121,10 @@ The benchmark supports a range of both traditional parametric models and modern 
 <summary><strong>Non-parametric & Deep Learning Models</strong></summary>
 
 - <kbd>TimeGAN</kbd>
+- <kbd>QuantGAN</kbd>
+- <kbd>TimeVAE</kbd>
+- <kbd>Sig-WGAN</kbd>
+- <kbd>Block Bootstrap</kbd>
 
 </details>
 
@@ -183,7 +185,7 @@ All results are available in:
 
 | Name                  | Role                                 | Email                             |
 |-----------------------|--------------------------------------|-----------------------------------|
-| **Eddison Pham**      | Machine Learning Researcher/Engineer | eddison.pham@mail.utoronto.ca     |
+| **Eddison Pham**      | Machine Learning Researcher & Engineer | eddison.pham@mail.utoronto.ca     |
 | **Albert Lam Ho**     | Quantitative Researcher              | uyenlam.ho@mail.utoronto.ca       |
 | **Yiqing Irene Huang**| Research Supervisor/Professor        | iy.huang@mail.utoronto.ca         |
 
