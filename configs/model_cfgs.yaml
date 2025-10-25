@@ -1,6 +1,0 @@
-TimeGAN_model_cfg:
-  embedding_dim: 64
-  hidden_dim: 128
-  num_layers: 1
-  learning_rate: 0.0002
-  batch_size: 16

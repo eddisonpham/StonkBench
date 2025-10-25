@@ -10,20 +10,29 @@ class DoubleExponentialJumpDiffusion(ParametricModel):
     Double Exponential Jump Diffusion (DEJD) parametric model for multichannel time series.
 
     Assumptions:
-      - Input arrays shaped (l, N) where all N channels are feature signals.
+      - Input arrays shaped (l, N) where all N channels are log returns (already preprocessed).
+      - No internal log return computation (data is already log returns).
+      - All channels are feature signals.
       - No timestamp channel in input data.
-      - SDE for price S_t: dS_t = S_{t^-} ( (mu - lambda * k) dt + sigma dW_t + (J - 1) dN_t )
-      - Jumps are double exponential: positive jumps ~ Exp(eta1), negative jumps ~ Exp(eta2)
-      - Jump probability p: P(positive jump)
-      - Drift is adjusted by the jump expectation k = E[J-1] to keep mu as the expected log-return.
+      - Log return dynamics: r_t = (mu - 0.5*sigma^2 - lambda*k) + sigma*dW + J*dN
+        where k = E[J] = p/eta1 - (1-p)/eta2 (expected jump size)
+        Jumps are double exponential: positive jumps ~ Exp(eta1), negative jumps ~ Exp(eta2)
+        with probability p for positive jumps
       - Time steps are evenly spaced (linear).
+      
+    Model Parameters:
+      - mu: Total drift (annualized expected log return)
+      - sigma: Diffusive volatility
+      - lamb: Jump intensity (Poisson rate per unit time)
+      - p: Probability of positive jump
+      - eta1: Rate of positive jump exponential distribution
+      - eta2: Rate of negative jump exponential distribution
     """
-    def __init__(self, length: int, num_channels: int, initial_value: Optional[float] = 1.0,
+    def __init__(self, length: int, num_channels: int,
                  device: Optional[torch.device] = None):
         super().__init__()
         self.length = int(length)
         self.num_channels = int(num_channels)
-        self.initial_value = initial_value
         self.device = device if device is not None else torch.device("cpu")
 
         # Fitted parameters
@@ -41,6 +50,8 @@ class DoubleExponentialJumpDiffusion(ParametricModel):
         """
         Fit approximate parameters to `data` (numpy array or torch tensor) of shape (l, N).
         Uses heuristic jump separation based on extreme returns.
+        
+        Data is assumed to be log returns already.
         """
         if isinstance(data, torch.Tensor):
             data = data.detach().cpu().numpy()
@@ -63,11 +74,19 @@ class DoubleExponentialJumpDiffusion(ParametricModel):
         eta2 = np.zeros(self.num_channels, dtype=np.float64)
 
         for ch in range(self.num_channels):
-            series = data[:, ch].astype(np.float64)
-            returns = np.diff(np.log(series))
+            returns = data[:, ch].astype(np.float64)
+
+            if len(returns) < 2:
+                mu[ch] = 0.0
+                sigma[ch] = 1e-6
+                lamb[ch] = 1e-6
+                p[ch] = 0.5
+                eta1[ch] = 1.0
+                eta2[ch] = 1.0
+                continue
 
             temp_mu_total = np.mean(returns)
-            temp_sigma_total = np.std(returns, ddof=0)
+            temp_sigma_total = np.std(returns, ddof=1)
 
             # Heuristic jump detection
             C = 4.0
@@ -96,10 +115,11 @@ class DoubleExponentialJumpDiffusion(ParametricModel):
             returns_no_jumps = returns[~jumps]
 
             if len(returns_no_jumps) > 1:
-                sigma_diff = np.std(returns_no_jumps, ddof=0)
+                sigma_diff = np.std(returns_no_jumps, ddof=1)
+                sigma_diff = max(sigma_diff, 1e-6)
                 mu_diff = np.mean(returns_no_jumps)
 
-                # Expected jump: E[J - 1] = p/eta1 - (1-p)/eta2
+                # Expected jump: E[J] = p/eta1 - (1-p)/eta2
                 jump_comp_exp = p[ch] / eta1[ch] - (1.0 - p[ch]) / eta2[ch]
                 mu[ch] = mu_diff + 0.5 * sigma_diff**2 + lamb[ch] * jump_comp_exp
                 sigma[ch] = sigma_diff
@@ -118,15 +138,22 @@ class DoubleExponentialJumpDiffusion(ParametricModel):
         return {"mu": self.mu, "sigma": self.sigma, "lamb": self.lamb,
                 "p": self.p, "eta1": self.eta1, "eta2": self.eta2}
 
-    def generate(self, num_samples: int, initial_value: Optional[np.ndarray] = None,
-        output_length: Optional[int] = None, seed: Optional[int] = None
-    ):
+    def generate(self, num_samples: int, output_length: Optional[int] = None, 
+                 seed: Optional[int] = None):
         """
-        Generate `num_samples` independent sample paths of length `output_length` (or self.length if None)
+        Generate `num_samples` independent sample paths of log returns
         for the Kou Double Exponential Jump Diffusion process.
 
         Returns a torch tensor of shape (num_samples, output_length, num_channels).
-        All channels are simulated feature channels.
+        All channels are simulated log return channels.
+        
+        Args:
+            num_samples (int): Number of samples to generate.
+            output_length (int, optional): Length of generated sequences. Defaults to self.length.
+            seed (int, optional): Random seed for reproducibility.
+            
+        Returns:
+            torch.Tensor: Generated log returns of shape (num_samples, output_length, num_channels)
         """
         if seed is not None:
             torch.manual_seed(seed)
@@ -137,20 +164,6 @@ class DoubleExponentialJumpDiffusion(ParametricModel):
         N = self.num_channels
 
         paths = torch.zeros((num_samples, L, N), dtype=torch.float32, device=device)
-
-        # --- initial values ---
-        if initial_value is None:
-            if hasattr(self, "fitted_data") and self.fitted_data is not None:
-                init_vals = np.asarray(self.fitted_data[0, :], dtype=np.float32)
-            else:
-                init_vals = np.full((N,), float(self.initial_value if self.initial_value is not None else 1.0), dtype=np.float32)
-        else:
-            init_vals = np.asarray(initial_value, dtype=np.float32)
-            if init_vals.shape == ():
-                init_vals = np.full((N,), float(init_vals), dtype=np.float32)
-            elif init_vals.shape[0] != N:
-                raise ValueError("initial_value must be scalar or length equal to number of channels")
-        paths[:, 0, :] = torch.tensor(init_vals, dtype=torch.float32, device=device).unsqueeze(0).expand(num_samples, -1)
 
         # --- parameters ---
         mu = self.mu.to(device) if self.mu is not None else torch.zeros(N, device=device)
@@ -164,19 +177,17 @@ class DoubleExponentialJumpDiffusion(ParametricModel):
         jump_drift_correction = lamb * (p / eta1 - (1 - p) / eta2)
 
         # --- simulate paths ---
-        for k in range(L - 1):
-            prev = paths[:, k, :]
-
+        for k in range(L):
             # diffusion increment
-            log_drift = (mu - 0.5 * sigma**2 - jump_drift_correction)
+            log_drift = mu - 0.5 * sigma**2 - jump_drift_correction
             z_diff = torch.randn((num_samples, N), dtype=torch.float32, device=device)
             diffusion_increment = sigma * z_diff
 
             # Poisson jump arrivals
-            poisson_counts = torch.poisson(lamb.unsqueeze(0))  # (num_samples, num_channels)
+            poisson_counts = torch.poisson(lamb.unsqueeze(0).expand(num_samples, -1))  # (num_samples, num_channels)
 
             # total jumps for each channel
-            total_jump = torch.zeros_like(prev)
+            total_jump = torch.zeros((num_samples, N), dtype=torch.float32, device=device)
             for ch in range(N):
                 Nj = poisson_counts[:, ch]
                 mask = Nj > 0
@@ -195,6 +206,7 @@ class DoubleExponentialJumpDiffusion(ParametricModel):
                                 magnitudes[neg_idx] = torch.distributions.Exponential(eta2[ch]).sample((neg_idx.sum(),))
                             total_jump[i, ch] = (signs * magnitudes).sum()
 
-            paths[:, k + 1, :] = prev * torch.exp(log_drift + diffusion_increment + total_jump)
+            # Total log return
+            paths[:, k, :] = log_drift + diffusion_increment + total_jump
 
         return paths

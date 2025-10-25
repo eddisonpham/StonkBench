@@ -10,26 +10,33 @@ class OrnsteinUhlenbeckProcess(ParametricModel):
     Ornstein-Uhlenbeck (O-U) parametric model for multichannel time series.
 
     Assumptions:
-      - Input arrays shaped (l, N) where all N channels are feature signals.
+      - Input arrays shaped (l, N) where all N channels are log returns (already preprocessed).
+      - No internal log return computation (data is already log returns).
+      - All channels are feature signals.
       - No timestamp channel in input data.
       - Each channel is an independent O-U process.
-      - Time steps are evenly spaced (linear) with constant dt.
+      - Time steps are evenly spaced (linear) with constant dt = 1.
+      - O-U dynamics: dX_t = theta * (mu - X_t) dt + sigma dW_t
+        where X_t represents log returns
       - Estimation uses MLE for constant dt:
             X_{t+dt} = X_t * exp(-theta*dt) + mu*(1 - exp(-theta*dt)) + epsilon,
             epsilon ~ N(0, sigma^2*(1 - exp(-2*theta*dt))/(2*theta))
+            
+    Model Parameters:
+      - mu: Long-term mean (mean reversion level, typically close to 0 for log returns)
+      - theta: Mean reversion rate (speed of reversion)
+      - sigma: Volatility
     """
 
     def __init__(
         self,
         length: int,
         num_channels: int,
-        initial_value: Optional[float] = 0.0, 
         device: Optional[torch.device] = None
     ):
         super().__init__()
         self.length = int(length)
         self.num_channels = int(num_channels)
-        self.initial_value = initial_value
         self.device = device if device is not None else torch.device("cpu")
 
         self.mu = None
@@ -46,6 +53,8 @@ class OrnsteinUhlenbeckProcess(ParametricModel):
             mu: Long-term mean.
             theta: Mean reversion rate.
             sigma: Volatility.
+            
+        Data is assumed to be log returns already.
         """
         if isinstance(data, torch.Tensor):
             data = data.detach().cpu().numpy()
@@ -67,9 +76,9 @@ class OrnsteinUhlenbeckProcess(ParametricModel):
         for ch in range(self.num_channels):
             series = data[:, ch].astype(np.float64)
             if len(series) < 2:
-                mu[ch] = series[0] if len(series) > 0 else 0.0
-                theta[ch] = 0.0
-                sigma[ch] = 0.0
+                mu[ch] = 0.0
+                theta[ch] = 0.1
+                sigma[ch] = 1e-6
                 continue
             
             X_prev = series[:-1]
@@ -80,19 +89,23 @@ class OrnsteinUhlenbeckProcess(ParametricModel):
             var_x = cov[0, 0]
             cov_xy = cov[0, 1]
             
-            phi = cov_xy / var_x if var_x > 0 else 0.0
-            phi = np.clip(phi, 1e-8, 0.999)  # positive and <1
+            phi = cov_xy / var_x if var_x > 1e-10 else 0.9
+            phi = np.clip(phi, 1e-8, 0.9999)  # positive and <1
             
             # Continuous-time parameters assuming dt = 1
             theta_hat = -np.log(phi)
-            mu_hat = np.mean(X_next - phi * X_prev) / (1 - phi)
+            theta_hat = max(theta_hat, 1e-6)
+            
+            mu_hat = np.mean(X_next - phi * X_prev) / (1 - phi) if abs(1 - phi) > 1e-10 else np.mean(series)
             
             # Residuals
             eps = X_next - (phi * X_prev + (1 - phi) * mu_hat)
             var_eps = np.var(eps, ddof=0)
+            var_eps = max(var_eps, 1e-10)
             
             # Sigma estimation
             sigma_hat = np.sqrt(2 * theta_hat * var_eps / (1 - np.exp(-2 * theta_hat)))
+            sigma_hat = max(sigma_hat, 1e-6)
             
             mu[ch] = mu_hat
             theta[ch] = theta_hat
@@ -104,20 +117,27 @@ class OrnsteinUhlenbeckProcess(ParametricModel):
 
         return {"mu": self.mu, "theta": self.theta, "sigma": self.sigma}
 
-    def generate(self, num_samples: int, initial_value: Optional[np.ndarray] = None,
-        output_length: Optional[int] = None, seed: Optional[int] = None
-    ):
+    def generate(self, num_samples: int, output_length: Optional[int] = None, 
+                 seed: Optional[int] = None):
         """
-        Generate `num_samples` independent sample paths of length `output_length` (or self.length if None)
+        Generate `num_samples` independent sample paths of log returns
         for the Ornstein-Uhlenbeck (O-U) process.
 
         Returns a torch tensor of shape (num_samples, output_length, num_channels).
-        All channels are simulated feature channels.
+        All channels are simulated log return channels.
 
         O-U assumptions:
         - Mean-reverting process: dX_t = theta * (mu - X_t) dt + sigma dW_t
         - Multi-channel support
-        - Initial values can be provided, else fitted data or default is used
+        - Each time step generates a log return value
+        
+        Args:
+            num_samples (int): Number of samples to generate.
+            output_length (int, optional): Length of generated sequences. Defaults to self.length.
+            seed (int, optional): Random seed for reproducibility.
+            
+        Returns:
+            torch.Tensor: Generated log returns of shape (num_samples, output_length, num_channels)
         """
         if seed is not None:
             torch.manual_seed(seed)
@@ -129,23 +149,19 @@ class OrnsteinUhlenbeckProcess(ParametricModel):
 
         paths = torch.zeros((num_samples, L, N), dtype=torch.float32, device=device)
 
-        if initial_value is None:
-            if hasattr(self, "fitted_data") and self.fitted_data is not None:
-                init_vals = np.asarray(self.fitted_data[0, :], dtype=np.float32)
-            else:
-                init_vals = np.ones((N,), dtype=np.float32) * (self.initial_value if self.initial_value is not None else 0.0)
-        else:
-            init_vals = np.asarray(initial_value, dtype=np.float32)
-            if init_vals.shape == ():
-                init_vals = np.full((N,), float(init_vals), dtype=np.float32)
-            elif init_vals.shape[0] != N:
-                raise ValueError("initial_value must be scalar or length equal to number of channels")
-        paths[:, 0, :] = torch.tensor(init_vals, dtype=torch.float32, device=device).unsqueeze(0).expand(num_samples, -1)
-
         mu = self.mu.to(device) if self.mu is not None else torch.zeros(N, device=device)
-        theta = self.theta.to(device) if self.theta is not None else torch.zeros(N, device=device)
-        sigma = self.sigma.to(device) if self.sigma is not None else torch.zeros(N, device=device)
+        theta = self.theta.to(device) if self.theta is not None else torch.full((N,), 0.1, device=device)
+        sigma = self.sigma.to(device) if self.sigma is not None else torch.ones(N, device=device) * 1e-3
 
+        # Initialize at the long-term mean
+        if hasattr(self, "fitted_data") and self.fitted_data is not None:
+            init_vals = torch.tensor(self.fitted_data[0, :], dtype=torch.float32, device=device)
+        else:
+            init_vals = mu.clone()
+        
+        paths[:, 0, :] = init_vals.unsqueeze(0).expand(num_samples, -1)
+
+        # Generate O-U process
         for k in range(L - 1):
             z = torch.randn((num_samples, N), dtype=torch.float32, device=device)
             prev = paths[:, k, :]
