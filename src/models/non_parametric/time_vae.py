@@ -51,17 +51,17 @@ class TimeVAE(DeepLearningModel):
         n_layers: Number of LSTM layers
         lr: Learning rate
     """
-    def __init__(self, seq_len, num_features, latent_dim=16, hidden_dim=64, n_layers=1, lr=1e-3):
+    def __init__(self, seq_length, n_channels, latent_dim=32, enc_hidden=128, dec_hidden=128, beta=1.0, use_lstm=True, lr=1e-3):
         super().__init__()
-        self.seq_len = seq_len
-        self.num_features = num_features
+        self.seq_len = seq_length
+        self.num_features = n_channels
         self.latent_dim = latent_dim
-        self.hidden_dim = hidden_dim
-        self.n_layers = n_layers
+        self.hidden_dim = enc_hidden
+        self.n_layers = 1
         self.lr = lr
 
-        self.encoder = TimeVAEEncoder(num_features, hidden_dim, latent_dim, n_layers).to(self.device)
-        self.decoder = TimeVAEDecoder(latent_dim, hidden_dim, num_features, seq_len, n_layers).to(self.device)
+        self.encoder = TimeVAEEncoder(n_channels, enc_hidden, latent_dim, 1).to(self.device)
+        self.decoder = TimeVAEDecoder(latent_dim, dec_hidden, n_channels, seq_length, 1).to(self.device)
 
         self.optimizer = optim.Adam(list(self.encoder.parameters()) + list(self.decoder.parameters()), lr=self.lr)
         self.trained = False

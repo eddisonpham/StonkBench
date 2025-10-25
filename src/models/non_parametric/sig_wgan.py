@@ -5,9 +5,9 @@ from torch.utils.data import DataLoader
 from abc import ABC, abstractmethod
 from tqdm import tqdm
 
-# --------------------------
-# Temporal Block (for Conv1D VAE encoder/decoder)
-# --------------------------
+from src.models.base.base_model import DeepLearningModel
+
+
 class TemporalBlock(nn.Module):
     def __init__(self, n_inputs, n_hidden, n_outputs, kernel_size, dilation):
         super(TemporalBlock, self).__init__()
@@ -37,11 +37,12 @@ class TCN(nn.Module):
     def __init__(self, input_size, output_size, n_hidden=80):
         super(TCN, self).__init__()
         layers = []
+        dilation = 1
         for i in range(7):
             num_inputs = input_size if i == 0 else n_hidden
             kernel_size = 2 if i > 0 else 1
-            dilation = 2 * dilation if i > 1 else 1
             layers += [TemporalBlock(num_inputs, n_hidden, n_hidden, kernel_size, dilation)]
+            dilation = 2 * dilation if i > 0 else 1
         self.conv = nn.Conv1d(n_hidden, output_size, 1)
         self.net = nn.Sequential(*layers)
         self.init_weights()
