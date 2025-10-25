@@ -7,7 +7,7 @@ import random
 import numpy as np
 import pandas as pd
 import torch
-from statsmodels.tsa.stattools import acf
+from statsmodels.tsa.stattools import acf, pacf
 from torch.utils.data import Dataset, DataLoader
 from scipy.signal import argrelextrema
 
@@ -50,248 +50,182 @@ class LogReturnTransformation:
 
 class TimeSeriesDataset(Dataset):
     """
-    PyTorch Dataset class for time series data with seed support for reproducible batching.
-    
-    This class handles time series data with shape (R, l, N) where:
-    - R: Number of sequences
-    - l: Sequence length (time steps)  
-    - N: Number of variables/features
-    
-    The dataset supports seed-based shuffling and proper batching for time series generation models.
-    
-    Args:
-        data (numpy.ndarray): Time series data with shape (R, l, N)
-        seed (int, optional): Random seed for reproducible shuffling (default: None)
-        transform (callable, optional): Optional transform to apply to each sample
+    PyTorch Dataset for 3D time series data (R, l, N):
+    - R: number of sequences/windows
+    - l: sequence length
+    - N: number of features
+
+    Features:
+    - Optional shuffling (only recommended for training)
+    - Seed support for reproducibility
+    - Optional transform on each sequence
     """
-    
-    def __init__(self, data, seed=None, transform=None):
-        """
-        Initialize the TimeSeriesDataset.
-        
-        Args:
-            data (numpy.ndarray): Time series data with shape (R, l, N)
-            seed (int, optional): Random seed for reproducible shuffling
-            transform (callable, optional): Optional transform to apply to each sample
-        """
+    def __init__(self, data: np.ndarray, shuffle: bool = False, seed: int = 42, transform=None):
         if not isinstance(data, np.ndarray):
             raise ValueError("Data must be a numpy array")
-        
         if data.ndim != 3:
-            raise ValueError(f"Data must be 3D with shape (R, l, N), got shape {data.shape}")
+            raise ValueError(f"Data must be 3D with shape (R, l, N), got {data.shape}")
 
         self.data = torch.from_numpy(data).float()
         self.transform = transform
+        self.shuffle = shuffle
+        self.seed = seed
 
-        self.indices = list(range(len(data)))
-        if seed is not None:
-            random.seed(seed)
-            np.random.seed(seed)
-            torch.manual_seed(seed)
+        self._initialize_indices()
+
+    def _initialize_indices(self):
+        """Initialize or reshuffle indices based on the shuffle flag."""
+        self.indices = list(range(len(self.data)))
+        if self.shuffle:
+            random.seed(self.seed)
+            np.random.seed(self.seed)
+            torch.manual_seed(self.seed)
             random.shuffle(self.indices)
-        else:
-            random.shuffle(self.indices)
-    
+
     def __len__(self):
-        """Return the number of sequences in the dataset."""
+        """Return the number of sequences/windows."""
         return len(self.data)
-    
+
     def __getitem__(self, idx):
-        """
-        Get a single time series sequence.
-        
-        Args:
-            idx (int): Index of the sequence to retrieve
-            
-        Returns:
-            torch.Tensor: Time series sequence with shape (l, N)
-        """
-        # Use shuffled indices for reproducible access
         actual_idx = self.indices[idx]
         sample = self.data[actual_idx]
-        
+
         if self.transform:
             sample = self.transform(sample)
-        
+
         return sample
-    
+
+    def set_seed(self, seed: int):
+        """Reset seed and reshuffle indices if shuffle=True."""
+        self.seed = seed
+        if self.shuffle:
+            self._initialize_indices()
+
     def get_original_indices(self):
-        """
-        Get the original indices in shuffled order.
-        
-        Returns:
-            list: List of original indices in the order they are accessed
-        """
+        """Return a copy of the current indices (shuffled or sequential)."""
         return self.indices.copy()
-    
-    def set_seed(self, seed):
-        """
-        Reset the dataset with a new seed for different shuffling.
-        
-        Args:
-            seed (int): New random seed
-        """
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        self.indices = list(range(len(self.data)))
-        random.shuffle(self.indices)
 
 def create_dataloaders(
     train_data, 
     valid_data, 
+    test_data,
     batch_size=32, 
     train_seed=None, 
     valid_seed=None,
+    test_seed=None,
     num_workers=0, 
     pin_memory=False
 ):
     """
     Create train/validation DataLoaders for time series data.
-
-    Args:
-        train_data, valid_data (np.ndarray): Arrays of shape (R, l, N)
-        batch_size (int): Batch size (default=32)
-        train_seed, valid_seed (int): Shuffle seeds
-        num_workers (int): DataLoader workers
-        pin_memory (bool): Pin memory for GPU (default=False)
-
-    Returns:
-        tuple: (train_loader, valid_loader)
     """
-    train_dataset = TimeSeriesDataset(train_data, seed=train_seed)
-    valid_dataset = TimeSeriesDataset(valid_data, seed=valid_seed)
+    train_dataset = TimeSeriesDataset(train_data, seed=train_seed, shuffle=True)
+    valid_dataset = TimeSeriesDataset(valid_data, seed=valid_seed, shuffle=False)
+    test_dataset = TimeSeriesDataset(test_data, seed=test_seed, shuffle=False)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size,
                               num_workers=num_workers, pin_memory=pin_memory)
     valid_loader = DataLoader(valid_dataset, batch_size=batch_size,
                               num_workers=num_workers, pin_memory=pin_memory)
-    return train_loader, valid_loader
+    test_loader = DataLoader(test_dataset, batch_size=batch_size,
+                              num_workers=num_workers, pin_memory=pin_memory)
+    return train_loader, valid_loader, test_loader
 
-
-def find_length(data, default_l=125):
+def find_length(data):
     """
-    Simple heuristic to find time series segment length using ACF peaks.
+    Find the length of the time series segment using PACF.
     """
-    data = np.asarray(data).flatten()  # handle 1D or 2D
-    data = data[:min(20000, len(data))]  # keep manageable size
-
-    nobs = len(data)
+    data = np.asarray(data)
+    data = data[:min(20000, len(data))]
+    
+    nobs, nchan = data.shape
     if nobs < 20:
-        return default_l
+        raise ValueError("Too few observations to compute PACF.")
 
+    max_lag = 0
     nlags = int(min(10 * np.log10(nobs), nobs - 1))
-    auto_corr = acf(data, nlags=nlags, fft=True)[3:]
-    local_max = argrelextrema(auto_corr, np.greater)[0]
+    
+    for ch in range(nchan):
+        pacf_vals = pacf(data[:, ch], nlags=nlags, method='yw')
+        peaks = argrelextrema(pacf_vals, np.greater)[0]
+        if len(peaks) > 0:
+            lag = peaks[np.argmax(pacf_vals[peaks])]
+            max_lag = max(max_lag, lag)
 
-    if len(local_max) == 0:
-        return default_l
+    if max_lag == 0:
+        raise ValueError("No significant PACF peaks found; series may be nearly white noise.")
 
-    best = local_max[np.argmax(auto_corr[local_max])]
-    if 3 <= best <= 300:
-        return int(best + 3)
-    return default_l
+    return int(max_lag)
 
-def sliding_window_view(data, window_size, step=1):
+def sliding_window_view(data: np.ndarray, window_size: int, step: int = 1) -> np.ndarray:
     """
-    Segment a 2D time series (L, N) into overlapping windows (R, l, N).
-
-    Args:
-        data (np.ndarray): Input array of shape (L, N)
-        window_size (int): Length of each segment (l)
-        step (int): Stride between windows (default=1)
-
-    Returns:
-        np.ndarray: 3D array of shape (R, l, N)
+    Segment a 2D time series (L, N) into overlapping windows (R, window_size, N).
     """
     assert data.ndim == 2, "Input array must be 2D"
     L, N = data.shape
     assert L >= window_size, "Window size must be <= sequence length"
 
-    B = L - window_size + 1
-    new_shape = (B, window_size, N)
-    new_strides = (data.strides[0],) + data.strides
+    num_windows = (L - window_size) // step + 1
+    new_strides = (data.strides[0] * step, data.strides[0], data.strides[1])
+    new_shape = (num_windows, window_size, N)
     return np.lib.stride_tricks.as_strided(data, shape=new_shape, strides=new_strides)
 
-def _preprocess_parametric(ori_data, valid_ratio):
+def _preprocess_parametric(ori_data, valid_ratio=0.1, test_ratio=0.1):
     """
-    Preprocessing steps for parametric models.
+    Preprocessing for parametric models: split full series into train/val/test.
     """
     ori_data = torch.from_numpy(ori_data)
-    print('Data shape:', tuple(ori_data.size()))
-    split = int(ori_data.shape[0] * (1 - valid_ratio))
-    show_with_end_divider(f'Preprocessing for parametric models done.')
-    return ori_data[:split], ori_data[split:]
+    L = ori_data.shape[0]
+    train_end = int(L * (1 - valid_ratio - test_ratio))
+    valid_end = int(L * (1 - test_ratio))
+    train_data = ori_data[:train_end]
+    valid_data = ori_data[train_end:valid_end]
+    test_data = ori_data[valid_end:]
+    return train_data, valid_data, test_data
 
-def _preprocess_non_parametric(ori_data, seq_length, valid_ratio, seed=None):
+def _preprocess_non_parametric(ori_data, seq_length, valid_ratio=0.1, test_ratio=0.1, step=1, seed=42):
     """
-    Preprocessing steps for non-parametric models.
+    Preprocessing for non-parametric models: sliding windows and train/val/test split.
     """
-    data = sliding_window_view(ori_data, seq_length)  # (R, l, N)
-    print('Data shape:', data.shape)
-    
-    split = int(data.shape[0] * (1 - valid_ratio))
-    train_data, valid_data = data[:split], data[split:]
-    np.random.shuffle(train_data)
-    np.random.shuffle(valid_data)
-    show_with_end_divider(f'Preprocessing for non-parametric models done.')
-    return train_data, valid_data
+    data = sliding_window_view(ori_data, seq_length, step=step)
+    L = data.shape[0]
+    train_end = int(L * (1 - valid_ratio - test_ratio))
+    valid_end = int(L * (1 - test_ratio))
+    train_data = data[:train_end]
+    valid_data = data[train_end:valid_end]
+    test_data = data[valid_end:]
+    return train_data, valid_data, test_data
 
-def preprocess_data(cfg, supress_cfg_message = False):
+def preprocess_data(cfg, supress_cfg_message=False):
     """
     Preprocess time series data for parametric or non-parametric models.
-
-    Args:
-        cfg (dict): Configuration options:
-            - original_data_path (str): Path to input CSV file.
-            - seq_length (int, optional): Sub-sequence length; auto-determined if None.
-            - valid_ratio (float, optional): Validation split ratio (default 0.1).
-            - do_transformation (bool, optional): Apply log return transformation (default True).
-            - is_parametric (bool, optional): If True, skip segmentation (default False).
-            - seed (int, optional): Random seed for reproducibility.
-        supress_cfg_message (bool): If True, suppress preprocessing logs.
-
-    Returns:
-        tuple: (train_data, valid_data) as np.ndarray or torch.Tensor, or None on failure.
+    Returns: train, valid, test
     """
     if not supress_cfg_message:
-        show_with_start_divider(f"Data preprocessing with settings:{cfg}")
-
-    ori_data_path = cfg.get('original_data_path', None)
+        show_with_start_divider(f"Preprocessing data for {cfg.get('ticker')}")
+    
+    ori_data_path = cfg.get('original_data_path')
     seq_length = cfg.get('seq_length', None)
     valid_ratio = cfg.get('valid_ratio', 0.1)
+    test_ratio = cfg.get('test_ratio', 0.1)
     do_transformation = cfg.get('do_transformation', True)
     is_parametric = cfg.get('is_parametric', False)
-    seed = cfg.get('seed', None)
+    seed = cfg.get('seed', 42)
 
     if not os.path.exists(ori_data_path):
-        curr_dir = os.getcwd()
-        print(f"Current working directory: {curr_dir}")
-        show_with_end_divider(f'Original file path {ori_data_path} does not exist.')
+        show_with_end_divider(f"File {ori_data_path} does not exist.")
         return None
 
-    _, ext = os.path.splitext(ori_data_path)
-    try:
-        if ext != '.csv':
-            show_with_end_divider(f"Error: Unsupported file extension: {ext}")
-            return None
-        df = pd.read_csv(ori_data_path)
-        ori_data = df[REQUIRED_COLUMNS].values  # (L, N)
-    except Exception as e:
-        show_with_end_divider(f"Error: An error occurred during reading data: {e}.")
-        return None
-
-    if seq_length is None:
-        seq_length = int(np.mean(np.apply_along_axis(find_length, 0, ori_data)))
+    df = pd.read_csv(ori_data_path)
+    ori_data = df[REQUIRED_COLUMNS].values
 
     if do_transformation:
         scaler = LogReturnTransformation()
         ori_data = scaler.transform(ori_data)
 
-    if seed is not None:
-        np.random.seed(seed)
-        random.seed(seed)
+    if seq_length is None:
+        seq_length = find_length(ori_data)
 
     if is_parametric:
-        return _preprocess_parametric(ori_data, valid_ratio)
-    return _preprocess_non_parametric(ori_data, seq_length, valid_ratio)
+        return _preprocess_parametric(ori_data, valid_ratio, test_ratio)
+    return _preprocess_non_parametric(ori_data, seq_length, valid_ratio, test_ratio, seed=seed)
