@@ -1,0 +1,92 @@
+%%% -*-BibTeX-*-
+%%% Do NOT edit. File created by BibTeX with style
+%%% ACM-Reference-Format-Journals [18-Jan-2012].
+
+\begin{thebibliography}{5}
+
+%%% ====================================================================
+%%% NOTE TO THE USER: you can override these defaults by providing
+%%% customized versions of any of these macros before the \bibliography
+%%% command.  Each of them MUST provide its own final punctuation,
+%%% except for \shownote{} and \showURL{}.  The latter two
+%%% do not use final punctuation, in order to avoid confusing it with
+%%% the Web address.
+%%%
+%%% To suppress output of a particular field, define its macro to expand
+%%% to an empty string, or better, \unskip, like this:
+%%%
+%%% \newcommand{\showURL}[1]{\unskip}   % LaTeX syntax
+%%%
+%%% \def \showURL #1{\unskip}           % plain TeX syntax
+%%%
+%%% ====================================================================
+
+\ifx \showCODEN    \undefined \def \showCODEN     #1{\unskip}     \fi
+\ifx \showISBNx    \undefined \def \showISBNx     #1{\unskip}     \fi
+\ifx \showISBNxiii \undefined \def \showISBNxiii  #1{\unskip}     \fi
+\ifx \showISSN     \undefined \def \showISSN      #1{\unskip}     \fi
+\ifx \showLCCN     \undefined \def \showLCCN      #1{\unskip}     \fi
+\ifx \shownote     \undefined \def \shownote      #1{#1}          \fi
+\ifx \showarticletitle \undefined \def \showarticletitle #1{#1}   \fi
+\ifx \showURL      \undefined \def \showURL       {\relax}        \fi
+% The following commands are used for tagged output and should be
+% invisible to TeX
+\providecommand\bibfield[2]{#2}
+\providecommand\bibinfo[2]{#2}
+\providecommand\natexlab[1]{#1}
+\providecommand\showeprint[2][]{arXiv:#2}
+
+\bibitem[Ang et~al\mbox{.}(2023)]%
+        {Ang23}
+\bibfield{author}{\bibinfo{person}{Yihao Ang}, \bibinfo{person}{Qiang Huang}, \bibinfo{person}{Yifan Bao}, \bibinfo{person}{Anthony K.~H. Tung}, {and} \bibinfo{person}{Zhiyong Huang}.} \bibinfo{year}{2023}\natexlab{}.
+\newblock \showarticletitle{TSGBench: Time Series Generation Benchmark}.
+\newblock \bibinfo{journal}{\emph{Proc. {VLDB} Endow.}} \bibinfo{volume}{17}, \bibinfo{number}{3} (\bibinfo{year}{2023}), \bibinfo{pages}{305--318}.
+\newblock
+
+
+\bibitem[Boursin et~al\mbox{.}(2022)]%
+        {Boursin22}
+\bibfield{author}{\bibinfo{person}{Nicolas Boursin}, \bibinfo{person}{Carl Remlinger}, \bibinfo{person}{Joseph Mikael}, {and} \bibinfo{person}{Carol~Anne Hargreaves}.} \bibinfo{year}{2022}\natexlab{}.
+\newblock \bibinfo{title}{Deep Generators on Commodity Markets; application to Deep Hedging}.
+\newblock
+\showeprint[arxiv]{2205.13942}~[q-fin.RM]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/2205.13942}
+\showURL{%
+\tempurl}
+
+
+\bibitem[Potluru et~al\mbox{.}(2024)]%
+        {Potluru24}
+\bibfield{author}{\bibinfo{person}{Vamsi~K. Potluru}, \bibinfo{person}{Daniel Borrajo}, \bibinfo{person}{Andrea Coletta}, \bibinfo{person}{Niccolo Dalmasso}, \bibinfo{person}{Yousef El-Laham}, \bibinfo{person}{Elizabeth Fons}, \bibinfo{person}{Mohsen Ghassemi}, \bibinfo{person}{Sriram Gopalakrishnan}, \bibinfo{person}{Vikesh Gosai}, \bibinfo{person}{Eleonora Kreacic}, \bibinfo{person}{Ganapathy Mani}, \bibinfo{person}{Saheed Obitayo}, \bibinfo{person}{Deepak Paramanand}, \bibinfo{person}{Natraj Raman}, \bibinfo{person}{Mikhail Solonin}, \bibinfo{person}{Srijan Sood}, \bibinfo{person}{Svitlana Vyetrenko}, \bibinfo{person}{Haibei Zhu}, \bibinfo{person}{Manuela Veloso}, {and} \bibinfo{person}{Tucker Balch}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \bibinfo{title}{Synthetic Data Applications in Finance}.
+\newblock
+\showeprint[arxiv]{2401.00081}~[cs.LG]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/2401.00081}
+\showURL{%
+\tempurl}
+
+
+\bibitem[Stenger et~al\mbox{.}(2024)]%
+        {Stenger24}
+\bibfield{author}{\bibinfo{person}{Michael Stenger}, \bibinfo{person}{Robert Leppich}, \bibinfo{person}{Ian Foster}, \bibinfo{person}{Samuel Kounev}, {and} \bibinfo{person}{André Bauer}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \showarticletitle{Evaluation is key: a survey on evaluation measures for synthetic time series}.
+\newblock \bibinfo{journal}{\emph{J Big Data}} \bibinfo{volume}{11}, \bibinfo{number}{66} (\bibinfo{date}{May} \bibinfo{year}{2024}).
+\newblock
+\href{https://doi.org/10.1186/s40537-024-00924-7}{doi:\nolinkurl{10.1186/s40537-024-00924-7}}
+
+
+\bibitem[Wang et~al\mbox{.}(2020)]%
+        {Wang20}
+\bibfield{author}{\bibinfo{person}{Zhengwei Wang}, \bibinfo{person}{Qi She}, {and} \bibinfo{person}{Tomas~E. Ward}.} \bibinfo{year}{2020}\natexlab{}.
+\newblock \bibinfo{title}{Generative Adversarial Networks in Computer Vision: A Survey and Taxonomy}.
+\newblock
+\showeprint[arxiv]{1906.01529}~[cs.LG]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/1906.01529}
+\showURL{%
+\tempurl}
+
+
+\end{thebibliography}
