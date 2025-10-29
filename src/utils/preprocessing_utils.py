@@ -61,12 +61,16 @@ class TimeSeriesDataset(Dataset):
     - Optional transform on each sequence
     """
     def __init__(self, data: np.ndarray, shuffle: bool = False, seed: int = 42, transform=None):
-        if not isinstance(data, np.ndarray):
-            raise ValueError("Data must be a numpy array")
-        if data.ndim != 3:
-            raise ValueError(f"Data must be 3D with shape (R, l, N), got {data.shape}")
-
-        self.data = torch.from_numpy(data).float()
+        if isinstance(data, torch.Tensor):
+            if data.ndim != 3:
+                raise ValueError(f"Data must be 3D with shape (R, l, N), got {data.shape}")
+            self.data = data.float()
+        elif isinstance(data, np.ndarray):
+            if data.ndim != 3:
+                raise ValueError(f"Data must be 3D with shape (R, l, N), got {data.shape}")
+            self.data = torch.from_numpy(data).float()
+        else:
+            raise ValueError("Data must be a numpy array or a torch tensor")
         self.transform = transform
         self.shuffle = shuffle
         self.seed = seed
@@ -173,6 +177,7 @@ def sliding_window_view(data: np.ndarray, window_size: int, step: int = 1) -> np
 def _preprocess_parametric(ori_data, valid_ratio=0.1, test_ratio=0.1):
     """
     Preprocessing for parametric models: split full series into train/val/test.
+    No transformation is applied here.
     """
     ori_data = torch.from_numpy(ori_data)
     L = ori_data.shape[0]
@@ -183,17 +188,29 @@ def _preprocess_parametric(ori_data, valid_ratio=0.1, test_ratio=0.1):
     test_data = ori_data[valid_end:]
     return train_data, valid_data, test_data
 
-def _preprocess_non_parametric(ori_data, seq_length, valid_ratio=0.1, test_ratio=0.1, step=1, seed=42):
+def _preprocess_non_parametric(
+    ori_data, 
+    seq_length=None, 
+    valid_ratio=0.1, 
+    test_ratio=0.1, 
+    step=1, 
+    seed=42
+):
     """
-    Preprocessing for non-parametric models: sliding windows and train/val/test split.
+    Preprocessing for non-parametric models: transformation, window length selection, sliding windows, and train/val/test split.
     """
-    data = sliding_window_view(ori_data, seq_length, step=step)
-    L = data.shape[0]
+    data = ori_data
+
+    if seq_length is None:
+        seq_length = find_length(data)
+
+    windows = sliding_window_view(data, seq_length, step=step)
+    L = windows.shape[0]
     train_end = int(L * (1 - valid_ratio - test_ratio))
     valid_end = int(L * (1 - test_ratio))
-    train_data = data[:train_end]
-    valid_data = data[train_end:valid_end]
-    test_data = data[valid_end:]
+    train_data = windows[:train_end]
+    valid_data = windows[train_end:valid_end]
+    test_data = windows[valid_end:]
     return train_data, valid_data, test_data
 
 def preprocess_data(cfg, supress_cfg_message=False):
@@ -208,7 +225,6 @@ def preprocess_data(cfg, supress_cfg_message=False):
     seq_length = cfg.get('seq_length', None)
     valid_ratio = cfg.get('valid_ratio', 0.1)
     test_ratio = cfg.get('test_ratio', 0.1)
-    do_transformation = cfg.get('do_transformation', True)
     is_parametric = cfg.get('is_parametric', False)
     seed = cfg.get('seed', 42)
 
@@ -219,13 +235,16 @@ def preprocess_data(cfg, supress_cfg_message=False):
     df = pd.read_csv(ori_data_path)
     ori_data = df[REQUIRED_COLUMNS].values
 
-    if do_transformation:
-        scaler = LogReturnTransformation()
-        ori_data = scaler.transform(ori_data)
-
-    if seq_length is None:
-        seq_length = find_length(ori_data)
+    scaler = LogReturnTransformation()
+    ori_data = scaler.transform(ori_data)
 
     if is_parametric:
         return _preprocess_parametric(ori_data, valid_ratio, test_ratio)
-    return _preprocess_non_parametric(ori_data, seq_length, valid_ratio, test_ratio, seed=seed)
+    return _preprocess_non_parametric(
+            ori_data, 
+            seq_length=seq_length,
+            valid_ratio=valid_ratio, 
+            test_ratio=test_ratio,
+            step=1,
+            seed=seed
+        )

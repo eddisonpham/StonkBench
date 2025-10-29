@@ -104,25 +104,20 @@ class HistoLoss(Loss):
     """
     def __init__(self, x_real, n_bins, **kwargs):
         super(HistoLoss, self).__init__(**kwargs)
+        self.n_bins = n_bins
         self.densities = list()
         self.locs = list()
         self.deltas = list()
+        # Compute one histogram per feature, aggregating over all timesteps
         for i in range(x_real.shape[2]):
-            tmp_densities = list()
-            tmp_locs = list()
-            tmp_deltas = list()
-            # Exclude the initial point
-            for t in range(x_real.shape[1]):
-                x_ti = x_real[:, t, i].reshape(-1, 1)
-                d, b = histogram_torch(x_ti, n_bins, density=True)
-                tmp_densities.append(nn.Parameter(d).to(x_real.device))
-                delta = b[1:2] - b[:1]
-                loc = 0.5 * (b[1:] + b[:-1])
-                tmp_locs.append(loc)
-                tmp_deltas.append(delta)
-            self.densities.append(tmp_densities)
-            self.locs.append(tmp_locs)
-            self.deltas.append(tmp_deltas)
+            # Flatten all timesteps for this feature
+            x_i = x_real[:, :, i].reshape(-1, 1)
+            d, b = histogram_torch(x_i, n_bins, density=True)
+            self.densities.append(nn.Parameter(d).to(x_real.device))
+            delta = b[1:2] - b[:1]
+            loc = 0.5 * (b[1:] + b[:-1])
+            self.locs.append(loc)
+            self.deltas.append(delta)
 
     def compute(self, x_fake):
         """
@@ -132,7 +127,7 @@ class HistoLoss(Loss):
             x_fake (torch.Tensor): Generated data of shape (batch, time, features).
 
         Returns:
-            torch.Tensor: Loss for each feature/time.
+            torch.Tensor: Loss for each feature.
         """
         loss = list()
 
@@ -140,16 +135,15 @@ class HistoLoss(Loss):
             return x * (x >= 0.).float()
 
         for i in range(x_fake.shape[2]):
-            tmp_loss = list()
-            # Exclude the initial point
-            for t in range(x_fake.shape[1]):
-                loc = self.locs[i][t].view(1, -1).to(x_fake.device)
-                x_ti = x_fake[:, t, i].contiguous().view(-1, 1).repeat(1, loc.shape[1])
-                dist = torch.abs(x_ti - loc)
-                counter = (relu(self.deltas[i][t].to(x_fake.device) / 2. - dist) > 0.).float()
-                density = counter.mean(0) / self.deltas[i][t].to(x_fake.device)
-                abs_metric = torch.abs(density - self.densities[i][t].to(x_fake.device))
-                loss.append(torch.mean(abs_metric, 0))
+            # Flatten all timesteps for this feature
+            x_i = x_fake[:, :, i].reshape(-1, 1)
+            loc = self.locs[i].view(1, -1).to(x_fake.device)
+            x_i_expanded = x_i.repeat(1, loc.shape[1])
+            dist = torch.abs(x_i_expanded - loc)
+            counter = (relu(self.deltas[i].to(x_fake.device) / 2. - dist) > 0.).float()
+            density = counter.mean(0) / self.deltas[i].to(x_fake.device)
+            abs_metric = torch.abs(density - self.densities[i].to(x_fake.device))
+            loss.append(torch.mean(abs_metric))
         loss_componentwise = torch.stack(loss)
         return loss_componentwise
 
@@ -158,8 +152,7 @@ def calculate_mdd(ori_data, gen_data):
     """
     Calculate Marginal Distribution Distance (MDD) between real and generated data.
     
-    The original implementation skips the first timestep ([:, 1:, :]) to exclude initial conditions.
-    Now adapted to also handle timestamp channel at index 0 by slicing [:, :, 1:].
+    Computes histogram-based distance by aggregating over all timesteps for each feature.
 
     Args:
         ori_data (np.ndarray or torch.Tensor): Real data of shape (batch, time, features).
@@ -173,15 +166,10 @@ def calculate_mdd(ori_data, gen_data):
     if not torch.is_tensor(gen_data):
         gen_data = torch.tensor(gen_data)
     
-    # Drop timestamp channel if present (channel 0)
-    if ori_data.shape[2] > 1:
-        ori_data = ori_data[:, :, 1:]
-    if gen_data.shape[2] > 1:
-        gen_data = gen_data[:, :, 1:]
-    
-    # Skip first timestep as in original implementation
-    mdd = (HistoLoss(ori_data[:, 1:, :], n_bins=50, name='marginal_distribution')(gen_data[:, 1:, :])).detach().cpu().numpy()
-    return mdd.item()
+    mdd = (HistoLoss(ori_data, n_bins=50, name='marginal_distribution')(gen_data)).detach().cpu().numpy()
+    if mdd.size > 1:
+        mdd = mdd.mean()
+    return mdd.item() if mdd.size == 1 else float(mdd)
 
 # =======================================
 # Mean Distance (MD)
@@ -310,7 +298,7 @@ class ACFLoss(Loss):
 
     def compute(self, x_fake):
         if self.stationary:
-            acf_fake = acf_torch(self.transform(x_fake), self.max_lag)
+            acf_fake = acf_torch(self.transform(x_fake), self.max_lag, dim=(0, 1))
         else:
             acf_fake = non_stationary_acf_torch(self.transform(
                 x_fake), symmetric=False)
@@ -330,10 +318,11 @@ def calculate_acd(ori_data, gen_data):
 class SkewnessLoss(Loss):
     def __init__(self, x_real, **kwargs):
         super(SkewnessLoss, self).__init__(norm_foo=torch.abs, **kwargs)
-        self.skew_real = skew_torch(x_real)
+        # Compute skewness over batch and time, keep per feature
+        self.skew_real = skew_torch(x_real, dim=(0, 1), dropdims=True)
 
     def compute(self, x_fake, **kwargs):
-        skew_fake = skew_torch(x_fake)
+        skew_fake = skew_torch(x_fake, dim=(0, 1), dropdims=True)
         return self.norm_foo(skew_fake - self.skew_real)
     
 def calculate_sd(ori_data, gen_data):
@@ -343,7 +332,9 @@ def calculate_sd(ori_data, gen_data):
     ori = ori[:, :min_len, :]
     gen = gen[:, :min_len, :]
     skewness = SkewnessLoss(x_real=ori, name='skew')
-    sd = skewness.compute(gen).mean()
+    sd = skewness.compute(gen)
+    if sd.numel() > 1:
+        sd = sd.mean()
     return float(sd.detach().cpu().item())
 
 # =======================================
@@ -351,10 +342,11 @@ def calculate_sd(ori_data, gen_data):
 class KurtosisLoss(Loss):
     def __init__(self, x_real, **kwargs):
         super(KurtosisLoss, self).__init__(norm_foo=torch.abs, **kwargs)
-        self.kurtosis_real = kurtosis_torch(x_real)
+        # Compute kurtosis over batch and time, keep per feature
+        self.kurtosis_real = kurtosis_torch(x_real, dim=(0, 1), dropdims=True)
 
     def compute(self, x_fake):
-        kurtosis_fake = kurtosis_torch(x_fake)
+        kurtosis_fake = kurtosis_torch(x_fake, dim=(0, 1), dropdims=True)
         return self.norm_foo(kurtosis_fake - self.kurtosis_real)
     
 def calculate_kd(ori_data, gen_data):
@@ -364,7 +356,9 @@ def calculate_kd(ori_data, gen_data):
     ori = ori[:, :min_len, :]
     gen = gen[:, :min_len, :]
     kurtosis = KurtosisLoss(x_real=ori, name='kurtosis')
-    kd = kurtosis.compute(gen).mean()
+    kd = kurtosis.compute(gen)
+    if kd.numel() > 1:
+        kd = kd.mean()
     return float(kd.detach().cpu().item())
 
 
@@ -376,47 +370,79 @@ def make_sure_path_exist(path):
         dir_path = os.path.dirname(path)
     os.makedirs(dir_path, exist_ok=True)
 
-def visualize_tsne(ori_data, gen_data, result_path, save_file_name, max_samples=1000):
-    # Subsample independently
-    ori_sample_num = min(max_samples, len(ori_data))
-    gen_sample_num = min(max_samples, len(gen_data))
-    
-    ori_idx = np.random.permutation(len(ori_data))[:ori_sample_num]
-    gen_idx = np.random.permutation(len(gen_data))[:gen_sample_num]
-    
-    ori_data = ori_data[ori_idx]
-    gen_data = gen_data[gen_idx]
-    
-    # Use mean across time axis for visualization
-    prep_ori = np.mean(ori_data, axis=1)
-    prep_gen = np.mean(gen_data, axis=1)
-    
-    prep_data_final = np.concatenate((prep_ori, prep_gen), axis=0)
-    colors = ["C0"]*ori_sample_num + ["C1"]*gen_sample_num
-    
-    tsne = TSNE(n_components=2, verbose=0, perplexity=30, max_iter=1000, random_state=42)
+def visualize_tsne(ori_data, gen_data, result_path, save_file_prefix, max_samples=1000):
+    """
+    t-SNE visualization following the reference implementation:
+    - Averages across feature dimensions for each sequence
+    - Runs joint t-SNE on combined original and generated samples
+    """
+
+    # Convert to numpy and ensure shape (R, L, N)
+    ori_data = to_numpy_features_for_visualization(ori_data)
+    gen_data = to_numpy_features_for_visualization(gen_data)
+
+    R_ori, L, N = ori_data.shape
+    R_gen, _, _ = gen_data.shape
+
+    # Subsample to reduce computation
+    sample_num = min(max_samples, R_ori, R_gen)
+    ori_idx = np.random.permutation(R_ori)[:sample_num]
+    gen_idx = np.random.permutation(R_gen)[:sample_num]
+
+    # Average across feature dimension (dim = N)
+    # Each sample becomes a 1D vector of length L
+    ori_avg = np.mean(ori_data[ori_idx, :, :], axis=2)  # shape (sample_num, L)
+    gen_avg = np.mean(gen_data[gen_idx, :, :], axis=2)  # shape (sample_num, L)
+
+    # Concatenate for joint t-SNE embedding
+    prep_data_final = np.concatenate([ori_avg, gen_avg], axis=0)  # shape (2*sample_num, L)
+
+    # Color labels for plotting
+    colors = ["C0"] * sample_num + ["C1"] * sample_num
+
+    # Run t-SNE jointly
+    tsne = TSNE(
+        n_components=2,
+        verbose=1,
+        perplexity=40,    # same as reference
+        n_iter=300,       # same as reference
+        random_state=0
+    )
     tsne_results = tsne.fit_transform(prep_data_final)
-    
-    fig, ax = plt.subplots(1,1,figsize=(4,4))
-    ax.scatter(tsne_results[:ori_sample_num,0], tsne_results[:ori_sample_num,1], 
-               c="C0", alpha=0.5, label="Original", s=5)
-    ax.scatter(tsne_results[ori_sample_num:,0], tsne_results[ori_sample_num:,1], 
-               c="C1", alpha=0.5, label="Generated", s=5)
-    
+
+    # Plot
+    fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+    ax.scatter(
+        tsne_results[:sample_num, 0],
+        tsne_results[:sample_num, 1],
+        c="C0", alpha=0.4, s=8, label="Original"
+    )
+    ax.scatter(
+        tsne_results[sample_num:, 0],
+        tsne_results[sample_num:, 1],
+        c="C1", alpha=0.4, s=8, label="Generated"
+    )
+
+    # Aesthetic cleanup
     ax.grid(False)
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.set_xlabel('')
-    ax.set_ylabel('')
     for pos in ['top', 'bottom', 'left', 'right']:
         ax.spines[pos].set_visible(False)
-    
-    save_path = os.path.join(result_path, 'tsne_'+save_file_name+'.png')
+    ax.legend(loc='best', fontsize=8)
+    ax.set_title('t-SNE Visualization (Averaged Features)')
+
+    # Save
+    save_path = os.path.join(result_path, f'tsne_{save_file_prefix}.png')
     make_sure_path_exist(save_path)
     plt.savefig(save_path, dpi=400, bbox_inches='tight')
     plt.close()
 
 def visualize_distribution(ori_data, gen_data, result_path, save_file_name, max_samples=1000):
+    # Convert to numpy and ensure 3D shape (batch, time, features)
+    ori_data = to_numpy_features_for_visualization(ori_data)
+    gen_data = to_numpy_features_for_visualization(gen_data)
+    
     # Subsample independently
     ori_sample_num = min(max_samples, len(ori_data))
     gen_sample_num = min(max_samples, len(gen_data))
@@ -427,14 +453,15 @@ def visualize_distribution(ori_data, gen_data, result_path, save_file_name, max_
     ori_data = ori_data[ori_idx]
     gen_data = gen_data[gen_idx]
     
-    prep_ori = np.mean(ori_data, axis=1)
-    prep_gen = np.mean(gen_data, axis=1)
+    # Flatten all data to get marginal distribution over all timesteps and features
+    prep_ori = ori_data.flatten()
+    prep_gen = gen_data.flatten()
     
     fig, ax = plt.subplots(1,1,figsize=(4,4))
     
     # KDE plots with normalized density
-    sns.kdeplot(prep_ori.flatten(), color='C0', linewidth=2, label='Original', ax=ax, fill=False)
-    sns.kdeplot(prep_gen.flatten(), color='C1', linewidth=2, linestyle='--', label='Generated', ax=ax, fill=False)
+    sns.kdeplot(prep_ori, color='C0', linewidth=2, label='Original', ax=ax, fill=False)
+    sns.kdeplot(prep_gen, color='C1', linewidth=2, linestyle='--', label='Generated', ax=ax, fill=False)
     
     ax.set_xlabel('')
     ax.set_ylabel('')

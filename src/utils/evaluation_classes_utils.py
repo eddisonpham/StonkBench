@@ -56,18 +56,18 @@ class RuntimeEvaluator(TaxonomyEvaluator):
     """
     Evaluates the runtime of a synthetic data generation function.
     """
-    def __init__(self, generate_func: Callable, num_samples: int = 500, generation_kwargs: Dict[str, Any] = None):
+    def __init__(self, generate_func: Callable, generation_kwargs: Dict[str, Any] = None):
         super().__init__()
         self.generate_func = generate_func
-        self.num_samples = num_samples
         self.generation_kwargs = generation_kwargs or {}
 
     def evaluate(self) -> Dict[str, float]:
+        num_samples = self.generation_kwargs.get('num_samples', 500)
         start_time = time.perf_counter()
-        _ = self.generate_func(self.num_samples, **self.generation_kwargs)
+        _ = self.generate_func(**self.generation_kwargs)
         end_time = time.perf_counter()
         runtime = round(end_time - start_time, 4)
-        self.results = {f"generation_time_{self.num_samples}_samples": runtime}
+        self.results = {f"generation_time_{num_samples}_samples": runtime}
         return self.results
 
 class StylizedFactsEvaluator(TaxonomyEvaluator):
