@@ -36,8 +36,6 @@ class EvaluationPlotter:
         self.distribution_plot = DistributionPlot(data, self.output_dir)
         self.similarity_plot = SimilarityPlot(data, self.output_dir)
         self.stylized_facts_plot = StylizedFactsPlot(data, self.output_dir)
-        self.comprehensive_plot = ComprehensiveComparisonPlot(data, self.output_dir)
-        self.ranking_plot = ModelRankingPlot(data, self.output_dir)
         
     def generate_all_plots(self) -> None:
         """Generate all plots using the unified plot classes."""
@@ -52,12 +50,6 @@ class EvaluationPlotter:
         
         print("Generating stylized facts plots...")
         self.stylized_facts_plot.plot()
-        
-        print("Generating comprehensive comparison...")
-        self.comprehensive_plot.plot()
-        
-        print("Generating model ranking...")
-        self.ranking_plot.plot()
         
         print(f"All plots saved to {self.output_dir}")
 

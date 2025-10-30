@@ -55,11 +55,27 @@ class PerformancePlot(MetricPlot):
         """Generate performance metrics plot."""
         fig, ax = plt.subplots(figsize=self.figsize, dpi=self.dpi)
         
-        times = [self.data[model]['generation_time_1000_samples'] for model in self.models]
+        # Support any generation_time_* key; expect a single scalar value
+        times = []
+        for model in self.models:
+            model_dict = self.data.get(model, {})
+            gen_keys = [k for k in model_dict.keys() if k.startswith('generation_time_') and k.endswith('_samples')]
+            if gen_keys:
+                val = model_dict[gen_keys[0]]
+                if isinstance(val, (list, tuple, np.ndarray)):
+                    # Fallback to first element if array is provided
+                    try:
+                        times.append(float(val[0]))
+                    except Exception:
+                        times.append(np.nan)
+                else:
+                    times.append(float(val))
+            else:
+                times.append(np.nan)
         
         bars = ax.bar(self.models, times, color=sns.color_palette("husl", len(self.models)))
         ax.set_ylabel('Generation Time (seconds)')
-        ax.set_title('Model Performance: Generation Time for 1000 Samples')
+        ax.set_title('Model Performance: Generation Time')
         ax.tick_params(axis='x', rotation=45)
 
         self.add_value_labels(bars, times, ax)
@@ -77,7 +93,13 @@ class DistributionPlot(MetricPlot):
         
         for i, metric in enumerate(metrics):
             ax = axes[i]
-            values = [self.data[model][metric] for model in self.models]
+            values = []
+            for model in self.models:
+                val = self.data.get(model, {}).get(metric, np.nan)
+                if isinstance(val, (list, tuple, np.ndarray)):
+                    values.append(float(np.mean(val)))
+                else:
+                    values.append(float(val))
             bars = ax.bar(self.models, values, color=sns.color_palette("husl", len(self.models)))
             ax.set_title(f'{metric.upper()}')
             ax.set_ylabel('Value')
@@ -100,7 +122,13 @@ class SimilarityPlot(MetricPlot):
         
         for i, (metric, title) in enumerate(zip(metrics, titles)):
             ax = axes[i]
-            values = [self.data[model][metric] for model in self.models]
+            values = []
+            for model in self.models:
+                val = self.data.get(model, {}).get(metric, np.nan)
+                if isinstance(val, (list, tuple, np.ndarray)):
+                    values.append(float(np.mean(val)))
+                else:
+                    values.append(float(val))
             bars = ax.bar(self.models, values, color=sns.color_palette("husl", len(self.models)))
             ax.set_title(title)
             ax.set_ylabel('Distance')
@@ -126,19 +154,16 @@ class StylizedFactsPlot(MetricPlot):
     def _plot_single_stylized_fact(self, fact_name: str) -> None:
         """Plot a single stylized fact comparison."""
         fig, axes = plt.subplots(1, 3, figsize=self.figsize, dpi=self.dpi)
-        real_key = f"{fact_name}_real"
-        synth_key = f"{fact_name}_synth"
-        diff_key = f"{fact_name}_diff"
-
+        # New nested structure: data[model][fact_name] -> {'real': [...], 'synth': [...], 'diff': [...]} per channel
         models_with_metric = [model for model in self.models 
-                             if real_key in self.data[model]]
+                             if isinstance(self.data.get(model, {}).get(fact_name, None), dict)]
         
         if not models_with_metric:
             return
         
         ax1 = axes[0]
-        real_values = [np.mean(self.data[model][real_key]) for model in models_with_metric]
-        synth_values = [np.mean(self.data[model][synth_key]) for model in models_with_metric]
+        real_values = [float(np.mean(self.data[model][fact_name]['real'])) for model in models_with_metric]
+        synth_values = [float(np.mean(self.data[model][fact_name]['synth'])) for model in models_with_metric]
         
         x = np.arange(len(models_with_metric))
         width = 0.35
@@ -155,7 +180,7 @@ class StylizedFactsPlot(MetricPlot):
         ax1.grid(True, alpha=0.3)
         
         ax2 = axes[1]
-        diff_values = [np.mean(self.data[model][diff_key]) for model in models_with_metric]
+        diff_values = [float(np.mean(self.data[model][fact_name]['diff'])) for model in models_with_metric]
         colors = ['red' if val > 0 else 'blue' for val in diff_values]
         
         bars = ax2.bar(models_with_metric, diff_values, color=colors, alpha=0.7)
@@ -173,12 +198,12 @@ class StylizedFactsPlot(MetricPlot):
                    fontsize=9, fontweight='bold')
         
         ax3 = axes[2]
-        if len(self.data[models_with_metric[0]][real_key]) > 1:
+        if len(self.data[models_with_metric[0]][fact_name]['real']) > 1:
             heatmap_data = []
             for model in models_with_metric:
-                real_vals = self.data[model][real_key]
-                synth_vals = self.data[model][synth_key]
-                diff_vals = self.data[model][diff_key]
+                real_vals = self.data[model][fact_name]['real']
+                synth_vals = self.data[model][fact_name]['synth']
+                diff_vals = self.data[model][fact_name]['diff']
                 heatmap_data.append([np.mean(real_vals), np.mean(synth_vals), np.mean(diff_vals)])
             
             heatmap_df = pd.DataFrame(heatmap_data, 
@@ -193,8 +218,8 @@ class StylizedFactsPlot(MetricPlot):
             ax3.set_ylabel('Models', fontsize=12)
         else:
             ax3.bar(['Real', 'Synthetic'], 
-                   [np.mean(self.data[models_with_metric[0]][real_key]), 
-                    np.mean(self.data[models_with_metric[0]][synth_key])], 
+                   [np.mean(self.data[models_with_metric[0]][fact_name]['real']), 
+                    np.mean(self.data[models_with_metric[0]][fact_name]['synth'])], 
                    color=['steelblue', 'orange'], alpha=0.8)
             ax3.set_title(f'{fact_name.replace("_", " ").title()}: Single Lag Comparison', fontsize=14, fontweight='bold')
             ax3.set_ylabel('Value', fontsize=12)
@@ -205,45 +230,13 @@ class StylizedFactsPlot(MetricPlot):
                    bbox_inches='tight', dpi=self.dpi)
         plt.close()
 
-
-class ComprehensiveComparisonPlot(MetricPlot):
-    """Create a comprehensive comparison heatmap."""
-    
-    def plot(self) -> None:
-        """Generate comprehensive comparison heatmap."""
-        metrics = ['mdd', 'md', 'sdd', 'sd', 'kd', 'acd', 'icd_euclidean', 'icd_dtw']
-        
-        heatmap_data = []
-        for model in self.models:
-            row = []
-            for metric in metrics:
-                if metric in self.data[model]:
-                    row.append(self.data[model][metric])
-                else:
-                    row.append(np.nan)
-            heatmap_data.append(row)
-        
-        heatmap_df = pd.DataFrame(heatmap_data, 
-                                index=self.models,
-                                columns=[m.upper() for m in metrics])
-        
-        fig, ax = plt.subplots(figsize=(10, 8), dpi=self.dpi)
-        sns.heatmap(heatmap_df, annot=True, fmt='.3f', cmap='viridis', 
-                   ax=ax, cbar_kws={'label': 'Metric Value'})
-        ax.set_title('Comprehensive Model Comparison')
-        ax.set_xlabel('Metrics')
-        ax.set_ylabel('Models')
-        
-        self.save_plot('comprehensive_comparison.png')
-
-
 class ModelRankingPlot(MetricPlot):
     """Create model ranking based on multiple criteria."""
     
     def plot(self) -> None:
         """Generate model ranking plot."""
         ranking_metrics = {
-            'generation_time_1000_samples': 'lower',
+            'generation_time': 'lower',
             'mdd': 'lower', 
             'md': 'lower',
             'sdd': 'lower',
@@ -253,7 +246,25 @@ class ModelRankingPlot(MetricPlot):
         
         rankings = {}
         for metric, direction in ranking_metrics.items():
-            values = [self.data[model][metric] for model in self.models]
+            values = []
+            for model in self.models:
+                model_dict = self.data.get(model, {})
+                if metric == 'generation_time':
+                    gen_keys = [k for k in model_dict.keys() if k.startswith('generation_time_') and k.endswith('_samples')]
+                    if gen_keys:
+                        v = model_dict[gen_keys[0]]
+                    else:
+                        v = np.nan
+                else:
+                    v = model_dict.get(metric, np.nan)
+                if isinstance(v, (list, tuple, np.ndarray)):
+                    # Fallback to first element if array is provided
+                    try:
+                        values.append(float(v[0]))
+                    except Exception:
+                        values.append(np.nan)
+                else:
+                    values.append(float(v))
             if direction == 'lower':
                 sorted_models = [model for _, model in sorted(zip(values, self.models))]
             else:

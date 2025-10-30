@@ -13,7 +13,7 @@ from src.taxonomies.fidelity import (
     calculate_mdd, calculate_md, calculate_sdd, calculate_sd, calculate_kd, calculate_acd, visualize_tsne, visualize_distribution
 )
 from src.taxonomies.stylized_facts import (
-    heavy_tails, autocorr_raw, volatility_clustering, long_memory_abs, non_stationarity
+    heavy_tails, autocorr_raw, volatility_clustering
 )
 
 
@@ -76,9 +76,7 @@ class StylizedFactsEvaluator(TaxonomyEvaluator):
         fact_functions = {
             "heavy_tails": heavy_tails,
             "autocorr_raw": autocorr_raw,
-            "volatility_clustering": volatility_clustering,
-            "long_memory": long_memory_abs,
-            "non_stationarity": non_stationarity
+            "volatility_clustering": volatility_clustering
         }
 
         try:
