@@ -1,132 +1,31 @@
-%%
-%% This is file `sample-sigconf.tex',
-%% generated with the docstrip utility.
-%%
-%% The original source files were:
-%%
-%% samples.dtx  (with options: `all,proceedings,bibtex,sigconf')
-%% 
-%% IMPORTANT NOTICE:
-%% 
-%% For the copyright see the source file.
-%% 
-%% Any modified versions of this file must be renamed
-%% with new filenames distinct from sample-sigconf.tex.
-%% 
-%% For distribution of the original source see the terms
-%% for copying and modification in the file samples.dtx.
-%% 
-%% This generated file may be distributed as long as the
-%% original source files, as listed above, are part of the
-%% same distribution. (The sources need not necessarily be
-%% in the same archive or directory.)
-%%
-%%
-%% Commands for TeXCount
-%TC:macro \cite [option:text,text]
-%TC:macro \citep [option:text,text]
-%TC:macro \citet [option:text,text]
-%TC:envir table 0 1
-%TC:envir table* 0 1
-%TC:envir tabular [ignore] word
-%TC:envir displaymath 0 word
-%TC:envir math 0 word
-%TC:envir comment 0 0
-%%
-%% The first command in your LaTeX source must be the \documentclass
-%% command.
-%%
-%% For submission and review of your manuscript please change the
-%% command to \documentclass[manuscript, screen, review]{acmart}.
-%%
-%% When submitting camera ready or to TAPS, please change the command
-%% to \documentclass[sigconf]{acmart} or whichever template is required
-%% for your publication.
-%%
-%%
+
 \documentclass[sigconf]{acmart}
 \usepackage{enumitem}
-%%
-%% \BibTeX command to typeset BibTeX logo in the docs
 \AtBeginDocument{%
   \providecommand\BibTeX{{%
     Bib\TeX}}}
 
-%% Rights management information.  This information is sent to you
-%% when you complete the rights form.  These commands have SAMPLE
-%% values in them; it is your responsibility as an author to replace
-%% the commands and values with those provided to you when you
-%% complete the rights form.
-\setcopyright{acmlicensed}
+% \setcopyright{acmlicensed}
 \copyrightyear{2025}
 \acmYear{2025}
-\acmDOI{XXXXXXX.XXXXXXX}
-%% These commands are for a PROCEEDINGS abstract or paper.
-\acmConference[Conference acronym 'XX]{Make sure to enter the correct
-  conference title from your rights confirmation email}{June 03--05,
-  2018}{Woodstock, NY}
-%%
-%%  Uncomment \acmBooktitle if the title of the proceedings is different
-%%  from ``Proceedings of ...''!
-%%
-%%\acmBooktitle{Woodstock '18: ACM Symposium on Neural Gaze Detection,
-%%  June 03--05, 2018, Woodstock, NY}
-\acmISBN{978-1-4503-XXXX-X/2018/06}
+% \acmDOI{XXXXXXX.XXXXXXX}
+% \acmConference[Conference acronym 'XX]{Make sure to enter the correct
+%   conference title from your rights confirmation email}{June 03--05,
+%   2018}{Woodstock, NY}
+% \acmISBN{978-1-4503-XXXX-X/2018/06}
 
 
-%%
-%% Submission ID.
-%% Use this when submitting an article to a sponsored event. You'll
-%% receive a unique submission ID from the organizers
-%% of the event, and this ID should be used as the parameter to this command.
-%%\acmSubmissionID{123-A56-BU3}
 
-%%
-%% For managing citations, it is recommended to use bibliography
-%% files in BibTeX format.
-%%
-%% You can then either use BibTeX with the ACM-Reference-Format style,
-%% or BibLaTeX with the acmnumeric or acmauthoryear sytles, that include
-%% support for advanced citation of software artefact from the
-%% biblatex-software package, also separately available on CTAN.
-%%
-%% Look at the sample-*-biblatex.tex files for templates showcasing
-%% the biblatex styles.
-%%
-
-%%
-%% The majority of ACM publications use numbered citations and
-%% references.  The command \citestyle{authoryear} switches to the
-%% "author year" style.
-%%
-%% If you are preparing content for an event
-%% sponsored by ACM SIGGRAPH, you must use the "author year" style of
-%% citations and references.
-%% Uncommenting
-%% the next command will enable that style.
-%%\citestyle{acmauthoryear}
-
-
-%%
-%% end of the preamble, start of the body of the document source.
 \begin{document}
 
-%%
-%% The "title" command has an optional parameter,
-%% allowing the author to define a "short title" to be used in page headers.
+
 \title{Stonk Bench: Unified Benchmark for Synthetic Data Generation for Financial Time Series}
 
-%%
-%% The "author" command and its associated commands are used to define
-%% the authors and their affiliations.
-%% Of note is the shared affiliation of the first two authors, and the
-%% "authornote" and "authornotemark" commands
-%% used to denote shared contribution to the research.
+
 
 \author{Uyen Lam Ho}
 \authornote{Both authors contributed equally to this research.}
 \email{uyenlam.ho@mail.utoronto.ca}
-% \orcid{1234-5678-9012}
 \author{Eddison Pham}
 \authornotemark[1]
 \email{eddison.pham@mail.utoronto.ca}
@@ -137,102 +36,42 @@
   \country{Canda}
 }
 
-% \author{Uyen Lam Ho}
-% \affiliation{%
-%   \institution{University of Toronto}
-%   \city{Toronto}
-%   \province{Ontario}
-%   \country{Canada}}
-% \email{uyenlam.ho@mail.utoronto.ca}
 
-%%
-%% By default, the full list of authors will be used in the page
-%% headers. Often, this list is too long, and will overlap
-%% other information printed in the page headers. This command allows
-%% the author to define a more concise list
-%% of authors' names for this purpose.
+
 \renewcommand{\shortauthors}{Ho and Pham}
 
-%%
-%% The abstract is a short summary of the work to be presented in the
-%% article.
 \begin{abstract}
-    The ever emerging field of Synthetic Data Generation (SDG) has gain traction 
-    within many financial domains, including Finacial Time Series (FTS) data \cite{Potluru24}. 
-    However, there has been discorse and lack in universal agreement in what determines a better SDGFTS 
-    (Synthetic Data Generation for Financial Time Series), which maybe hindering progress 
-    in the field \cite{Stenger24}. 
-    In this paper, we propose and contribute a comprehensive benchmark for SDGFTS, 
-    covering various aspects such as data quality, privacy, and utility. 
-    We evaluate several state-of-the-art SDG methods using our benchmark and 
-    provide insights into their strengths and weaknesses. 
-    Our first-of-its-kind benchmark aims to facilitate the development of more effective SDG 
-    methods for FTS data, incorperating both classical statistical measures
-    and utility benefits, and test over (insert number) to decicively determine what is the 
-    best SDGFTS model right now and for the future.
+  The ever emerging field of Synthetic Data Generation (SDG) has gain traction 
+  within many financial domains, including Finacial Time Series (FTS) data. 
+  However, there has been discorse and lack in universal agreement in what determines a better SDGFTS 
+  (Synthetic Data Generation for Financial Time Series), which maybe hindering progress 
+  in the field. 
+  In this paper, we propose and contribute a comprehensive benchmark for SDGFTS, 
+  covering various aspects such as data quality, privacy, and utility. 
+  We evaluate several state-of-the-art SDG methods using our benchmark and 
+  provide insights into their strengths and weaknesses. 
+  Our first-of-its-kind benchmark aims to facilitate the development of more effective SDG 
+  methods for FTS data, incorperating both classical statistical measures
+  and utility benefits, and test over (insert number) to decicively determine what is the 
+  best SDGFTS model right now and for the future.
 \end{abstract}
 
-%%
-%% The code below is generated by the tool at http://dl.acm.org/ccs.cfm.
-%% Please copy and paste the code instead of the example below.
-%%
-% \begin{CCSXML}
-% <ccs2012>
-%  <concept>
-%   <concept_id>00000000.0000000.0000000</concept_id>
-%   <concept_desc>Do Not Use This Code, Generate the Correct Terms for Your Paper</concept_desc>
-%   <concept_significance>500</concept_significance>
-%  </concept>
-%  <concept>
-%   <concept_id>00000000.00000000.00000000</concept_id>
-%   <concept_desc>Do Not Use This Code, Generate the Correct Terms for Your Paper</concept_desc>
-%   <concept_significance>300</concept_significance>
-%  </concept>
-%  <concept>
-%   <concept_id>00000000.00000000.00000000</concept_id>
-%   <concept_desc>Do Not Use This Code, Generate the Correct Terms for Your Paper</concept_desc>
-%   <concept_significance>100</concept_significance>
-%  </concept>
-%  <concept>
-%   <concept_id>00000000.00000000.00000000</concept_id>
-%   <concept_desc>Do Not Use This Code, Generate the Correct Terms for Your Paper</concept_desc>
-%   <concept_significance>100</concept_significance>
-%  </concept>
-% </ccs2012>
-% \end{CCSXML}
 
-% \ccsdesc[500]{Do Not Use This Code~Generate the Correct Terms for Your Paper}
-% \ccsdesc[300]{Do Not Use This Code~Generate the Correct Terms for Your Paper}
-% \ccsdesc{Do Not Use This Code~Generate the Correct Terms for Your Paper}
-% \ccsdesc[100]{Do Not Use This Code~Generate the Correct Terms for Your Paper}
 
-%%
-%% Keywords. The author(s) should pick words that accurately describe
-%% the work being presented. Separate the keywords with commas.
 \keywords{
     Synthetic Data Generation, 
     Financial Time Series,
     Benchmarking
 }
-%% A "teaser" image appears between the author and affiliation
-%% information and the body of the document, and typically spans the
-%% page.
 \begin{teaserfigure}
   \centering
-  % trim={<left> <bottom> <right> <top>} (units: pt, bp, mm, etc.) — adjust bottom/top to crop into a banner
   \includegraphics[width=\textwidth,height=5.5cm,keepaspectratio,trim=0 150 0 150,clip]{tse-1981.png}
   \caption{Toronto Stock Exchange, Toronto, 1981}
   \Description{A panoramic view of the Toronto Stock Exchange building in 1981.}
   \label{fig:teaser}
 \end{teaserfigure}
 
-% \received{20 February 2007}
-% \received[revised]{12 March 2009}
-% \received[accepted]{5 June 2009}
 
-%%
-%% This command processes the author and affiliation and title
-%% information and builds the first part of the formatted document.
 \maketitle
 
 \section{Introduction}
@@ -242,9 +81,6 @@
   including data privacy concerns, limited data availability, and the need for diverse training 
   datasets in machine learning applications \cite{Stenger24}.
 
-%%
-% need more revision in this section
-% to capture the scope of the project, with some shortcomings we faced at the beginning
   Despite the growing importance of SDGFTS (Synthetic Data Generation for 
   Financial Time Series), there is a notable lack of standardization in evaluating 
   the quality and effectiveness of these generative models \cite{Stenger24}. Current evaluation methods 
@@ -265,41 +101,40 @@
   By analyzing the results from our MLflow experiments and applying our unified benchmark, 
   we aim to provide clear guidelines for evaluating SDGFTS models and establish a standard 
   for future research in this domain.
-%% 
 
   \subsection{Limitations in the SDGFTS Literature}
-
-  Among other things, we observed that there is currently no universal, generally accepted approach 
-  to evaluating synthetic time series\cite{Stenger24}; this issue extends beyond FTS to generative 
-  frameworks like GANs as a whole \cite{Wang20}. 
-  Many evaluation measures are insufficiently defined and lack public implementations, making reuse 
-  and reproduction troublesome and error-prone \cite{Stenger24}. This presents a challenge 
-  unique to the generation task compared to areas like time series forecasting or classification \cite{Stenger24}. 
-  Hence, future research would immensely benefit from a widely accepted, reasonably sized set of 
-  qualified measures for the central evaluation criteria.
+    Among other things, we observed that there is currently no universal, generally accepted approach 
+    to evaluating synthetic time series\cite{Stenger24}; this issue extends beyond FTS to generative 
+    frameworks like GANs as a whole \cite{Wang20}. 
+    Many evaluation measures are insufficiently defined and lack public implementations, making reuse 
+    and reproduction troublesome and error-prone \cite{Stenger24}. This presents a challenge 
+    unique to the generation task compared to areas like time series forecasting or classification 
+    \cite{Stenger24}. 
+    Hence, future research would immensely benefit from a widely accepted, reasonably sized set of 
+    qualified measures for the central evaluation criteria.
   \subsection{Our Contributions}
     To put it in simple terms, we are adopting the time series evaluation taxonomy outlined from 
     Stenger et al. \cite{Stenger24}, develop a comprehensive and unified SDG benchmark expanded from 
     the works of Ang et al. \cite{Ang23} in specifics to FTS by incorporating a utility evaluation 
     framework inspired by Boursin et al. \cite{Boursin22} through portfolio evaluations generated by 
     a deep hedger.
-      Our key contributions include:
-      \begin{enumerate}[label=\textbf{[C\arabic*]}]
-        \item \label{contribute:1} \textbf{Consolidated Evaluation Framework:}
+    Our key contributions include:
+    \begin{enumerate}[label=\textbf{[C\arabic*]}]
+      \item \label{contribute:1} \textbf{Consolidated Evaluation Framework:}
         We systematically review and consolidate evaluation methods from leading papers (models and surveys)
         in SDG and financial time series \cite{Stenger24, Ang23, Boursin22}, creating a 
         comprehensive assessment toolkit based on established practices.
 
-        \item \label{contribute:2} \textbf{Unified Statistical and Utility Measures:}
+      \item \label{contribute:2} \textbf{Unified Statistical and Utility Measures:}
         For the first time, we integrate both statistical fidelity metrics and practical 
         utility measures in a single SDGFTS benchmark, providing a more complete 
         evaluation of synthetic data quality.
 
-        \item \label{contribute:3} \textbf{Open Benchmark Platform:}
+      \item \label{contribute:3} \textbf{Open Benchmark Platform:}
         We deliver an open-source benchmark framework for the research community, 
         aiming to establish a gold standard for SDGFTS model evaluation and 
         comparison.
-      \end{enumerate}
+    \end{enumerate}
 
 
 \section{Preliminaries}
@@ -332,7 +167,7 @@
       Our evaluation includes classical parametric models, which rely on predefined statistical distributions 
       and assumptions about the underlying data generation process. These models have been extensively used 
       in financial institutions for their interpretability and theoretical foundations. 
-      
+
       We also evaluate modern non-parametric approaches, particularly deep learning-based models that learn 
       the data distribution directly from observations without assuming a specific form. These include 
       generative adversarial networks, variational autoencoders, and diffusion models, representing the 
@@ -354,97 +189,286 @@
       structured taxonomical approach, ensuring comprehensive coverage of all critical aspects of 
       SDGFTS evaluation and setting a standard for future research in time series SDG as a whole.
 
-\section{Overview of FTS methods}
+\section{Overview of Financial Time Series (FTS) Methods}
+  Financial time series (FTS) methods refer to statistical and machine learning approaches used to model, 
+  forecast, or simulate financial data such as prices, returns, and volatility. These methods aim to 
+  reproduce key empirical properties including non-stationarity, heavy tails, volatility clustering, 
+  leverage effects, and long-memory in absolute returns. 
+  
+  We group them into two main families: 
+  classical parametric (stochastic) methods with explicit data-generating assumptions, and modern 
+  non-parametric (deep learning) methods that learn complex dependencies directly from data.
+  A detailed overview of the methods considered in our benchmark is provided in the following to sub-sections.
 
   \subsection{Classical Statistical (Parametric) Methods}
-  \subsection{Deep Learning-based (Non-parametric) Methods}
-    \subsubsection{Generative Adversarial Networks (GANs)}
-    \subsubsection{Variational Autoencoders (VAEs)}
-    \subsubsection{Diffusion Models}
-    \subsubsection{Others}
+    Parametric models assume a specific functional form for the data-generating process, characterised by 
+      a finite set of parameters. These models are interpretable and analytically tractable, allowing for 
+      closed-form solutions in many cases. However, they may struggle to capture complex stylised facts 
+      or high-dimensional dependencies beyond their structural assumptions. Below we outline several 
+      widely-used parametric models in FTS.
+
+      \textbf{Common notation and variables.} \(S_t\) – asset price, \(X_t = \ln S_t\) – log-price, 
+      \(r_t = \ln(S_t/S_{t-1})\) – log-return, \(\mu\) – drift, \(\sigma\) – volatility, \(W_t\) – 
+      standard Brownian motion, \(\Delta t\) – discrete time step.
+
+      \begin{enumerate}[label=\textbf{[A\arabic*]}]
+        \item \label{alg:gbm} \textbf{Geometric Brownian Motion (GBM).} 
+        The price process follows a continuous-time stochastic process with constant drift and volatility. 
+        Model-specific parameters are \(\mu\) and \(\sigma\).
+        \begin{equation}
+        dS_t = \mu S_t\,dt + \sigma S_t\,dW_t.
+        \end{equation}
+
+        \item \label{alg:ou} \textbf{Ornstein–Uhlenbeck (OU).} 
+        A mean-reverting Gaussian process for log-prices or spreads. Model-specific parameters are 
+        \(\theta>0\) (reversion rate), \(\mu\) (long-term mean), and \(\sigma\) (volatility).
+        \begin{equation}
+        dX_t = \theta(\mu - X_t)\,dt + \sigma\,dW_t.
+        \end{equation}
+
+        \item \label{alg:mjd} \textbf{Merton Jump Diffusion (MJD).} Extends GBM by incorporating 
+        normally-distributed jumps. Model-specific parameters are \(\lambda\) (jump intensity), 
+        \(\mu_j\) and \(\sigma_j\) (mean and standard deviation of jump sizes).
+        \begin{equation}
+        \frac{dS_t}{S_t} = \mu\,dt + \sigma\,dW_t + J\,dN_t,\\
+        \end{equation}
+        where $J \sim \mathcal N(\mu_j, \sigma_j^2),\quad N_t\sim\mathrm{Poisson}(\lambda t)$.
+
+
+        \item \label{alg:dejd} \textbf{Double-Exponential Jump Diffusion (DEJD/Kou).} 
+        A jump-diffusion model with asymmetric double-exponential jump sizes. Model-specific 
+        parameters are \(p\) (probability of upward jump) and \(\eta_1, \eta_2\) 
+        (exponential parameters for upward/downward jumps).
+        \begin{align}
+        \frac{dS_t}{S_t} &= \mu\,dt + \sigma\,dW_t + Y\,dN_t,\\
+        Y &=
+        \begin{cases}
+        \mathrm{Exp}(\eta_1), &\text{with probability } p,\\[4pt]
+        -\mathrm{Exp}(\eta_2), &\text{with probability } 1-p.
+        \end{cases} \nonumber
+        \end{align}
+
+        \item \label{alg:garch} \textbf{GARCH(1,1).} 
+        A discrete-time conditional heteroskedastic model for returns. Model-specific parameters 
+        are \(\omega>0,\ \alpha\ge0,\ \beta\ge0\) (GARCH coefficients) and \(\mathcal D\) 
+        (innovation distribution, usually standard Normal or Student-t). Captures volatility clustering 
+        via time-varying conditional variance.
+        \begin{align}
+        r_t &= \sigma_t z_t,\quad z_t\sim\mathcal D,\\
+        \sigma_t^2 &= \omega + \alpha r_{t-1}^2 + \beta \sigma_{t-1}^2 \nonumber
+        \end{align}
+
+        \item \label{alg:blockbootstrap} \textbf{Block Bootstrap (non-parametric).} 
+        A resampling technique that preserves short-range dependence by sampling contiguous blocks of returns. 
+        Although not parametric, it is included here for completeness and baseline comparison.
+      \end{enumerate}
+
+
+  \subsection{Deep Learning–based (Non-parametric) Methods}
+    Non-parametric models (in this context) refer to generative (and often implicit) models that do *not* assume 
+    a fixed parametric form for the data‐generating process; rather they learn, from data, latent structures 
+    via flexible architectures (e.g., neural networks) and can model highly nonlinear, high-dimensional, 
+    and multi-modal dependencies (for example multivariate FTS with interactions across assets, time horizons, 
+    features). While these models sacrifice direct parametrisation / interpretability, they offer 
+    greater freedom and expressive power — at the cost of larger data/training requirements, 
+    more hyper-parameter tuning, and less analytic tractability.  
+    Below we subdivide into three major deep learning generative model families: GANs, VAEs, Diffusion Models.
+
+  \subsubsection{GANs (Generative Adversarial Networks)}  
+    Generative Adversarial Networks (GANs) pit a generator network \(G(\cdot)\) (which attempts to mimic the data 
+    distribution) against a discriminator (or critic) network \(D(\cdot)\) (which attempts to distinguish real 
+    from synthetic). The generator is trained to fool the discriminator, and the discriminator is trained to 
+    detect the fakes. In the time-series context, one must additionally capture temporal dynamics and 
+    cross-feature dependencies.
+
+    % is this meant to be footer?
+    * Example: the TimeGAN model \cite{Yoon19} combines adversarial training 
+    with supervised latent-space losses to ensure realistic temporal transitions and feature‐level realism. 
+    * In such models the loss typically is  
+    \begin{equation}
+      \min_{G}\;\max_{D}\; \mathbb E_{x\sim p_{\rm data}} [\log D(x)] 
+      \;+\; \mathbb E_{z\sim p_z} [\log(1 - D(G(z)))]
+    \end{equation}
+    with additional terms for supervised embedding, feature-matching, or temporal-consistency.  
+    * These models are very flexible but can suffer from mode collapse, unstable training, and require 
+    careful architecture/hyper-parameter tuning.
+
+  \subsubsection{VAEs (Variational Autoencoders)}  
+    Variational Autoencoders (VAEs) are generative latent-variable models that learn to map data \(x\) 
+    into a latent distribution (encoder) \(q_\phi(z|x)\), and from latent \(z\) reconstruct \(x\)
+
+    \begin{equation}
+      \mathcal L(\theta,\phi;x) = \mathbb E_{z\sim q_\phi(z|x)} \bigl[\ln p_\theta(x|z)\bigr] 
+      \;-\; D_{\!KL}\bigl(q_\phi(z|x)\;\|\;p(z)\bigr).
+    \end{equation}
+
+    In the time‐series generation context, e.g., TimeVAE (Desai et al., 2021-22) uses a VAE architecture with 
+    temporal encoder/decoder and latent structure capturing sequence‐level variability. 
+    :contentReference[oaicite:3]{index=3}  
+    * Pros: more stable to train than GANs, latent space admits interpolation, can incorporate domain knowledge 
+    (e.g., trend/seasonality components) as in TimeVAE.  
+    * Cons: may under-represent heavy tails or complex multi-modal behaviour (latent distribution is often 
+    Gaussian, decoder may produce over-smoothed samples).
+
+  \subsubsection{Diffusion Models}  
+    Diffusion models are a newer class of generative models that define a forward “noising” process 
+    (often a Gaussian Markov chain or SDE) gradually mapping data into noise, and then train a neural network 
+    to reverse this process (denoising) to sample from the data distribution. 
+    :contentReference[oaicite:4]{index=4}  
+    In time‐series generation (or forecasting/imputation) contexts, diffusion models have begun to show 
+    strong performance. :contentReference[oaicite:5]{index=5}  
+    A canonical forward discrete-time chain (DDPM style) might be  
+  
+    \begin{equation}
+    q(x_{1:T} \mid x_0) = \prod_{t=1}^T \mathcal N\bigl(x_t; \sqrt{1-\beta_t}\,x_{t-1},\;
+    \beta_t I\bigr), \quad x_0 \sim p_{\mathrm{data}}
+    \end{equation}
+  
+    and the learned reverse process  
+    \begin{equation}
+      p_\theta(x_{t-1}\mid x_t) = \mathcal N\!\left(x_{t-1};\,\mu_\theta(x_t,t),\,\Sigma_\theta(x_t,t)\right)
+    \end{equation}
+ 
+    In the FTS-generation setting, recent work 
+    %(e.g., “A diffusion-based generative model for financial time 
+    %series via GBM”) 
+    shows that one can incorporate financial SDE structure (e.g., heteroskedastic 
+    noise proportional to price) into the forward process. 
+    %:contentReference[oaicite:6]{index=6}  
+    * Pros: very high fidelity and diversity, less mode collapse than GANs, stable training.  
+    * Cons: high computational cost (many denoising steps), less interpretability, often large 
+    memory/training requirements.\\
+
+    In summary, parametric models offer interpretability, analytic tractability and fast simulation 
+    (once calibrated), but may fail to reproduce complex stylised facts, interactions, or high-dimensional 
+    dynamics beyond their structural assumptions. Deep generative models (GANs, VAEs, Diffusions) 
+    increase expressive capacity and can generate diverse realistic synthetic sequences, but they bring 
+    heavier data/training demand, more hyper-parameter tuning, less direct interpretability, and often 
+    slower simulation or sampling times.
 
 \section{Stonk Bench Architechture}
   \subsection{Datasets and Preprocessing}
+    \subsubsection{Data type.} We use equity price data (e.g., AAPL) at daily frequency with four channels 
+    (Open, High, Low, Close). Let \(X \in \mathbb{R}^{T \times N}\) denote a univariate stream with \(N=4\) 
+    channels and length \(T\).
+
+    \subsubsection{Transformations.} We standardize to \emph{log-returns} per channel via
+
+    \[ r_t = \log P_t - \log P_{t-1} \,, \quad r_t \in \mathbb{R}^N. \]
+  
+    For parametric models, we use contiguous \(T_{train}\) historical segments. 
+    For deep models, we construct 3D windows \(\mathcal{W} \in \mathbb{R}^{A \times L \times N}\) 
+    by sliding window extraction of length \(L\) and sample \(A\) windows for train/validation/test, 
+    preserving temporal order in splits.
+
+    \subsubsection{Data loaders.} For deep models, we create mini-batches from \(\mathcal{W}\) with fixed 
+    seeds for reproducibility (train/valid/test), enabling epoch-wise training and stable evaluation. 
+    For fair comparison across model families, parametric models generate sequences of the same length 
+    \(L\) and number of samples \(A\) as the deep models.
+
+    \subsubsection{Visual diagnostics.} We compute per-channel histograms, Q--Q plots, ACF/PACF on returns 
+    and absolute returns, rolling-volatility traces, and 2D embeddings (t-SNE/UMAP) of window-level features 
+    to validate preprocessing and detect leakage or anomalies prior to training.
+
   \subsection{Statistical Evaluation Measures}
     \subsubsection{Feature-based Distance Measures}
-    These metrics quantify how well synthetic data captures the statistical properties of real data:
-    
+    These metrics quantify how well synthetic data captures key marginal and second-order properties of real data.
+
     \begin{enumerate}[label=\textbf{[M\arabic*]}]
-      \item \label{metric:mdd} \textbf{Marginal Distribution Difference (MDD):} 
-      Measures the overall difference between the probability distributions of real and synthetic data, 
-      helping assess if the synthetic data maintains the same value ranges and frequencies.
+      \item \label{metric:mdd} \textbf{Marginal Distribution Difference (MDD):}
+      Distance between real and synthetic marginals (e.g., average 1-Wasserstein across channels) to assess range and frequency alignment.
+      Let \(\widehat{F}^j_{r}\) and \(\widehat{F}^j_{s}\) be empirical CDFs of returns for channel \(j\). We compute
+      \[
+        \mathrm{MDD} = \frac{1}{N} \sum_{j=1}^{N} W_1\!\left(\widehat{F}^j_{r}, \, \widehat{F}^j_{s}\right),\quad
+        W_1(F,G) = \int_{0}^{1} \big| F^{-1}(u) - G^{-1}(u) \big|\,du.
+      \]
 
       \item \label{metric:md} \textbf{Mean Difference (MD):}
-      Compares the central tendencies of real and synthetic data, ensuring the synthetic data preserves 
-      the average behavior of the time series.
+      Absolute difference of per-channel means to test central tendency preservation.
+      Let \(\mu^j_{r}\) and \(\mu^j_{s}\) be real and synthetic means for channel \(j\). Then
+      \[
+        \mathrm{MD} = \frac{1}{N} \sum_{j=1}^{N} \big|\mu^j_{r} - \mu^j_{s}\big|.
+      \]
 
       \item \label{metric:sdd} \textbf{Standard Deviation Difference (SDD):}
-      Evaluates how well the synthetic data maintains the volatility characteristics of the real data by 
-      comparing their spread measures.
+      Absolute difference of per-channel standard deviations to test volatility level fidelity.
+      With \(\sigma^j_{r}\) and \(\sigma^j_{s}\):
+      \[
+        \mathrm{SDD} = \frac{1}{N} \sum_{j=1}^{N} \big|\sigma^j_{r} - \sigma^j_{s}\big|.
+      \]
 
       \item \label{metric:kd} \textbf{Kurtosis Difference (KD):}
-      Assesses preservation of the "tailedness" of distributions, crucial for capturing extreme events in 
-      financial data.
+      Difference in excess kurtosis per channel to evaluate heavy-tailedness. Denoting excess kurtosis by
+      \(\kappa^{\mathrm{ex}}(x) = \frac{\mathbb{E}[(x-\mu)^4]}{\sigma^4} - 3\), we compute
+      \[
+        \mathrm{KD} = \frac{1}{N} \sum_{j=1}^{N} \big|\kappa^{\mathrm{ex}}(r^j) - \kappa^{\mathrm{ex}}(s^j)\big|.
+      \]
 
       \item \label{metric:acd} \textbf{AutoCorrelation Difference (ACD):}
-      Measures how well temporal dependencies are preserved in the synthetic data compared to real data.
+      Absolute difference in lag-1 autocorrelation of returns per channel to gauge short-memory dynamics. For channel \(j\):
+      \[
+        \rho^j(1) = \frac{\sum_{t=2}^{T} (x^j_t - \bar{x}^j)(x^j_{t-1} - \bar{x}^j)}{\sum_{t=1}^{T} (x^j_t - \bar{x}^j)^2},\quad
+        \mathrm{ACD} = \frac{1}{N} \sum_{j=1}^{N} \big|\rho^j_{r}(1) - \rho^j_{s}(1)\big|.
+      \]
     \end{enumerate}
 
     \subsubsection{Visualization Methods}
-    Visual analysis tools provide intuitive validation of synthetic data quality and visual interpretive comparisons 
-    and contrast between real and synthetic time series \cite{Ang23}. Visual assessment is also useful for 
-    presentation purposes when presenting to non-technical stakeholders.
-
+    Visual tools complement numeric metrics for face-validity and communication \cite{Ang23}.
     \begin{enumerate}[label=\textbf{[M\arabic*]}, resume]
-      \item \label{metric:tsne} \textbf{t-SNE Visualization:}
-      Reduces high-dimensional financial data to 2D representations, allowing visual comparison of 
-      real and synthetic data structure.
+      \item \label{metric:tsne} \textbf{t-SNE/UMAP of window features:}
+      2D embeddings of window-level features (e.g., pooled activations or hand-crafted statistics) for real vs. synthetic overlap and cluster structure.
 
-      \item \label{metric:dist} \textbf{Distribution Comparison Plots:}
-      Direct visual comparison of probability distributions between real and synthetic data through 
-      histograms and Q-Q plots.
+      \item \label{metric:dist} \textbf{Distribution and Q--Q comparisons:}
+      Channel-wise histograms and Q--Q plots for returns (and absolute returns) to visualize tails and skew.
     \end{enumerate}
 
     \subsubsection{Diversity Metrics}
-    These metrics ensure synthetic data provides meaningful variations:
-
+    Diversity prevents mode collapse and encourages broad coverage.
     \begin{enumerate}[label=\textbf{[M\arabic*]}, resume]
-      \item \label{metric:ed} \textbf{Euclidean Distance (ED):}
-      Measures basic similarity between synthetic samples, helping assess diversity within generated data.
+      \item \label{metric:ed} \textbf{Intra-Class Euclidean Distance (ICD-ED):}
+      Average pairwise Euclidean distance between generated samples in feature space. Given feature embeddings
+      \(\phi(X^{(a)}) \in \mathbb{R}^d\) for samples \(a=1,\dots,A\):
+      \[
+        \mathrm{ICD\text{-}ED} = \frac{2}{A(A-1)} \sum_{1\le a<b\le A} \left\| \phi\big(X^{(a)}\big) - \phi\big(X^{(b)}\big) \right\|_2.
+      \]
 
-      \item \label{metric:dtw} \textbf{Dynamic Time Warping (DTW):}
-      Captures temporal similarities while allowing for slight shifts and warps in time series patterns.
+      \item \label{metric:dtw} \textbf{Intra-Class Dynamic Time Warping (ICD-DTW):}
+      Average pairwise DTW distance to capture temporal similarity under local warping. Let \(d_{\mathrm{DTW}}(\cdot,\cdot)\) denote DTW distance between two multivariate sequences:
+      \[
+        \mathrm{ICD\text{-}DTW} = \frac{2}{A(A-1)} \sum_{1\le a<b\le A} d_{\mathrm{DTW}}\!\left(X^{(a)}, X^{(b)}\right).
+      \]
     \end{enumerate}
 
     \subsubsection{Efficiency Assessment}
       \begin{enumerate}[label=\textbf{[M\arabic*]}, resume]
         \item \label{metric:gentime} \textbf{Generation Time:}
-        Measures computational efficiency by tracking time required to generate 500 synthetic samples, 
-        crucial for practical applications.
+        Wall-clock time to generate a fixed number of samples (e.g., 500), measured with identical hardware and sequence length. If \(t_0\) and \(t_1\) are start/end timestamps and \(S\) is the number of samples, then
+        \[ T_{\mathrm{gen}} = t_1 - t_0 \quad (\text{seconds for } S \text{ samples}). \]
       \end{enumerate}
 
     \subsubsection{Stylized Facts Verification}
-      These tests verify if synthetic data exhibits key properties of financial time series:
-
+    We verify canonical stylized facts of financial returns.
       \begin{enumerate}[label=\textbf{[M\arabic*]}, resume]
         \item \label{metric:heavytails} \textbf{Heavy Tails:}
-        Measures excess kurtosis to verify if synthetic data captures the frequent extreme events characteristic 
-        of financial returns.
+        Excess kurtosis of returns \((\kappa-3)\) per channel and the absolute difference to real.
+        \[ \kappa^{\mathrm{ex}}(x) = \frac{\mathbb{E}[(x-\mu)^4]}{\sigma^4} - 3,\quad \Delta\kappa^{\mathrm{ex}} = \frac{1}{N}\sum_{j=1}^{N} \big|\kappa^{\mathrm{ex}}(r^j) - \kappa^{\mathrm{ex}}(s^j)\big|. \]
 
         \item \label{metric:autocorr} \textbf{Return Autocorrelation:}
-        Checks for proper modeling of temporal dependencies in returns through lag-1 autocorrelation.
+        Lag-1 autocorrelation of raw returns; should be close to zero for liquid assets. Using \(\rho^j(1)\) as above, report per-channel values and/or their absolute differences to real.
 
         \item \label{metric:volclustering} \textbf{Volatility Clustering:}
-        Verifies if periods of high volatility tend to cluster together, a key feature of financial markets.
+        Autocorrelation of squared or absolute returns (lag-1) to measure volatility persistence.
+        \[ \rho^j_{x^2}(1) = \mathrm{Corr}\big((x^j_t)^2, (x^j_{t-1})^2\big), \quad \text{or} \quad \rho^j_{|x|}(1) = \mathrm{Corr}\big(|x^j_t|, |x^j_{t-1}|\big). \]
 
-        \item \label{metric:longmemory} \textbf{Long Memory in Volatitly:}
-        Tests for persistent autocorrelation in absolute returns, indicating proper modeling of 
-        volatility persistence.
+        \item \label{metric:longmemory} \textbf{Long Memory in Volatility:}
+        Decay profile of ACF in absolute returns; summarized as an average over lags \(\mathcal{L} = \{\ell_1,\dots,\ell_L\}\):
+        \[ \mathrm{LM} = \frac{1}{N}\sum_{j=1}^{N} \left( \frac{1}{L} \sum_{\ell\in\mathcal{L}} \rho^j_{|x|}(\ell) \right). \]
 
-        \item \label{metric:nonstat} \textbf{Non-Stationarity Detection:}
-        Ensures synthetic data maintains the non-stationary characteristics typical of financial time series.
+        \item \label{metric:nonstat} \textbf{Non-Stationarity:}
+        Window-wise drift/variance drift statistics (e.g., KPSS/ADF summaries or rolling-moment drift) to ensure realistic non-stationary behavior. Using a partition of the series into windows \(w=1,\dots,W\) with window means \(m_w\) and standard deviations \(s_w\):
+        \[ \mathrm{NS} = \mathrm{Var}_w(m_w) + \mathrm{Var}_w(s_w), \quad \Delta\mathrm{NS} = \big| \mathrm{NS}_{\mathrm{real}} - \mathrm{NS}_{\mathrm{synth}} \big|. \]
       \end{enumerate}
-
+  
   \subsection{Utility Evaluation Measures: Deep Hedging}
     Utility measures are critical for evaluating synthetic data beyond statistical metrics, 
     as they assess the practical value of generated data in real-world financial applications \cite{Boursin22}. 
@@ -470,9 +494,100 @@
 
 \section{Results and Analysis}
   \subsection{Statistical Evaluation Results}
+  We report per-model, per-channel metrics. Copy values from the generated JSON (e.g., \texttt{complete\_evaluation.json}) into the following templates.
+
+  \begin{table*}[h]
+    \centering
+    \caption{Fidelity metrics by model and channel (lower is better for differences). Channels C1--C4 correspond to dataset channels (e.g., Open, High, Low, Close).}
+    \begin{tabular}{l|cccc|cccc|cccc|cccc}
+      \toprule
+      & \multicolumn{4}{c|}{MDD} & \multicolumn{4}{c|}{MD} & \multicolumn{4}{c|}{SDD} & \multicolumn{4}{c}{KD} \\
+      Model & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 \\
+      \midrule
+      GBM &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      OU\_Process &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      MJD &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      GARCH11 &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      DEJD &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      BlockBootstrap &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      TimeGAN &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      QuantGAN &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      TimeVAE &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      \bottomrule
+    \end{tabular}
+  \end{table*}
+
+  \begin{table*}[h]
+    \centering
+    \caption{Temporal and diversity metrics by model and channel (lower is better for differences; higher is better for diversity distances).}
+    \begin{tabular}{l|cccc|cccc|cccc}
+      \toprule
+      & \multicolumn{4}{c|}{ACD} & \multicolumn{4}{c|}{ICD-ED} & \multicolumn{4}{c}{ICD-DTW} \\
+      Model & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 \\
+      \midrule
+      GBM &  &  &  &  &  &  &  &  &  &  &  &  \\
+      OU\_Process &  &  &  &  &  &  &  &  &  &  &  &  \\
+      MJD &  &  &  &  &  &  &  &  &  &  &  &  \\
+      GARCH11 &  &  &  &  &  &  &  &  &  &  &  &  \\
+      DEJD &  &  &  &  &  &  &  &  &  &  &  &  \\
+      BlockBootstrap &  &  &  &  &  &  &  &  &  &  &  &  \\
+      TimeGAN &  &  &  &  &  &  &  &  &  &  &  &  \\
+      QuantGAN &  &  &  &  &  &  &  &  &  &  &  &  \\
+      TimeVAE &  &  &  &  &  &  &  &  &  &  &  &  \\
+      \bottomrule
+    \end{tabular}
+  \end{table*}
+
+  \begin{table*}[h]
+    \centering
+    \caption{Stylized facts by model and channel (differences reported real minus synthetic unless noted).}
+    \begin{tabular}{l|cccc|cccc|cccc|cccc}
+      \toprule
+      & \multicolumn{4}{c|}{Heavy Tails (diff)} & \multicolumn{4}{c|}{Autocorr Raw (diff)} & \multicolumn{4}{c|}{Volatility Clustering (diff)} & \multicolumn{4}{c}{Long Memory (diff)} \\
+      Model & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 \\
+      \midrule
+      GBM &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      OU\_Process &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      MJD &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      GARCH11 &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      DEJD &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      BlockBootstrap &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      TimeGAN &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      QuantGAN &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      TimeVAE &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      \bottomrule
+    \end{tabular}
+  \end{table*}
+
+  \begin{table}[h]
+    \centering
+    \caption{Non-stationarity (diff) and generation time per model.}
+    \begin{tabular}{l|cccc|c}
+      \toprule
+      & \multicolumn{4}{c|}{Non-stationarity (diff)} & Gen. Time (500) \\
+      Model & C1 & C2 & C3 & C4 & seconds \\
+      \midrule
+      GBM &  &  &  &  &  \\
+      OU\_Process &  &  &  &  &  \\
+      MJD &  &  &  &  &  \\
+      GARCH11 &  &  &  &  &  \\
+      DEJD &  &  &  &  &  \\
+      BlockBootstrap &  &  &  &  &  \\
+      TimeGAN &  &  &  &  &  \\
+      QuantGAN &  &  &  &  &  \\
+      TimeVAE &  &  &  &  &  \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
   \subsection{Utility Evaluation Results}
+  Results of the deep hedging evaluation (replication error, P\&L distribution, risk-adjusted metrics) can be summarized in tables analogous to the above once computed.
+
   \subsection{Comprehensive Model Comparison}
+  Provide radar plots or scorecards that combine normalized metrics (fidelity, diversity, stylized facts, efficiency) into composite ranks per task.
+
   \subsection{Ranking Analysis}
+  Discuss trade-offs: fidelity vs. diversity, training time vs. quality, and sensitivity to window length and sample count.
 
 \section{Conclusion and Future Work}
   In our research, we recognize the existing limitations in the evaluation of synthetic time series, 
@@ -489,27 +604,48 @@
   \subsection{Current Limitations and Shortcomings}
   \subsection{Future Research Directions}
 
-%%
-%% The acknowledgments section is defined using the "acks" environment
-%% (and NOT an unnumbered section). This ensures the proper
-%% identification of the section in the article metadata, and the
-%% consistent spelling of the heading.
+
 \begin{acks}
 To professor Irene Huang, University of Toronto, for her supervision and guidance throughout the project.
 \end{acks}
 
-%%
-%% The next two lines define the bibliography style to be used, and
-%% the bibliography file.
+
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{stonk-bench}
 
 
-%%
-%% If your work has an appendix, this is the place to put it.
+
 \appendix
 
+\section{Preprocessing Diagnostics}
+  \subsection{Channel-wise Distributions}
+  \begin{figure*}[h]
+    \centering
+    % \includegraphics[width=0.95\textwidth]{results/evaluation_YYYYMMDD_HHMMSS/GBM/distributions.png}
+    \caption{Histograms and Q--Q plots of real vs. synthetic returns per channel. Replace with generated figures from \texttt{VisualAssessmentEvaluator}.}
+  \end{figure*}
+
+  \subsection{Autocorrelation Analyses}
+  \begin{figure*}[h]
+    \centering
+    % \includegraphics[width=0.95\textwidth]{results/evaluation_YYYYMMDD_HHMMSS/GBM/acf_pacf.png}
+    \caption{ACF/PACF of returns and absolute returns for real vs. synthetic data.}
+  \end{figure*}
+
+\section{Embedding Visualizations}
+  \begin{figure*}[h]
+    \centering
+    % \includegraphics[width=0.95\textwidth]{results/evaluation_YYYYMMDD_HHMMSS/GBM/tsne.png}
+    \caption{t-SNE/UMAP embeddings of window-level features; color-coded real vs. synthetic for overlap assessment.}
+  \end{figure*}
+
+\section{Per-Model Visual Assessments}
+  For each model (GBM, OU\_Process, MJD, GARCH11, DEJD, BlockBootstrap, TimeGAN, QuantGAN, TimeVAE), include side-by-side real/synthetic plots and distribution overlays.
+  \begin{figure*}[h]
+    \centering
+    % Example placeholder for one model; duplicate per model and update path
+    % \includegraphics[width=0.95\textwidth]{results/evaluation_YYYYMMDD_HHMMSS/GBM/overview.png}
+    \caption{Representative visual assessment panels for a selected model.}
+  \end{figure*}
+
 \end{document}
-\endinput
-%%
-%% End of file `sample-sigconf.tex'.
