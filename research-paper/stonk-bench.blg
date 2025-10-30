@@ -13,45 +13,45 @@ Reallocated global_strs (elt_size=200001) to 20 items from 10.
 Reallocated glb_str_end (elt_size=4) to 20 items from 10.
 Reallocated singl_function (elt_size=4) to 100 items from 50.
 Warning--page numbers missing in both pages and numpages fields in Stenger24
-You've used 5 entries,
+You've used 6 entries,
             6273 wiz_defined-function locations,
-            1710 strings with 21472 characters,
-and the built_in function-call counts, 5906 in all, are:
-= -- 707
-> -- 331
+            1720 strings with 21730 characters,
+and the built_in function-call counts, 6990 in all, are:
+= -- 829
+> -- 362
 < -- 0
-+ -- 116
-- -- 111
-* -- 547
-:= -- 664
-add.period$ -- 22
-call.type$ -- 5
-change.case$ -- 60
-chr.to.int$ -- 5
-cite$ -- 6
-duplicate$ -- 398
-empty$ -- 289
-format.name$ -- 131
-if$ -- 1331
++ -- 126
+- -- 120
+* -- 627
+:= -- 775
+add.period$ -- 27
+call.type$ -- 6
+change.case$ -- 67
+chr.to.int$ -- 6
+cite$ -- 7
+duplicate$ -- 501
+empty$ -- 359
+format.name$ -- 144
+if$ -- 1581
 int.to.chr$ -- 2
 int.to.str$ -- 1
-missing$ -- 8
-newline$ -- 92
-num.names$ -- 35
-pop$ -- 165
+missing$ -- 10
+newline$ -- 100
+num.names$ -- 42
+pop$ -- 201
 preamble$ -- 1
-purify$ -- 97
+purify$ -- 112
 quote$ -- 0
-skip$ -- 149
+skip$ -- 186
 stack$ -- 0
-substring$ -- 325
-swap$ -- 28
+substring$ -- 432
+swap$ -- 45
 text.length$ -- 0
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 122
+type$ -- 137
 warning$ -- 1
-while$ -- 18
+while$ -- 24
 width$ -- 0
-write$ -- 139
+write$ -- 159
 (There was 1 warning)
