@@ -3,10 +3,6 @@ import numpy as np
 
 class BlockBootstrap:
     def __init__(self, block_size: int = 5, device: str = "cpu"):
-        """
-        independent_channels: If True, blocks are sampled independently for each channel.
-        circular: If True, blocks wrap around the end of the series for edge cases.
-        """
         self.block_size = block_size
         self.device = device
         self.log_returns = None

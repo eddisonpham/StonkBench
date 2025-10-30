@@ -34,13 +34,13 @@ class TaxonomyEvaluator(ABC):
         return self.results
 
 class DiversityEvaluator(TaxonomyEvaluator):
-    def evaluate(self) -> Dict[str, float]:
+    def evaluate(self) -> Dict[str, np.ndarray]:
         metrics = ["euclidean", "dtw"]
-        self.results = {f"icd_{m}": calculate_icd(self.syn_data, metric=m) for m in metrics}
+        self.results = {f"icd_{m}": calculate_icd(self.syn_data, metric=m).tolist() for m in metrics}
         return self.results
 
 class FidelityEvaluator(TaxonomyEvaluator):
-    def evaluate(self) -> Dict[str, float]:
+    def evaluate(self) -> Dict[str, np.ndarray]:
         fidelity_metrics = {
             "mdd": calculate_mdd,
             "md": calculate_md,
@@ -49,7 +49,7 @@ class FidelityEvaluator(TaxonomyEvaluator):
             "kd": calculate_kd,
             "acd": calculate_acd
         }
-        self.results = {name: fn(self.ori_data, self.syn_data) for name, fn in fidelity_metrics.items()}
+        self.results = {name: fn(self.ori_data, self.syn_data).tolist() for name, fn in fidelity_metrics.items()}
         return self.results
 
 class RuntimeEvaluator(TaxonomyEvaluator):
@@ -85,9 +85,12 @@ class StylizedFactsEvaluator(TaxonomyEvaluator):
             for name, fn in fact_functions.items():
                 real_val = fn(self.ori_data)
                 synth_val = fn(self.syn_data)
-                self.results[f"{name}_real"] = real_val.tolist()
-                self.results[f"{name}_synth"] = synth_val.tolist()
-                self.results[f"{name}_diff"] = np.abs(real_val - synth_val).tolist()
+                diff_val = np.abs(real_val - synth_val)
+                self.results[name] = {
+                    "real": real_val.tolist(),
+                    "synth": synth_val.tolist(),
+                    "diff": diff_val.tolist()
+                }
         except Exception as e:
             print(f"Warning: Stylized facts evaluation failed: {e}")
             self.results["stylized_facts_error"] = str(e)
@@ -95,18 +98,17 @@ class StylizedFactsEvaluator(TaxonomyEvaluator):
         return self.results
 
 class VisualAssessmentEvaluator(TaxonomyEvaluator):
-    def __init__(self, ori_data: np.ndarray, syn_data: np.ndarray, results_dir: Path, timestamp: str):
+    def __init__(self, ori_data: np.ndarray, syn_data: np.ndarray, results_dir: Path):
         super().__init__(ori_data, syn_data)
         self.results_dir = results_dir
-        self.timestamp = timestamp
 
-    def evaluate(self, model_name: str):
+    def evaluate(self):
         try:
-            model_results_dir = self.results_dir / f"visualizations_{model_name}"
+            model_results_dir = self.results_dir / f"visualizations"
             model_results_dir.mkdir(parents=True, exist_ok=True)
 
-            visualize_tsne(self.ori_data, self.syn_data, str(model_results_dir), model_name)
-            visualize_distribution(self.ori_data, self.syn_data, str(model_results_dir), model_name)
+            visualize_tsne(self.ori_data, self.syn_data, str(model_results_dir))
+            visualize_distribution(self.ori_data, self.syn_data, str(model_results_dir))
 
             mlflow.log_artifacts(str(model_results_dir))
         except Exception as e:

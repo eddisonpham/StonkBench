@@ -18,8 +18,6 @@ and are intended for use in assessing the fidelity of synthetic data relative to
 import numpy as np
 from scipy.stats import kurtosis
 
-from src.utils.conversion_utils import to_numpy_abc
-
 
 def heavy_tails(data: np.ndarray) -> np.ndarray:
     """
@@ -33,7 +31,6 @@ def heavy_tails(data: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: Excess kurtosis per channel
     """
-    data = to_numpy_abc(data)
     R, l, N = data.shape
     kurt_vals = []
     for ch in range(N):
@@ -55,7 +52,6 @@ def autocorr_raw(data: np.ndarray, lag: int = 1) -> np.ndarray:
     Returns:
         np.ndarray: Autocorrelation per channel
     """
-    data = to_numpy_abc(data)
     R, l, N = data.shape
     ac_vals = []
     for ch in range(N):
@@ -82,7 +78,6 @@ def volatility_clustering(data: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: Autocorrelation of squared returns per channel
     """
-    data = to_numpy_abc(data)
     R, l, N = data.shape
     ac_sq_vals = []
     for ch in range(N):
@@ -111,7 +106,6 @@ def long_memory_abs(data: np.ndarray, max_lag: int = 10) -> np.ndarray:
     Returns:
         np.ndarray: Average autocorrelation per channel
     """
-    data = to_numpy_abc(data)
     R, l, N = data.shape
     avg_ac_abs = []
     for ch in range(N):
@@ -140,7 +134,6 @@ def non_stationarity(data: np.ndarray, window: int = 50) -> np.ndarray:
     Returns:
         np.ndarray: Non-stationarity measure per channel
     """
-    data = to_numpy_abc(data)
     R, l, N = data.shape
     nonstat_vals = []
     for ch in range(N):
