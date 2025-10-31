@@ -509,9 +509,141 @@
       Deep hedging helps verify if synthetic data maintains the complex relationships 
       and market dynamics necessary for developing reliable trading strategies.
     \end{enumerate}
+
     \subsubsection{Deep Hedger Problem Defintion}
+      We consider a continuous-time financial market defined on a probability space 
+      $(\Omega, \mathcal{F}, \mathbb{P})$, over a finite time horizon $0 < T < \infty$, 
+      equipped with a filtration $\mathcal{F} = (\mathcal{F}_t)_{0 \leq t \leq T}$ 
+      that represents the evolution of information through time.  
+      The market consists of $d + 1$ tradable assets $S = (S^0, \dots, S^d)$, where 
+      $S_t^j$ denotes the price of asset $j$ at time $t$. For simplicity, we assume a 
+      zero interest rate environment.
+
+      We study the hedging problem associated with a contingent claim delivering a payoff 
+      $g(S_T)$ at maturity $T$, where $S_T$ represents the terminal value of the underlying 
+      asset vector.  
+      The hedging strategy is implemented at a discrete set of times 
+      $0 = t_0 < t_1 < \dots < t_{N-1} < t_N = T$.  
+      A \textit{self-financing portfolio} is described by a $d$-dimensional $\mathcal{F}_t$
+      -adapted process $\Delta_t$, and its terminal wealth, denoted $X_T^{\Delta, p}$, 
+      is given by
+      \begin{equation}
+          X_T^{\Delta, p} = p + \sum_{i=1}^{d} \sum_{j=0}^{N-1} \Delta_{t_j}^i 
+          \left( F_{t_{j+1}}^i - F_{t_j}^i \right),
+      \end{equation}
+      where $p \in \mathbb{R}$ represents the initial premium.
+
+      The objective is to determine the optimal premium and trading strategy 
+      $(p^{\text{opt}}, \Delta^{\text{opt}})$ that minimize the expected squared hedging error:
+      \begin{equation}
+          (p^{\text{opt}}, \Delta^{\text{opt}}) 
+          = \operatorname*{Argmin}_{p, \Delta} 
+          \mathbb{E} \left[ \big( X_T^{\Delta} - g(S_T) \big)^2 \right].
+      \end{equation}
+
+      To address this optimization problem, we employ the global approach proposed by 
+      Fécamp \textit{et al.} (2020), chosen for its computational efficiency and scalability.  
+      In this framework, the control policy $\Delta$ is approximated by a feed-forward neural 
+      network—referred to as a \textit{deep hedger}—which jointly learns the optimal trading 
+      strategy and corresponding premium through end-to-end training.
     \subsubsection{Deep Hedger Architecture}
-    \subsubsection{Deep Hedger Portfolio Evaluation}
+      \begin{table}[h]
+        \centering
+        \caption{Notations for Deep Hedger Architecture.}
+        \label{tab:deephedger-notation}
+        \begin{tabular}{ll}
+        \toprule
+        \textbf{Symbol}     & \textbf{Description} \\
+        \midrule
+        \( D \)             & Time-series dataset             \\
+        \( T \)             & Task                            \\
+        \( S \)             & Score                           \\
+        \( A \)             & Deep hedger algorithm           \\
+        \( \mathcal{A}_n \) & Set of n deep hedger algorithms \\
+        \( M \)             & Deep hedger model               \\
+        \( \mathcal{M}_{TS} \)   & (SDGFTS) model                  \\
+        \bottomrule
+        \end{tabular}
+      \end{table}
+
+      Our deep hedger architecture centeres around the Train-Synthetic-Test-Real (TSTR)
+      evaluation framework \cite{Leznik21}, adapted for financial time series generation.
+      We begin with our real FTS dataset \( D\)\textemdash partitioned to a training, validation, 
+      and test set respectively as
+      \( D_r = \{D_r^{train}, D_r^{validate}, D_r^{test}\} \)\textemdash along with a specific 
+      hedging task \(T\) and a performance score \(S\) to evaluate hedging effectiveness, 
+      to which we will go indepth in the next subsubsection.
+      We consider a deep hedger algorithm \(A\) (a 5-layer perceptron) that takes as 
+      input the dataset \(D_r\) and task \(T\),
+
+      In the context of SDGFTS evaluation, we consider a SDGFTS model \( \mathcal{M}_{TS} \) 
+      trained on \( D_r^{train} \) and validated with \( D_r^{validate} \) to generate 
+      synthetic FTS data \( D_g \).
+
+      Now we can train a deep hedger algorithm \( A \) on the datasets \( D_r^{train} \) and 
+      \( D_g^{train} \) respectively, resulting in two deep hedger models
+      \( M_r \) and \( M_g \).
+
+      Finally, we evaluate both models on the real test set \( D_r^{test} \) to obtain the
+      corresponding performance scores \( s_r \) and \( s_g \).
+
+      The goal of the deep hedger portfolio evaluation is to evaluate the effectiveness of the
+      model \( \mathcal{M}_{TS} \) with downstream tasks (deep hedging) by comparing the scores 
+      \( s_r \) and \( s_g \). The model \( \mathcal{M}_{TS} \) is considered effective if the 
+      the results yielded similar scores, i.e. \( s_r \approx s_g \) \textemdash preferably having 
+      higher performance with results of \( s_g > s_r \) \textemdash indicating that the synthetic 
+      data generated by \( \mathcal{M}_{TS} \) is useful for training deep hedger models 
+      \cite{Stenger24}.
+
+    \subsubsection{Deep Hedger Extentions}
+    We proposed two extensions to the standard deep hedger architecture to better suit our 
+    benchmark need that drew inspiration from recent literature \cite{Stenger24}.
+      \begin{enumerate}[label=\textbf{[E\arabic*]}]
+        \item \label{ext:augment} \textbf{Augmented Testing \cite{Stenger24}}  
+        To better evaluate the performance of deep hedgers trained on synthetic data, 
+        we train our deep hedger \( A \) on a new dataset \( D_{aug} \) that combines
+        both real training data \( D_r^{train} \) and synthetic data \( D_g\). In other words,
+        we traid model \( M_g \) on \( D_{aug} \) where \( D_{aug} := D_r^{train} \cup D_g\).
+        Then we proceed to evaluate scores between models\( M_g \) and \( M_r \) 
+        on the real test set, where \( M_r \) i s still trained on only real data \( D_r^{train} \).
+
+
+        \item \label{ext:algcomparsion} \textbf{Algorithm Comparison \cite{Lin21}}  
+        Another extension is to compare multiple deep hedger algorithms indicating to what 
+        degree each algorithm performs equally on the generated data relative to the other
+        algorithms, compared to their performance on real data.
+
+        Given a set of \( n \) deep hedger algorithms 
+        \( \mathcal{A}_n = \{ A_1, \ldots, A_n \} \), we train each algorithm 
+        \( A_i \in \ mathcal{A}_n \) on both real training data \( D_r^{train} \) and
+        synthetic data \( D_g^{train} \) respectively, resulting in two sets of deep 
+        hedger models \(\{M_r^1, M_r^2, \ldots, M_r^n\} \) and \( \{M_g^1, M_g^2, \ldots, M_g^n\} \)
+        and two ordered setes of performance scores \( s_r := \{s_r^1, s_r^2, \ldots, s_r^n\} \) and 
+        \( s_g := \{s_g^1, s_g^2, \ldots, s_g^n\} \) respectively.
+
+        Finally we compare the relative performance of each algorithm on real data versus synthetic data
+        by computing the Spearman's rank correlation coefficient \( r_S \) \cite{Lin21} between 
+        the two score sets \( s_r \) and \( s_g \):
+        \begin{equation}
+          r_S = 1 - \frac{6 \sum_{i=1}^{n} ( \mathrm{rank}(s_r^i) - \mathrm{rank}(s_g^i) )^2}{n(n^2 - 1)},
+        \end{equation}
+        where \( \mathrm{rank}(s_r^i) \) and \( \mathrm{rank}(s_g^i) \) denote the ranks of
+        scores \( s_r^i \) and \( s_g^i \) within their respective sets.
+
+        We interpret a high positive correlation (i.e., \( r_S \) close to 1) as an indication that
+        the synthetic data  generated by \( mathcal{M}_{TS} \) preserves the relative performance 
+        of different deep hedger algorithms.
+      \end{enumerate}
+    % \subsubsection{Deep Hedger Portfolio Evaluation}
+    %   In the question of how to effectively evaluate the deep hedging utility of synthetic 
+    %   financial time series data, we wish to choose scores \( S \) that reflect the practical
+    %   utility of the data in real-world hedging tasks.
+    %   We propose the following evaluation scores:
+    %   \begin{enumerate}[label=\textbf{[M\arabic*]}, resume]
+    %     \item \label{metric:replicationerror} \textbf{Replication Error}
+    %     \item \label{metric:erm} \textbf{ERM}
+    %     \item \label{metric:cvar} \textbf{CVaR}
+    %   \end{enumerate}
 
 \section{Results and Analysis}
   \subsection{Statistical Evaluation Results}
@@ -602,7 +734,8 @@
   \end{table}
 
   \subsection{Utility Evaluation Results}
-  Results of the deep hedging evaluation (replication error, P\&L distribution, risk-adjusted metrics) can be summarized in tables analogous to the above once computed.
+  Results of the deep hedging evaluation (replication error, P\&L distribution, risk-adjusted metrics) can be summarized in tables analogous to the 
+  above once computed.
 
   \subsection{Comprehensive Model Comparison}
   Provide radar plots or scorecards that combine normalized metrics (fidelity, diversity, stylized facts, efficiency) into composite ranks per task.

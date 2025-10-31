@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.3.15)  31 OCT 2025 13:24
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.3.15)  31 OCT 2025 15:52
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -1074,12 +1074,21 @@ Overfull \hbox (6.79115pt too wide) in paragraph at lines 412--414
 
 
 
-LaTeX Font Info:    Trying to load font information for T1+zi4 on input line 518.
+LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/it' will be
+(Font)              scaled to size 9.0pt on input line 527.
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+
+
+[5.5]
+
+LaTeX Font Info:    Trying to load font information for T1+zi4 on input line 650.
 (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/latex/inconsolata/t1zi4.fd
 File: t1zi4.fd 2018/01/14 T1/zi4 (Inconsolata)
 )
 LaTeX Font Info:    Font shape `T1/zi4/m/n' will be
-(Font)              scaled to size 9.0pt on input line 518.
+(Font)              scaled to size 9.0pt on input line 650.
 Package microtype Info: Loading generic protrusion settings for font family
 (microtype)             `zi4' (encoding: T1).
 (microtype)             For optimal results, create family-specific settings.
@@ -1097,51 +1106,52 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-
-
-[5.5{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-4.enc}] Processing 'acks' comment.
+Processing 'acks' comment.
 \openout3 = `comment.cut'.
 
  Comment 'acks' writing to comment.cut. Straight input of comment.cut. (./comment.cut) (./stonk-bench.bbl
-Underfull \vbox (badness 10000) has occurred while \output is active []
 
-
-
-
-Underfull \vbox (badness 10000) has occurred while \output is active []
-
-
-
-[6.6]
+[6.6{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-4.enc}]
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
 (Font)              scaled to size 7.3pt on input line 56.
-LaTeX Info: Redefining \tempurl on input line 105.
-LaTeX Info: Redefining \tempurl on input line 117.
-LaTeX Info: Redefining \tempurl on input line 129.
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+
+
+[7.7]
+LaTeX Info: Redefining \tempurl on input line 123.
+LaTeX Info: Redefining \tempurl on input line 135.
+LaTeX Info: Redefining \tempurl on input line 147.
 )
 LaTeX Font Info:    Font shape `T1/zi4/b/n' will be
-(Font)              scaled to size 9.0pt on input line 646.
+(Font)              scaled to size 9.0pt on input line 779.
 
 
-Class acmart Warning: A possible image without description on input line 647.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-
-Class acmart Warning: A possible image without description on input line 654.
+Class acmart Warning: A possible image without description on input line 780.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
 
-Class acmart Warning: A possible image without description on input line 661.
+Class acmart Warning: A possible image without description on input line 787.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
 
-Class acmart Warning: A possible image without description on input line 670.
+Class acmart Warning: A possible image without description on input line 794.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+
+Class acmart Warning: A possible image without description on input line 803.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
@@ -1161,18 +1171,21 @@ Class acmart Warning: CCS concepts are mandatory for papers over two pages.
 
 
 
-[7.7]
+
+Overfull \vbox (1.50592pt too high) has occurred while \output is active []
+
+ [8.8]
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 12.0pt on input line 672.
+(Font)              scaled to size 12.0pt on input line 805.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 8.8pt on input line 672.
+(Font)              scaled to size 8.8pt on input line 805.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 8.8pt on input line 672.
+(Font)              scaled to size 8.8pt on input line 805.
  (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/generic/stringenc/se-pdfdoc.def
 File: se-pdfdoc.def 2019/11/29 v1.12 stringenc: PDFDocEncoding
 ) (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/generic/stringenc/se-utf8.def
 File: se-utf8.def 2019/11/29 v1.12 stringenc: UTF-8
-) [8.8] (./stonk-bench.aux)
+) [9.9] (./stonk-bench.aux)
  ***********
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
@@ -1182,21 +1195,21 @@ L3 programming layer <2025-01-18>
 LaTeX Warning: There were multiply-defined labels.
 
 Package rerunfilecheck Info: File `stonk-bench.out' has not changed.
-(rerunfilecheck)             Checksum: E7B1916E12F8A71F20D8857836E58A7F;6346.
+(rerunfilecheck)             Checksum: 850CDF85E1D31F2DE2FCF6B7919EB3EF;6346.
  ) 
 Here is how much of TeX's memory you used:
- 21979 strings out of 473190
- 363948 string characters out of 5704335
- 855557 words of memory out of 5000000
- 44046 multiletter control sequences out of 15000+600000
- 774862 words of font info for 486 fonts, out of 8000000 for 9000
+ 22030 strings out of 473190
+ 365000 string characters out of 5704335
+ 856790 words of memory out of 5000000
+ 44057 multiletter control sequences out of 15000+600000
+ 783611 words of font info for 507 fonts, out of 8000000 for 9000
  1302 hyphenation exceptions out of 8191
- 90i,16n,131p,1096b,689s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 90i,16n,131p,1096b,713s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/inconsolata/Inconsolata-zi4b.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/inconsolata/Inconsolata-zi4r.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI5.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI7.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathRM.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumT.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumTB.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumTI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineT.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTB.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTZ.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/NewTXMI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/NewTXMI7.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txexs.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txmiaX.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txsym.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txsys.pfb>
-Output written on stonk-bench.pdf (8 pages, 1111489 bytes).
+Output written on stonk-bench.pdf (9 pages, 1130573 bytes).
 PDF statistics:
- 421 PDF objects out of 1000 (max. 8388607)
- 362 compressed objects within 4 object streams
- 116 named destinations out of 1000 (max. 500000)
- 126236 words of extra memory for PDF output out of 128383 (max. 10000000)
+ 443 PDF objects out of 1000 (max. 8388607)
+ 383 compressed objects within 4 object streams
+ 125 named destinations out of 1000 (max. 500000)
+ 130332 words of extra memory for PDF output out of 154059 (max. 10000000)
 

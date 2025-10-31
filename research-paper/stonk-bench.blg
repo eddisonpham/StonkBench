@@ -25,45 +25,45 @@ Warning--no number and no volume in qi2025gan_financial
 Warning--page numbers missing in both pages and numpages fields in qi2025gan_financial
 Warning--empty address in rezende2014stochastic
 Warning--page numbers missing in both pages and numpages fields in Stenger24
-You've used 11 entries,
+You've used 13 entries,
             6273 wiz_defined-function locations,
-            1763 strings with 22711 characters,
-and the built_in function-call counts, 11827 in all, are:
-= -- 1459
-> -- 391
+            1782 strings with 23380 characters,
+and the built_in function-call counts, 14266 in all, are:
+= -- 1726
+> -- 493
 < -- 0
-+ -- 133
-- -- 136
-* -- 852
-:= -- 1133
-add.period$ -- 50
-call.type$ -- 11
-change.case$ -- 83
-chr.to.int$ -- 11
-cite$ -- 18
-duplicate$ -- 1059
-empty$ -- 732
-format.name$ -- 172
-if$ -- 2832
++ -- 168
+- -- 189
+* -- 1051
+:= -- 1394
+add.period$ -- 59
+call.type$ -- 13
+change.case$ -- 103
+chr.to.int$ -- 13
+cite$ -- 20
+duplicate$ -- 1253
+empty$ -- 863
+format.name$ -- 213
+if$ -- 3367
 int.to.chr$ -- 2
 int.to.str$ -- 1
-missing$ -- 31
-newline$ -- 143
-num.names$ -- 77
-pop$ -- 398
+missing$ -- 36
+newline$ -- 161
+num.names$ -- 91
+pop$ -- 468
 preamble$ -- 1
-purify$ -- 167
+purify$ -- 202
 quote$ -- 0
-skip$ -- 432
+skip$ -- 516
 stack$ -- 0
-substring$ -- 776
-swap$ -- 117
-text.length$ -- 0
+substring$ -- 963
+swap$ -- 142
+text.length$ -- 38
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 288
+type$ -- 348
 warning$ -- 7
-while$ -- 54
+while$ -- 63
 width$ -- 0
-write$ -- 261
+write$ -- 302
 (There were 13 warnings)

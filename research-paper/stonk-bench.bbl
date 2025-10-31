@@ -2,7 +2,7 @@
 %%% Do NOT edit. File created by BibTeX with style
 %%% ACM-Reference-Format-Journals [18-Jan-2012].
 
-\begin{thebibliography}{11}
+\begin{thebibliography}{13}
 
 %%% ====================================================================
 %%% NOTE TO THE USER: you can override these defaults by providing
@@ -69,6 +69,24 @@
 \bibfield{author}{\bibinfo{person}{J. Lee} {et~al\mbox{.}}} \bibinfo{year}{2022}\natexlab{}.
 \newblock \showarticletitle{VRNNGAN: A Recurrent VAE-GAN Framework for Synthetic Time-Series Generation}. In \bibinfo{booktitle}{\emph{Conference}}.
 \newblock
+
+
+\bibitem[Leznik et~al\mbox{.}(2021)]%
+        {Leznik21}
+\bibfield{author}{\bibinfo{person}{Mark Leznik}, \bibinfo{person}{Patrick Michalsky}, \bibinfo{person}{Peter Willis}, \bibinfo{person}{Benjamin Schanzel}, \bibinfo{person}{Per-Olov \"{O}stberg}, {and} \bibinfo{person}{J\"{o}rg Domaschka}.} \bibinfo{year}{2021}\natexlab{}.
+\newblock \showarticletitle{Multivariate Time Series Synthesis Using Generative Adversarial Networks}. In \bibinfo{booktitle}{\emph{Proceedings of the ACM/SPEC International Conference on Performance Engineering}} (Virtual Event, France) \emph{(\bibinfo{series}{ICPE '21})}. \bibinfo{publisher}{Association for Computing Machinery}, \bibinfo{address}{New York, NY, USA}, \bibinfo{pages}{43–50}.
+\newblock
+\showISBNx{9781450381949}
+\href{https://doi.org/10.1145/3427921.3450257}{doi:\nolinkurl{10.1145/3427921.3450257}}
+
+
+\bibitem[Lin et~al\mbox{.}(2021)]%
+        {Lin21}
+\bibfield{author}{\bibinfo{person}{Zinan Lin}, \bibinfo{person}{Alankar Jain}, \bibinfo{person}{Chen Wang}, \bibinfo{person}{Giulia Fanti}, {and} \bibinfo{person}{Vyas Sekar}.} \bibinfo{year}{2021}\natexlab{}.
+\newblock \bibinfo{title}{Using GANs for Sharing Networked Time Series Data: Challenges, Initial Promise, and Open Questions}.
+\newblock
+\showeprint[arxiv]{1909.13403}~[cs.LG]
+\href{https://doi.org/10.1145/3419394.3423643}{doi:\nolinkurl{10.1145/3419394.3423643}}
 
 
 \bibitem[Qi(2025)]%
