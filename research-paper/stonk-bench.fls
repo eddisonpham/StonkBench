@@ -1,0 +1,13 @@
+PWD c:/Users/14165/Downloads/Unified-benchmark-for-SDGFTS-main/research-paper
+INPUT c:/Users/14165/AppData/Roaming/TinyTeX/texmf.cnf
+INPUT c:/Users/14165/AppData/Roaming/TinyTeX/texmf-dist/web2c/texmf.cnf
+INPUT c:/Users/14165/AppData/Roaming/TinyTeX/texmf-var/web2c/pdftex/pdflatex.fmt
+INPUT c:/Users/14165/Downloads/Unified-benchmark-for-SDGFTS-main/research-paper/stonk-bench.tex
+OUTPUT stonk-bench.log
+INPUT ./acmart.cls
+INPUT acmart.cls
+INPUT c:/Users/14165/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/xkeyval/xkeyval.sty
+INPUT c:/Users/14165/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/xkeyval/xkeyval.sty
+INPUT c:/Users/14165/AppData/Roaming/TinyTeX/texmf-dist/tex/generic/xkeyval/xkeyval.tex
+INPUT c:/Users/14165/AppData/Roaming/TinyTeX/texmf-dist/tex/generic/xkeyval/xkvutils.tex
+INPUT c:/Users/14165/AppData/Roaming/TinyTeX/texmf-dist/tex/generic/xkeyval/keyval.tex

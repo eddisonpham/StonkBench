@@ -246,7 +246,7 @@ class TimeVAE(DeepLearningModel):
         self,
         data_loader,
         num_epochs: int = 100,
-        verbose: bool = False,
+        verbose: bool = True,
     ):
         self.train()
         for epoch in range(num_epochs):

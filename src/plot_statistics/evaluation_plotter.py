@@ -11,7 +11,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from utils.metric_plot_utils import find_latest_evaluation_folder, load_evaluation_data, create_output_directory
 from utils.metric_plot_classes_utils import (
     PerformancePlot, DistributionPlot, SimilarityPlot, 
-    StylizedFactsPlot, , ModelRankingPlot
+    StylizedFactsPlot
 )
 
 class EvaluationPlotter:
