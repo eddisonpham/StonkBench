@@ -6,60 +6,64 @@ Reallocated singl_function (elt_size=4) to 100 items from 50.
 Reallocated singl_function (elt_size=4) to 100 items from 50.
 Reallocated wiz_functions (elt_size=4) to 6000 items from 3000.
 Database file #1: stonk-bench.bib
-Warning--I didn't find a database entry for "Stenger24"
+Warning--I didn't find a database entry for "potluru24survey"
+Warning--I didn't find a database entry for "stenger24survey"
 Warning--I didn't find a database entry for "sohl2015deep"
 Warning--I didn't find a database entry for "kingma2013auto"
-Warning--I didn't find a database entry for "rezende2014stochastic"
 Warning--I didn't find a database entry for "acciaio2024tcvae"
 Warning--I didn't find a database entry for "goodfellow2014generative"
-Warning--I didn't find a database entry for "qi2025gan_financial"
-Warning--I didn't find a database entry for "lee2022vrnngan"
 Reallocated singl_function (elt_size=4) to 100 items from 50.
 Reallocated wiz_functions (elt_size=4) to 9000 items from 6000.
 Reallocated glb_str_ptr (elt_size=4) to 20 items from 10.
 Reallocated global_strs (elt_size=200001) to 20 items from 10.
 Reallocated glb_str_end (elt_size=4) to 20 items from 10.
 Reallocated singl_function (elt_size=4) to 100 items from 50.
-Warning--page numbers missing in both pages and numpages fields in stenger24survey
-You've used 9 entries,
+Warning--empty publisher in lee2022vrnngan
+Warning--empty address in lee2022vrnngan
+Warning--page numbers missing in both pages and numpages fields in lee2022vrnngan
+Warning--no number and no volume in qi2025gan_financial
+Warning--page numbers missing in both pages and numpages fields in qi2025gan_financial
+Warning--empty address in rezende2014stochastic
+Warning--page numbers missing in both pages and numpages fields in Stenger24
+You've used 11 entries,
             6273 wiz_defined-function locations,
-            1753 strings with 22627 characters,
-and the built_in function-call counts, 10035 in all, are:
-= -- 1164
-> -- 479
+            1763 strings with 22711 characters,
+and the built_in function-call counts, 11827 in all, are:
+= -- 1459
+> -- 391
 < -- 0
-+ -- 169
-- -- 166
-* -- 872
-:= -- 1079
-add.period$ -- 40
-call.type$ -- 9
-change.case$ -- 91
-chr.to.int$ -- 9
-cite$ -- 10
-duplicate$ -- 774
-empty$ -- 553
-format.name$ -- 202
-if$ -- 2269
++ -- 133
+- -- 136
+* -- 852
+:= -- 1133
+add.period$ -- 50
+call.type$ -- 11
+change.case$ -- 83
+chr.to.int$ -- 11
+cite$ -- 18
+duplicate$ -- 1059
+empty$ -- 732
+format.name$ -- 172
+if$ -- 2832
 int.to.chr$ -- 2
 int.to.str$ -- 1
-missing$ -- 17
-newline$ -- 133
-num.names$ -- 63
-pop$ -- 299
+missing$ -- 31
+newline$ -- 143
+num.names$ -- 77
+pop$ -- 398
 preamble$ -- 1
-purify$ -- 158
+purify$ -- 167
 quote$ -- 0
-skip$ -- 303
+skip$ -- 432
 stack$ -- 0
-substring$ -- 599
-swap$ -- 64
+substring$ -- 776
+swap$ -- 117
 text.length$ -- 0
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 242
-warning$ -- 1
-while$ -- 39
+type$ -- 288
+warning$ -- 7
+while$ -- 54
 width$ -- 0
-write$ -- 227
-(There were 9 warnings)
+write$ -- 261
+(There were 13 warnings)

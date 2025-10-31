@@ -2,7 +2,7 @@
 %%% Do NOT edit. File created by BibTeX with style
 %%% ACM-Reference-Format-Journals [18-Jan-2012].
 
-\begin{thebibliography}{9}
+\begin{thebibliography}{11}
 
 %%% ====================================================================
 %%% NOTE TO THE USER: you can override these defaults by providing
@@ -64,20 +64,30 @@
 \showISBNx{9781713829546}
 
 
-\bibitem[Potluru et~al\mbox{.}(2024)]%
-        {potluru24survey}
-\bibfield{author}{\bibinfo{person}{Vamsi~K. Potluru}, \bibinfo{person}{Daniel Borrajo}, \bibinfo{person}{Andrea Coletta}, \bibinfo{person}{Niccolo Dalmasso}, \bibinfo{person}{Yousef El-Laham}, \bibinfo{person}{Elizabeth Fons}, \bibinfo{person}{Mohsen Ghassemi}, \bibinfo{person}{Sriram Gopalakrishnan}, \bibinfo{person}{Vikesh Gosai}, \bibinfo{person}{Eleonora Kreacic}, \bibinfo{person}{Ganapathy Mani}, \bibinfo{person}{Saheed Obitayo}, \bibinfo{person}{Deepak Paramanand}, \bibinfo{person}{Natraj Raman}, \bibinfo{person}{Mikhail Solonin}, \bibinfo{person}{Srijan Sood}, \bibinfo{person}{Svitlana Vyetrenko}, \bibinfo{person}{Haibei Zhu}, \bibinfo{person}{Manuela Veloso}, {and} \bibinfo{person}{Tucker Balch}.} \bibinfo{year}{2024}\natexlab{}.
-\newblock \bibinfo{title}{Synthetic Data Applications in Finance}.
+\bibitem[Lee et~al\mbox{.}(2022)]%
+        {lee2022vrnngan}
+\bibfield{author}{\bibinfo{person}{J. Lee} {et~al\mbox{.}}} \bibinfo{year}{2022}\natexlab{}.
+\newblock \showarticletitle{VRNNGAN: A Recurrent VAE-GAN Framework for Synthetic Time-Series Generation}. In \bibinfo{booktitle}{\emph{Conference}}.
 \newblock
-\showeprint[arxiv]{2401.00081}~[cs.LG]
-\urldef\tempurl%
-\url{https://arxiv.org/abs/2401.00081}
-\showURL{%
-\tempurl}
+
+
+\bibitem[Qi(2025)]%
+        {qi2025gan_financial}
+\bibfield{author}{\bibinfo{person}{Feng Qi}.} \bibinfo{year}{2025}\natexlab{}.
+\newblock \showarticletitle{GAN-Based Financial Data Generation and Prediction: Improving The Authenticity and Prediction Ability of Financial Statements}.
+\newblock \bibinfo{journal}{\emph{Informatica}} (\bibinfo{year}{2025}).
+\newblock
+
+
+\bibitem[Rezende et~al\mbox{.}(2014)]%
+        {rezende2014stochastic}
+\bibfield{author}{\bibinfo{person}{Danilo~Jimenez Rezende}, \bibinfo{person}{Shakir Mohamed}, {and} \bibinfo{person}{Daan Wierstra}.} \bibinfo{year}{2014}\natexlab{}.
+\newblock \showarticletitle{Stochastic backpropagation and approximate inference in deep generative models}. In \bibinfo{booktitle}{\emph{Proceedings of the 31st International Conference on International Conference on Machine Learning - Volume 32}} (Beijing, China) \emph{(\bibinfo{series}{ICML'14})}. \bibinfo{publisher}{JMLR.org}, \bibinfo{pages}{II–1278–II–1286}.
+\newblock
 
 
 \bibitem[Stenger et~al\mbox{.}(2024)]%
-        {stenger24survey}
+        {Stenger24}
 \bibfield{author}{\bibinfo{person}{Michael Stenger}, \bibinfo{person}{Robert Leppich}, \bibinfo{person}{Ian Foster}, \bibinfo{person}{Samuel Kounev}, {and} \bibinfo{person}{André Bauer}.} \bibinfo{year}{2024}\natexlab{}.
 \newblock \showarticletitle{Evaluation is key: a survey on evaluation measures for synthetic time series}.
 \newblock \bibinfo{journal}{\emph{J Big Data}} \bibinfo{volume}{11}, \bibinfo{number}{66} (\bibinfo{date}{May} \bibinfo{year}{2024}).

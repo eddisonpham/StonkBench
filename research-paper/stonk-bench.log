@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.3.15)  31 OCT 2025 10:27
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.3.15)  31 OCT 2025 13:23
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -969,10 +969,7 @@ LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
 LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
 (Font)              scaled to size 6.0pt on input line 74.
 
-Package natbib Warning: Citation `Stenger24' on page 1 undefined on input line 81.
-
-
-Package natbib Warning: Citation `Stenger24' on page 1 undefined on input line 85.
+Package natbib Warning: Citation `potluru24survey' on page 1 undefined on input line 78.
 
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/m/n' will be
 (Font)              scaled to size 9.0pt on input line 92.
@@ -995,6 +992,21 @@ LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
 [1.1{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/map/pdftex/updmap/pdftex.map}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_25tcsq.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_76gpa5.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_naooyc.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_nh77jq.enc}
 
 {/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_7grukw.enc} <./tse-1981.png>]
+
+Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 106.
+
+
+Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 109.
+
+
+Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 111.
+
+
+Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 116.
+
+
+Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 124.
+
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/n' will be
 (Font)              scaled to size 6.6pt on input line 141.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
@@ -1011,9 +1023,6 @@ LaTeX Font Info:    Font shape `T1/LinuxBiolinumT-TLF/m/it' will be
 Underfull \vbox (badness 2600) has occurred while \output is active []
 
 
-
-
-Package natbib Warning: Citation `Stenger24' on page 2 undefined on input line 170.
 
 
 Underfull \hbox (badness 10000) in paragraph at lines 182--187
@@ -1046,9 +1055,6 @@ Overfull \hbox (6.59732pt too wide) in paragraph at lines 299--308
 Package natbib Warning: Citation `kingma2013auto' on page 3 undefined on input line 310.
 
 
-Package natbib Warning: Citation `rezende2014stochastic' on page 3 undefined on input line 310.
-
-
 Package natbib Warning: Citation `acciaio2024tcvae' on page 3 undefined on input line 318.
 
 
@@ -1056,12 +1062,6 @@ Package natbib Warning: Citation `acciaio2024tcvae' on page 3 undefined on input
 [3.3]
 
 Package natbib Warning: Citation `goodfellow2014generative' on page 4 undefined on input line 321.
-
-
-Package natbib Warning: Citation `qi2025gan_financial' on page 4 undefined on input line 327.
-
-
-Package natbib Warning: Citation `lee2022vrnngan' on page 4 undefined on input line 327.
 
 
 
@@ -1115,10 +1115,9 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 [6.6]
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
 (Font)              scaled to size 7.3pt on input line 56.
-LaTeX Info: Redefining \tempurl on input line 74.
-LaTeX Info: Redefining \tempurl on input line 95.
-LaTeX Info: Redefining \tempurl on input line 107.
-LaTeX Info: Redefining \tempurl on input line 119.
+LaTeX Info: Redefining \tempurl on input line 105.
+LaTeX Info: Redefining \tempurl on input line 117.
+LaTeX Info: Redefining \tempurl on input line 129.
 )
 LaTeX Font Info:    Font shape `T1/zi4/b/n' will be
 (Font)              scaled to size 9.0pt on input line 646.
@@ -1186,18 +1185,18 @@ Package rerunfilecheck Info: File `stonk-bench.out' has not changed.
 (rerunfilecheck)             Checksum: E7B1916E12F8A71F20D8857836E58A7F;6346.
  ) 
 Here is how much of TeX's memory you used:
- 21950 strings out of 473190
- 363230 string characters out of 5704335
- 855570 words of memory out of 5000000
- 44040 multiletter control sequences out of 15000+600000
- 772673 words of font info for 472 fonts, out of 8000000 for 9000
+ 21979 strings out of 473190
+ 363948 string characters out of 5704335
+ 855557 words of memory out of 5000000
+ 44046 multiletter control sequences out of 15000+600000
+ 774862 words of font info for 486 fonts, out of 8000000 for 9000
  1302 hyphenation exceptions out of 8191
  90i,16n,131p,1096b,689s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/inconsolata/Inconsolata-zi4b.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/inconsolata/Inconsolata-zi4r.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI5.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI7.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathRM.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumT.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumTB.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumTI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineT.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTB.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTZ.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/NewTXMI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/NewTXMI7.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txexs.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txmiaX.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txsym.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txsys.pfb>
-Output written on stonk-bench.pdf (8 pages, 1111239 bytes).
+Output written on stonk-bench.pdf (8 pages, 1111489 bytes).
 PDF statistics:
- 420 PDF objects out of 1000 (max. 8388607)
- 361 compressed objects within 4 object streams
- 114 named destinations out of 1000 (max. 500000)
+ 421 PDF objects out of 1000 (max. 8388607)
+ 362 compressed objects within 4 object streams
+ 116 named destinations out of 1000 (max. 500000)
  126236 words of extra memory for PDF output out of 128383 (max. 10000000)
 

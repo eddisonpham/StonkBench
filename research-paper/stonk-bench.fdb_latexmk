@@ -1,14 +1,14 @@
 # Fdb version 4
-["bibtex stonk-bench"] 1761920836.21603 "stonk-bench.aux" "stonk-bench.bbl" "stonk-bench" 1761920837.29526 0
+["bibtex stonk-bench"] 1761931384.78142 "stonk-bench.aux" "stonk-bench.bbl" "stonk-bench" 1761931385.87182 0
   "./ACM-Reference-Format.bst" 1761261594.60634 93560 12e0ced1522ea2bfa9b2fb12855c7e9e ""
-  "./stonk-bench.bib" 1761920833.88052 15436 a1c4cef2ecfea36175d70aeee03d2daa ""
-  "stonk-bench.aux" 1761920837.05585 12904 a5278798a8485f8824ecde0a39b5e04b "pdflatex"
+  "./stonk-bench.bib" 1761931383.5217 18491 7849fc7da86eb322fb0aea9595135e3f ""
+  "stonk-bench.aux" 1761931385.63214 13020 b4ba987ac74bf94cbb1a443254b085d1 "pdflatex"
   (generated)
   "stonk-bench.bbl"
   "stonk-bench.blg"
   (rewritten before read)
-["pdflatex"] 1761920836.27734 "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" "stonk-bench.pdf" "stonk-bench" 1761920837.29537 0
-  "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" 1761920833.88049 36456 1021bfed609e5d1b7442d4ba78f5c969 ""
+["pdflatex"] 1761931384.83574 "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" "stonk-bench.pdf" "stonk-bench" 1761931385.87193 0
+  "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" 1761931221.921 36456 1021bfed609e5d1b7442d4ba78f5c969 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-4.enc" 1741388039 7693 0f2dce6d313c82989ec3a67fc24df2a0 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_25tcsq.enc" 1741388039 2921 8ca0eb0831f9bc5da080d3697cfe67bf ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_76gpa5.enc" 1741388039 2933 9ad527ce78d7c5fa0a642dead095f172 ""
@@ -224,11 +224,11 @@
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/web2c/texmf.cnf" 1741388039 42151 79f67285bdd95beca4d137b380b4b9e5 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-var/web2c/pdftex/pdflatex.fmt" 1741388039 3346141 1288109d02d1c772df65535881471649 ""
   "acmart.cls" 1761261594.60665 122400 54cc4edcc7b9cb1bf0a23c528626957c ""
-  "comment.cut" 1761920836.98903 106 82e86724ef9105c31c8adad082073001 "pdflatex"
-  "stonk-bench.aux" 1761920837.05585 12904 a5278798a8485f8824ecde0a39b5e04b "pdflatex"
-  "stonk-bench.bbl" 1761920836.27481 7068 935043adfba98c2264844bc8aaa78deb "bibtex stonk-bench"
-  "stonk-bench.out" 1761920837.05658 6346 e7b1916e12f8a71f20d8857836e58a7f "pdflatex"
-  "stonk-bench.tex" 1761920833.88049 36456 1021bfed609e5d1b7442d4ba78f5c969 ""
+  "comment.cut" 1761931385.56518 106 82e86724ef9105c31c8adad082073001 "pdflatex"
+  "stonk-bench.aux" 1761931385.63214 13020 b4ba987ac74bf94cbb1a443254b085d1 "pdflatex"
+  "stonk-bench.bbl" 1761931384.83328 7361 25eca7851acaefe9d6150ebf5f68f249 "bibtex stonk-bench"
+  "stonk-bench.out" 1761931385.63294 6346 e7b1916e12f8a71f20d8857836e58a7f "pdflatex"
+  "stonk-bench.tex" 1761931221.921 36456 1021bfed609e5d1b7442d4ba78f5c969 ""
   "tse-1981.png" 1761326778.67041 539416 c776518dbdfbed39b781745f416968c2 ""
   (generated)
   "comment.cut"
