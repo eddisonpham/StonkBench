@@ -2,7 +2,7 @@
 %%% Do NOT edit. File created by BibTeX with style
 %%% ACM-Reference-Format-Journals [18-Jan-2012].
 
-\begin{thebibliography}{6}
+\begin{thebibliography}{9}
 
 %%% ====================================================================
 %%% NOTE TO THE USER: you can override these defaults by providing
@@ -56,8 +56,16 @@
 \tempurl}
 
 
+\bibitem[Ho et~al\mbox{.}(2020)]%
+        {ho2020denoising}
+\bibfield{author}{\bibinfo{person}{Jonathan Ho}, \bibinfo{person}{Ajay Jain}, {and} \bibinfo{person}{Pieter Abbeel}.} \bibinfo{year}{2020}\natexlab{}.
+\newblock \showarticletitle{Denoising diffusion probabilistic models}. In \bibinfo{booktitle}{\emph{Proceedings of the 34th International Conference on Neural Information Processing Systems}} (Vancouver, BC, Canada) \emph{(\bibinfo{series}{NIPS '20})}. \bibinfo{publisher}{Curran Associates Inc.}, \bibinfo{address}{Red Hook, NY, USA}, Article \bibinfo{articleno}{574}, \bibinfo{numpages}{12}~pages.
+\newblock
+\showISBNx{9781713829546}
+
+
 \bibitem[Potluru et~al\mbox{.}(2024)]%
-        {Potluru24}
+        {potluru24survey}
 \bibfield{author}{\bibinfo{person}{Vamsi~K. Potluru}, \bibinfo{person}{Daniel Borrajo}, \bibinfo{person}{Andrea Coletta}, \bibinfo{person}{Niccolo Dalmasso}, \bibinfo{person}{Yousef El-Laham}, \bibinfo{person}{Elizabeth Fons}, \bibinfo{person}{Mohsen Ghassemi}, \bibinfo{person}{Sriram Gopalakrishnan}, \bibinfo{person}{Vikesh Gosai}, \bibinfo{person}{Eleonora Kreacic}, \bibinfo{person}{Ganapathy Mani}, \bibinfo{person}{Saheed Obitayo}, \bibinfo{person}{Deepak Paramanand}, \bibinfo{person}{Natraj Raman}, \bibinfo{person}{Mikhail Solonin}, \bibinfo{person}{Srijan Sood}, \bibinfo{person}{Svitlana Vyetrenko}, \bibinfo{person}{Haibei Zhu}, \bibinfo{person}{Manuela Veloso}, {and} \bibinfo{person}{Tucker Balch}.} \bibinfo{year}{2024}\natexlab{}.
 \newblock \bibinfo{title}{Synthetic Data Applications in Finance}.
 \newblock
@@ -69,7 +77,7 @@
 
 
 \bibitem[Stenger et~al\mbox{.}(2024)]%
-        {Stenger24}
+        {stenger24survey}
 \bibfield{author}{\bibinfo{person}{Michael Stenger}, \bibinfo{person}{Robert Leppich}, \bibinfo{person}{Ian Foster}, \bibinfo{person}{Samuel Kounev}, {and} \bibinfo{person}{André Bauer}.} \bibinfo{year}{2024}\natexlab{}.
 \newblock \showarticletitle{Evaluation is key: a survey on evaluation measures for synthetic time series}.
 \newblock \bibinfo{journal}{\emph{J Big Data}} \bibinfo{volume}{11}, \bibinfo{number}{66} (\bibinfo{date}{May} \bibinfo{year}{2024}).
@@ -77,8 +85,32 @@
 \href{https://doi.org/10.1186/s40537-024-00924-7}{doi:\nolinkurl{10.1186/s40537-024-00924-7}}
 
 
+\bibitem[Takahashi and Mizuno(2024)]%
+        {Takahashi24}
+\bibfield{author}{\bibinfo{person}{Tomonori Takahashi} {and} \bibinfo{person}{Takayuki Mizuno}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \bibinfo{title}{Generation of synthetic financial time series by diffusion models}.
+\newblock
+\showeprint[arxiv]{2410.18897}~[q-fin.CP]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/2410.18897}
+\showURL{%
+\tempurl}
+
+
+\bibitem[Tanaka et~al\mbox{.}(2025)]%
+        {Tanaka25}
+\bibfield{author}{\bibinfo{person}{Yuki Tanaka}, \bibinfo{person}{Ryuji Hashimoto}, \bibinfo{person}{Takehiro Takayanagi}, \bibinfo{person}{Zhe Piao}, \bibinfo{person}{Yuri Murayama}, {and} \bibinfo{person}{Kiyoshi Izumi}.} \bibinfo{year}{2025}\natexlab{}.
+\newblock \bibinfo{title}{CoFinDiff: Controllable Financial Diffusion Model for Time Series Generation}.
+\newblock
+\showeprint[arxiv]{2503.04164}~[q-fin.CP]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/2503.04164}
+\showURL{%
+\tempurl}
+
+
 \bibitem[Wang et~al\mbox{.}(2020)]%
-        {Wang20}
+        {wang20gan}
 \bibfield{author}{\bibinfo{person}{Zhengwei Wang}, \bibinfo{person}{Qi She}, {and} \bibinfo{person}{Tomas~E. Ward}.} \bibinfo{year}{2020}\natexlab{}.
 \newblock \bibinfo{title}{Generative Adversarial Networks in Computer Vision: A Survey and Taxonomy}.
 \newblock
@@ -89,12 +121,13 @@
 \tempurl}
 
 
-\bibitem[Yoon et~al\mbox{.}(2019)]%
-        {Yoon19}
-\bibfield{author}{\bibinfo{person}{Jinsung Yoon}, \bibinfo{person}{Daniel Jarrett}, {and} \bibinfo{person}{Mihaela van~der Schaar}.} \bibinfo{year}{2019}\natexlab{}.
-\newblock \bibinfo{booktitle}{\emph{Time-series generative adversarial networks}}.
-\newblock \bibinfo{publisher}{Curran Associates Inc.}, \bibinfo{address}{Red Hook, NY, USA}, \bibinfo{pages}{5508--5518}.
+\bibitem[Wang and Ventre(2024)]%
+        {wang24denoiser}
+\bibfield{author}{\bibinfo{person}{Zhuohan Wang} {and} \bibinfo{person}{Carmine Ventre}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \showarticletitle{A Financial Time Series Denoiser Based on Diffusion Models}. In \bibinfo{booktitle}{\emph{Proceedings of the 5th ACM International Conference on AI in Finance}} (Brooklyn, NY, USA) \emph{(\bibinfo{series}{ICAIF '24})}. \bibinfo{publisher}{Association for Computing Machinery}, \bibinfo{address}{New York, NY, USA}, \bibinfo{pages}{72–80}.
 \newblock
+\showISBNx{9798400710810}
+\href{https://doi.org/10.1145/3677052.3698649}{doi:\nolinkurl{10.1145/3677052.3698649}}
 
 
 \end{thebibliography}

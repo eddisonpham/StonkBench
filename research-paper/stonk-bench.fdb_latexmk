@@ -1,18 +1,19 @@
 # Fdb version 4
-["bibtex stonk-bench"] 1761864149.81413 "stonk-bench.aux" "stonk-bench.bbl" "stonk-bench" 1761864150.85878 0
+["bibtex stonk-bench"] 1761920836.21603 "stonk-bench.aux" "stonk-bench.bbl" "stonk-bench" 1761920837.29526 0
   "./ACM-Reference-Format.bst" 1761261594.60634 93560 12e0ced1522ea2bfa9b2fb12855c7e9e ""
-  "./stonk-bench.bib" 1761859335.18496 12583 f56124d726b0bf005005d4a0ffc60252 ""
-  "stonk-bench.aux" 1761864150.63355 12181 068ed94cd7a3dd8349f10eac8276154f "pdflatex"
+  "./stonk-bench.bib" 1761920833.88052 15436 a1c4cef2ecfea36175d70aeee03d2daa ""
+  "stonk-bench.aux" 1761920837.05585 12904 a5278798a8485f8824ecde0a39b5e04b "pdflatex"
   (generated)
   "stonk-bench.bbl"
   "stonk-bench.blg"
   (rewritten before read)
-["pdflatex"] 1761864149.86884 "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" "stonk-bench.pdf" "stonk-bench" 1761864150.85889 0
-  "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" 1761864148.61462 35230 f3c62e819a4333fc3e8f66afd2cf5b36 ""
+["pdflatex"] 1761920836.27734 "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" "stonk-bench.pdf" "stonk-bench" 1761920837.29537 0
+  "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" 1761920833.88049 36456 1021bfed609e5d1b7442d4ba78f5c969 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-4.enc" 1741388039 7693 0f2dce6d313c82989ec3a67fc24df2a0 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_25tcsq.enc" 1741388039 2921 8ca0eb0831f9bc5da080d3697cfe67bf ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_76gpa5.enc" 1741388039 2933 9ad527ce78d7c5fa0a642dead095f172 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_7grukw.enc" 1741388039 2934 a4a9158faed2e9e89c771b4e3b7fc12f ""
+  "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_fygcup.enc" 1741388039 2824 67c67e7402c76b84866a6f91f9790b12 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_naooyc.enc" 1741388039 3357 5261ce65ba03aef9faf6135657b9abb6 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_nh77jq.enc" 1741388039 2933 8d808fcabf70c6c809bb14c283ece4da ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_oexx6f.enc" 1741388039 2807 3bc923a7d38598e901b235df221224cb ""
@@ -44,6 +45,8 @@
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/tfm/public/libertine/LinLibertineTB-tlf-t1.tfm" 1741388039 19488 f569478ca339d9b5ad93b46bf7a470e2 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/tfm/public/libertine/LinLibertineTI-tlf-t1--base.tfm" 1741388039 1932 54655639067fe21ae3b23b77173351a5 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/tfm/public/libertine/LinLibertineTI-tlf-t1.tfm" 1741388039 19920 63bb3db95807ffe45b0900d104896325 ""
+  "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/tfm/public/libertine/LinLibertineTZ-tlf-ot1--base.tfm" 1741388039 1360 a425d2371104892a5a1ef36bfb35a4d6 ""
+  "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/tfm/public/libertine/LinLibertineTZ-tlf-ot1.tfm" 1741388039 7980 71b0e73dbd483925d19ec6431fc391c6 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/tfm/public/newtx/LibertineMathMI.tfm" 1741388039 1552 f91250a4f6e3f34d48dfc8f34aabc764 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/tfm/public/newtx/LibertineMathMI5.tfm" 1741388039 1604 feb395093dfa07bc2f2397590f719f87 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/tfm/public/newtx/LibertineMathMI7.tfm" 1741388039 1576 8b8bb19fb7739a0ce82c1377e0e950fe ""
@@ -76,6 +79,7 @@
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineT.pfb" 1741388039 614791 ea39341e4db76f25cb20c361802d3cd5 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTB.pfb" 1741388039 538965 19c5c8b7f952ac97afb8565e9c21a82d ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTI.pfb" 1741388039 490980 e27f1e217a0902faea22205f197918d4 ""
+  "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTZ.pfb" 1741388039 526513 df8837485c436abdc438032d23b309fa ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI.pfb" 1741388039 35829 268d1d114c9114e541f92817aec4230d ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI5.pfb" 1741388039 36138 54cca9a189ecac91365757cd31373770 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI7.pfb" 1741388039 36894 0893e50696ed2a200373455c6aff080e ""
@@ -94,6 +98,7 @@
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/vf/public/libertine/LinLibertineT-tlf-ts1.vf" 1741388039 640 f2633b196ddbd644937d19e300a5024e ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/vf/public/libertine/LinLibertineTB-tlf-t1.vf" 1741388039 1768 5d66dfd9709f1f38b8fb3cb38db46402 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/vf/public/libertine/LinLibertineTI-tlf-t1.vf" 1741388039 1768 b3bfd8ed1fe2dce5fd19610abe4c3dbe ""
+  "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/vf/public/libertine/LinLibertineTZ-tlf-ot1.vf" 1741388039 928 e309451f0d164a7f91077df077a91ecc ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/vf/public/newtx/ntxexx.vf" 1741388039 1716 73c8d39d4c3ace9ec98a8f066bb3b494 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/vf/public/newtx/ntxsy.vf" 1741388039 1792 7cf99effbd74f7851ca7683a6d12b685 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/vf/public/newtx/ntxsy7.vf" 1741388039 1940 bf4bac1135a7513fb45cfd9280176019 ""
@@ -219,11 +224,11 @@
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/web2c/texmf.cnf" 1741388039 42151 79f67285bdd95beca4d137b380b4b9e5 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-var/web2c/pdftex/pdflatex.fmt" 1741388039 3346141 1288109d02d1c772df65535881471649 ""
   "acmart.cls" 1761261594.60665 122400 54cc4edcc7b9cb1bf0a23c528626957c ""
-  "comment.cut" 1761864150.56692 106 82e86724ef9105c31c8adad082073001 "pdflatex"
-  "stonk-bench.aux" 1761864150.63355 12181 068ed94cd7a3dd8349f10eac8276154f "pdflatex"
-  "stonk-bench.bbl" 1761864149.86661 5199 40d5d102d33ed9bce7451e18dd0e45f8 "bibtex stonk-bench"
-  "stonk-bench.out" 1761864150.63436 6325 1755f2452f6008eef7d560fab966548d "pdflatex"
-  "stonk-bench.tex" 1761864148.61462 35230 f3c62e819a4333fc3e8f66afd2cf5b36 ""
+  "comment.cut" 1761920836.98903 106 82e86724ef9105c31c8adad082073001 "pdflatex"
+  "stonk-bench.aux" 1761920837.05585 12904 a5278798a8485f8824ecde0a39b5e04b "pdflatex"
+  "stonk-bench.bbl" 1761920836.27481 7068 935043adfba98c2264844bc8aaa78deb "bibtex stonk-bench"
+  "stonk-bench.out" 1761920837.05658 6346 e7b1916e12f8a71f20d8857836e58a7f "pdflatex"
+  "stonk-bench.tex" 1761920833.88049 36456 1021bfed609e5d1b7442d4ba78f5c969 ""
   "tse-1981.png" 1761326778.67041 539416 c776518dbdfbed39b781745f416968c2 ""
   (generated)
   "comment.cut"

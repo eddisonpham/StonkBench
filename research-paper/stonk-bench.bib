@@ -198,7 +198,7 @@
 %Entries
 
 
-@Article{Stenger24,
+@Article{stenger24survey,
     author      = "Michael Stenger and Robert Leppich and Ian Foster
      and Samuel Kounev and André Bauer",
     title       = "Evaluation is key: a survey on evaluation measures for synthetic time series",
@@ -211,7 +211,7 @@
     url       = "https://doi.org/10.1186/s40537-024-00924-7"
 }
 
-@misc{Potluru24,
+@misc{potluru24survey,
     author         = "Vamsi K. Potluru and Daniel Borrajo and Andrea Coletta and Niccolo Dalmasso and Yousef El-Laham and Elizabeth Fons and Mohsen Ghassemi and Sriram Gopalakrishnan and Vikesh Gosai and Eleonora Kreacic and Ganapathy Mani and Saheed Obitayo and Deepak Paramanand and Natraj Raman and Mikhail Solonin and Srijan Sood and Svitlana Vyetrenko and Haibei Zhu and Manuela Veloso and Tucker Balch",
     title          = "Synthetic Data Applications in Finance",
     month          = jan,
@@ -252,7 +252,17 @@
     url           = "https://arxiv.org/abs/2503.04164"
 }
 
-@misc{Wang20,
+@misc{Takahashi24,
+    title         = "Generation of synthetic financial time series by diffusion models", 
+    author        = {Tomonori Takahashi and Takayuki Mizuno},
+    year          = 2024,
+    eprint        = "2410.18897",
+    archivePrefix = "arXiv",
+    primaryClass  = "q-fin.CP",
+    url           = "https://arxiv.org/abs/2410.18897", 
+}
+
+@misc{wang20gan,
     title         = "Generative Adversarial Networks in Computer Vision: A Survey and Taxonomy",
     author        = "Zhengwei Wang and Qi She and Tomas E. Ward",
     year          = "2020",
@@ -262,14 +272,46 @@
     url           = "https://arxiv.org/abs/1906.01529"
 }
 
-@inbook{Yoon19,
+@inbook{yoon19gan,
     author      = "Jinsung Yoon and Daniel Jarrett and Mihaela van der Schaar",
     title       = "Time-series generative adversarial networks",
     year        = 2019,
     publisher   = "Curran Associates Inc.",
     address     = "Red Hook, NY, USA",
     booktitle   = "Proceedings of the 33rd International Conference on Neural Information Processing Systems",
-    articleno      = "494",
+    articleno   = "494",
     pages       = "5508--5518",
     numpages    = "11",
+}
+
+@inproceedings{ho2020denoising,
+    author      = {Ho, Jonathan and Jain, Ajay and Abbeel, Pieter},
+    title       = {Denoising diffusion probabilistic models},
+    year        = 2020,
+    isbn        = {9781713829546},
+    publisher   = {Curran Associates Inc.},
+    address     = {Red Hook, NY, USA},
+    booktitle   = {Proceedings of the 34th International Conference on Neural Information Processing Systems},
+    articleno   = {574},
+    numpages    = {12},
+    location    = {Vancouver, BC, Canada},
+    series      = {NIPS '20}    
+}
+
+@inproceedings{wang24denoiser,
+author          = {Wang, Zhuohan and Ventre, Carmine},
+title           = {A Financial Time Series Denoiser Based on Diffusion Models},
+year            = 2024,
+isbn            = {9798400710810},
+publisher       = {Association for Computing Machinery},
+address         = {New York, NY, USA},
+url             = {https://doi.org/10.1145/3677052.3698649},
+doi             = {10.1145/3677052.3698649},
+abstract        = {Financial time series often exhibit low signal-to-noise ratio, posing significant challenges for accurate data interpretation and prediction and ultimately decision making. Generative models have gained attention as powerful tools for simulating and predicting intricate data patterns, with diffusion models emerging as particularly effective methods. This paper introduces a novel approach utilizing a diffusion model as a denoiser for financial time series in order to improve data predictability and trading performance. By leveraging the forward and reverse processes of a conditional diffusion model to add and remove noise progressively, we reconstruct original data from noisy inputs. Our extensive experiments demonstrate that diffusion model-based denoised time series significantly enhance the performance on downstream future return classification tasks. Moreover, trading signals derived from the denoised data yield more profitable trades with fewer transactions, thereby minimizing transaction costs and increasing overall trading efficiency. Finally, we show that by using classifiers trained on denoised time series, we can recognize how noisy the market is and obtain excess returns.},
+booktitle       = {Proceedings of the 5th ACM International Conference on AI in Finance},
+pages           = {72–80},
+numpages        = {9},
+keywords        = {Denoising, Diffusion Model, Financial Time Series, Trading},
+location        = {Brooklyn, NY, USA},
+series          = {ICAIF '24}
 }
