@@ -88,7 +88,7 @@ class TimeVAE(DeepLearningModel):
         super().__init__(length=length, num_channels=num_channels)
         
         if hidden_layer_sizes is None:
-            hidden_layer_sizes = [50, 100, 200]
+            hidden_layer_sizes = [100, 200, 400]
             
         self.latent_dim = int(latent_dim)
         self.hidden_layer_sizes = hidden_layer_sizes
