@@ -289,7 +289,7 @@
       p_\theta(x_{t-1} \mid x_t) = \mathcal{N}\bigl(x_{t-1}; \mu_\theta(x_t, t), \Sigma_\theta(x_t, t)\bigr),
     \]
     where \(\mu_\theta\) and \(\Sigma_\theta\) are often expressed via a neural network that estimates the 
-    score \(\nabla_{x_t} \log q(x_t)\). A common training objective is the simplified denoising score-matching 
+    score \(\nabla_{\theta} \log p_\theta(x_t)\). A common training objective is the simplified denoising score-matching 
     loss:
     \[
       \mathbb{E}_{t, x_0, \epsilon}\Bigl[ \bigl\| \epsilon - \epsilon_\theta(x_t, t)\bigr\|^2 \Bigr],
@@ -318,11 +318,15 @@
     In financial time-series generation, specialized versions such as the Time-Causal VAE (TC-VAE) have been proposed to enforce causality in the encoding/decoding of temporal data. For instance, Acciaio et al.\ (2024) propose TC-VAE, which ensures that generated paths respect temporal causality and show that the model reproduces stylized facts (e.g., heavy tails, volatility clustering) on real markets \cite{acciaio2024tcvae}. Because VAEs provide a principled latent representation, they are useful in finance to model underlying latent drivers of asset dynamics and to sample coherent trajectories.
     
     \subsubsection{Generative Adversarial Networks (GANs)}
-    Generative Adversarial Networks \cite{goodfellow2014generative} frame generation as a two-player game between a generator \(G(z)\) and a discriminator \(D(x)\). The classical minimax objective is
+    Generative Adversarial Networks \cite{goodfellow2014generative} approach generation as a two-player game between a generator \(G\) and a discriminator \(D\). The discriminator is trained to maximize the probability of correctly classifying real data and generated data, with loss
     \[
-    \min_G \max_D \; \mathbb{E}_{x \sim p_{\text{data}}} \bigl[\log D(x)\bigr] + \mathbb{E}_{z \sim p(z)}\bigl[\log (1 - D(G(z)))\bigr].
+    L_D = -\mathbb{E}_{x \sim p_{\text{data}}}\bigl[\log D(x)\bigr] - \mathbb{E}_{z \sim p(z)}\bigl[\log (1 - D(G(z)))\bigr].
     \]
-    In practice, many variants (e.g.\ Wasserstein GAN, Least Squares GAN) are used to improve stability.
+    The generator aims to fool the discriminator and is trained to minimize
+    \[
+    L_G = -\mathbb{E}_{z \sim p(z)}[\log D(G(z))].
+    \]
+    Many GAN variants, such as Wasserstein GAN or Least Squares GAN, modify these loss functions to promote more stable training and address issues like mode collapse.
     
     In financial data synthesis, GANs have been widely used to generate realistic synthetic time series. For example, GAN-based financial data generation models (often using WGAN or improvements) show that one can improve the authenticity and predictive ability of generated financial statements or time series \cite{qi2025gan_financial}. Another example is VRNNGAN, which uses a recurrent VAE as the generator and a recurrent discriminator to capture temporal dependencies in synthetic sequence generation \cite{lee2022vrnngan}. GANs are relevant in finance because they can capture complex joint distributions and dependencies in multivariate time-series without requiring explicit likelihood models.
     
@@ -651,87 +655,93 @@
 
   \begin{table*}[h]
     \centering
-    \caption{Fidelity metrics by model and channel (lower is better for differences). Channels C1--C4 correspond to dataset channels (e.g., Open, High, Low, Close).}
-    \begin{tabular}{l|cccc|cccc|cccc|cccc}
-      \toprule
-      & \multicolumn{4}{c|}{MDD} & \multicolumn{4}{c|}{MD} & \multicolumn{4}{c|}{SDD} & \multicolumn{4}{c}{KD} \\
-      Model & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 \\
-      \midrule
-      GBM &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      OU\_Process &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      MJD &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      GARCH11 &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      DEJD &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      BlockBootstrap &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      TimeGAN &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      QuantGAN &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      TimeVAE &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      \bottomrule
-    \end{tabular}
-  \end{table*}
-
-  \begin{table*}[h]
-    \centering
-    \caption{Temporal and diversity metrics by model and channel (lower is better for differences; higher is better for diversity distances).}
+    \caption{Fidelity metrics by model and channel (lower $\downarrow$ is better for differences; best value in each column bolded). Channels O, H, L, C correspond to dataset channels (Open, High, Low, Close).}
     \begin{tabular}{l|cccc|cccc|cccc}
       \toprule
-      & \multicolumn{4}{c|}{ACD} & \multicolumn{4}{c|}{ICD-ED} & \multicolumn{4}{c}{ICD-DTW} \\
-      Model & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 \\
+      & \multicolumn{4}{c|}{MDD $\downarrow$} & \multicolumn{4}{c|}{MD $\downarrow$} & \multicolumn{4}{c}{SDD $\downarrow$} \\
+      Model & O & H & L & C & O & H & L & C & O & H & L & C \\
       \midrule
-      GBM &  &  &  &  &  &  &  &  &  &  &  &  \\
-      OU\_Process &  &  &  &  &  &  &  &  &  &  &  &  \\
-      MJD &  &  &  &  &  &  &  &  &  &  &  &  \\
-      GARCH11 &  &  &  &  &  &  &  &  &  &  &  &  \\
-      DEJD &  &  &  &  &  &  &  &  &  &  &  &  \\
-      BlockBootstrap &  &  &  &  &  &  &  &  &  &  &  &  \\
-      TimeGAN &  &  &  &  &  &  &  &  &  &  &  &  \\
-      QuantGAN &  &  &  &  &  &  &  &  &  &  &  &  \\
-      TimeVAE &  &  &  &  &  &  &  &  &  &  &  &  \\
+      GBM & 4.35 & 4.48 & 4.48 & 3.41 & 0.0010 & 0.0004 & 0.0005 & 0.0014 & 0.0115 & 0.0108 & 0.0119 & 0.0110 \\
+      OU\_Process & 4.31 & 4.48 & 4.43 & 3.37 & 0.0010 & 0.0003 & 0.0005 & 0.0014 & 0.0115 & 0.0107 & 0.0119 & 0.0110 \\
+      MJD & 3.74 & 3.89 & 3.86 & 2.87 & 0.0014 & 0.0004 & 0.0004 & 0.0004 & 0.0104 & 0.0115 & 0.0133 & 0.0107 \\
+      GARCH11 & \textbf{2.60} & \textbf{2.47} & 2.88 & \textbf{1.92} & \textbf{0.0000} & \textbf{0.0001} & \textbf{0.0001} & \textbf{0.0001} & \textbf{0.0004} & 0.0005 & \textbf{0.0020} & \textbf{0.0012} \\
+      DEJD & 2.79 & \textbf{2.38} & \textbf{2.55} & 2.17 & 0.0015 & 0.0009 & 0.0018 & 0.0011 & 0.0138 & 0.0116 & 0.0160 & 0.0141 \\
+      BlockBootstrap & 2.82 & 2.75 & 2.78 & 2.20 & 0.0014 & 0.0005 & 0.0003 & 0.0007 & 0.0102 & \textbf{0.0102} & 0.0108 & 0.0118 \\
+      TimeGAN & 4.83 & 5.04 & 5.31 & 3.85 & 0.0029 & 0.0025 & 0.0038 & 0.0022 & 0.0072 & 0.0074 & 0.0084 & 0.0063 \\
+      QuantGAN & 3.87 & 3.64 & 4.28 & 2.50 & 0.0053 & 0.0006 & 0.0077 & 0.0030 & 0.0081 & 0.0076 & 0.0112 & 0.0059 \\
+      TimeVAE & 9.98 & 9.77 & 10.42 & 8.35 & 0.0014 & 0.0019 & 0.0021 & 0.0022 & 0.0191 & 0.0163 & 0.0178 & 0.0193 \\
+      Takahashi & 5.63 & 5.42 & 5.66 & 4.37 & 0.0508 & 0.0827 & 0.1241 & 0.0713 & 1.1989 & 1.2980 & 1.3178 & 1.3779 \\
+      \bottomrule
+    \end{tabular}
+  \end{table*}
+
+  % Additional table with KD and ACD, same format, no caption
+  \begin{table*}[h]
+    \centering
+    \vspace{-1em}
+    \begin{tabular}{l|cccc|cccc}
+      \toprule
+      & \multicolumn{4}{c|}{KD $\downarrow$} & \multicolumn{4}{c}{ACD $\downarrow$} \\
+      Model & O & H & L & C & O & H & L & C \\
+      \midrule
+      GBM & 3.64 & 6.09 & 4.03 & 6.18 & 0.159 & 0.175 & 0.235 & 0.269 \\
+      OU\_Process & 3.64 & 6.07 & 4.02 & 6.17 & 0.158 & 0.148 & 0.204 & 0.273 \\
+      MJD & 3.28 & 13.01 & 23.14 & 12.47 & 0.188 & 0.198 & 0.244 & 0.271 \\
+      GARCH11 & 3.50 & \textbf{5.89} & \textbf{3.36} & \textbf{5.98} & 0.224 & 0.199 & 0.230 & 0.257 \\
+      DEJD & 92.26 & 61.12 & 133.55 & 61.41 & 0.167 & 0.158 & 0.257 & 0.265 \\
+      BlockBootstrap & \textbf{2.20} & 5.27 & 8.33 & 3.69 & 0.177 & 0.181 & 0.172 & \textbf{0.305} \\
+      TimeGAN & 4.99 & 6.73 & 4.92 & 7.32 & 0.345 & 0.390 & 0.445 & 0.327 \\
+      QuantGAN & 3.62 & 6.11 & 4.08 & 7.37 & \textbf{0.154} & 0.225 & 0.272 & 0.357 \\
+      TimeVAE & 5.14 & 3.16 & 3.95 & 7.23 & 2.762 & 3.255 & 3.462 & 1.888 \\
+      Takahashi & 3.12 & 5.48 & 3.42 & 6.84 & 0.216 & \textbf{0.207} & \textbf{0.229} & 0.327 \\
       \bottomrule
     \end{tabular}
   \end{table*}
 
   \begin{table*}[h]
     \centering
-    \caption{Stylized facts by model and channel (differences reported real minus synthetic unless noted).}
-    \begin{tabular}{l|cccc|cccc|cccc|cccc}
+    \caption{Temporal and diversity metrics by model and channel (lower $\downarrow$ is better for differences; higher $\uparrow$ is better for diversity distances). Best value in each column bolded.}
+    \begin{tabular}{l|cccc|cccc}
       \toprule
-      & \multicolumn{4}{c|}{Heavy Tails (diff)} & \multicolumn{4}{c|}{Autocorr Raw (diff)} & \multicolumn{4}{c|}{Volatility Clustering (diff)} & \multicolumn{4}{c}{Long Memory (diff)} \\
-      Model & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 & C1 & C2 & C3 & C4 \\
+      & \multicolumn{4}{c|}{ICD-ED $\uparrow$} & \multicolumn{4}{c}{ICD-DTW $\uparrow$} \\
+      Model & O & H & L & C & O & H & L & C \\
       \midrule
-      GBM &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      OU\_Process &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      MJD &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      GARCH11 &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      DEJD &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      BlockBootstrap &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      TimeGAN &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      QuantGAN &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-      TimeVAE &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+      GBM             & 0.150 & 0.133 & 0.145 & 0.150 & 0.100 & 0.088 & 0.097 & 0.099 \\
+      OU\_Process     & 0.150 & 0.133 & 0.145 & 0.149 & 0.100 & 0.088 & 0.096 & 0.100 \\
+      MJD             & 0.140 & 0.130 & 0.143 & 0.142 & 0.096 & 0.092 & 0.101 & 0.098 \\
+      GARCH11         & 0.090 & 0.077 & 0.095 & 0.088 & 0.061 & 0.051 & 0.064 & 0.060 \\
+      DEJD            & 0.135 & 0.118 & 0.132 & 0.143 & 0.102 & 0.091 & 0.104 & 0.108 \\
+      BlockBootstrap  & 0.138 & 0.125 & 0.132 & 0.146 & 0.100 & 0.091 & 0.097 & 0.107 \\
+      TimeGAN         & 0.133 & 0.121 & 0.132 & 0.131 & 0.081 & 0.073 & 0.080 & 0.079 \\
+      QuantGAN        & 0.137 & 0.122 & 0.146 & 0.130 & 0.092 & 0.081 & 0.097 & 0.086 \\
+      TimeVAE         & 0.000 & 0.000 & 0.000 & 0.000 & 0.000 & 0.000 & 0.000 & 0.000 \\
+      Takahashi       & \textbf{5.974} & \textbf{6.454} & \textbf{6.529} & \textbf{6.859}
+                     & \textbf{4.078} & \textbf{4.502} & \textbf{4.503} & \textbf{4.744} \\
       \bottomrule
     \end{tabular}
   \end{table*}
 
-  \begin{table}[h]
+  \begin{table*}[h]
     \centering
-    \caption{Non-stationarity (diff) and generation time per model.}
-    \begin{tabular}{l|cccc|c}
+    \caption{Stylized facts by model and channel. Differences are reported as real minus synthetic; for all metrics, \textbf{lower $\downarrow$ is better}. Best value in each column bolded.}
+    \begin{tabular}{l|cccc|cccc|cccc}
       \toprule
-      & \multicolumn{4}{c|}{Non-stationarity (diff)} & Gen. Time (500) \\
-      Model & C1 & C2 & C3 & C4 & seconds \\
+      & \multicolumn{4}{c|}{Heavy Tails (diff) $\downarrow$} & \multicolumn{4}{c|}{Autocorr Raw (diff) $\downarrow$} & \multicolumn{4}{c}{Volatility Clustering (diff) $\downarrow$} \\
+      Model & O & H & L & C & O & H & L & C & O & H & L & C \\
       \midrule
-      GBM &  &  &  &  &  \\
-      OU\_Process &  &  &  &  &  \\
-      MJD &  &  &  &  &  \\
-      GARCH11 &  &  &  &  &  \\
-      DEJD &  &  &  &  &  \\
-      BlockBootstrap &  &  &  &  &  \\
-      TimeGAN &  &  &  &  &  \\
-      QuantGAN &  &  &  &  &  \\
-      TimeVAE &  &  &  &  &  \\
+      GBM & 0.573 & 0.833 & 0.753 & 0.627 & 0.047 & 0.093 & 0.059 & 0.035 & 0.019 & 0.048 & 0.040 & 0.033 \\
+      OU\_Process & 0.622 & 0.858 & 0.794 & 0.608 & 0.025 & 0.007 & 0.007 & 0.061 & 0.032 & 0.061 & 0.018 & 0.018 \\
+      MJD & \textbf{0.108} & 0.229 & 0.183 & \textbf{0.126} & 0.065 & 0.073 & 0.057 & 0.041 & 0.038 & 0.023 & 0.030 & 0.013 \\
+      GARCH11 & 0.687 & 0.928 & 0.784 & 0.685 & 0.050 & 0.098 & 0.057 & 0.017 & 0.055 & 0.062 & 0.059 & 0.024 \\
+      DEJD & 0.217 & 0.360 & 0.380 & 0.210 & 0.049 & 0.107 & 0.067 & 0.034 & 0.022 & 0.051 & 0.048 & 0.029 \\
+      BlockBootstrap & 0.207 & \textbf{0.081} & 0.257 & 0.152 & \textbf{0.022} & 0.014 & 0.034 & 0.046 & 0.017 & 0.014 & 0.028 & \textbf{0.012} \\
+      TimeGAN & 1.074 & 1.363 & 1.206 & 1.097 & 0.163 & 0.188 & 0.149 & 0.180 & 0.014 & 0.015 & \textbf{0.005} & 0.061 \\
+      QuantGAN & 0.387 & 0.615 & 0.630 & 0.387 & 0.046 & 0.095 & 0.069 & \textbf{0.007} & \textbf{0.010} & \textbf{0.009} & 0.007 & 0.014 \\
+      TimeVAE & 1.225 & 2.307 & 0.277 & 0.962 & 0.491 & 0.267 & 0.415 & 0.512 & 0.523 & 0.292 & 0.350 & 0.553 \\
+      Takahashi & 0.482 & 0.621 & 0.650 & 0.480 & 0.055 & \textbf{0.007} & \textbf{0.030} & 0.046 & 0.012 & 0.011 & 0.017 & 0.030 \\
       \bottomrule
     \end{tabular}
-  \end{table}
+  \end{table*}
 
   \subsection{Utility Evaluation Results}
   Results of the deep hedging evaluation (replication error, P\&L distribution, risk-adjusted metrics) can be summarized in tables analogous to the 
@@ -793,13 +803,153 @@ To professor Irene Huang, University of Toronto, for her supervision and guidanc
     \caption{t-SNE/UMAP embeddings of window-level features; color-coded real vs. synthetic for overlap assessment.}
   \end{figure*}
 
-\section{Per-Model Visual Assessments}
-  For each model (GBM, OU\_Process, MJD, GARCH11, DEJD, BlockBootstrap, TimeGAN, QuantGAN, TimeVAE), include side-by-side real/synthetic plots and distribution overlays.
+\section{Model Visualizations}
+
+  \subsection{GBM}
   \begin{figure*}[h]
     \centering
-    % Example placeholder for one model; duplicate per model and update path
-    % \includegraphics[width=0.95\textwidth]{results/evaluation_YYYYMMDD_HHMMSS/GBM/overview.png}
-    \caption{Representative visual assessment panels for a selected model.}
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/GBM/visualizations/tsne.png}
+    \caption{GBM: t-SNE embeddings of window-level features.}
+  \end{figure*}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png}
+    \caption{GBM: Channel-wise distributions for real vs. synthetic data.}
+  \end{figure*}
+
+  \subsection{OU Process}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png}
+    \caption{OU Process: t-SNE embeddings of window-level features.}
+  \end{figure*}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png}
+    \caption{OU Process: Channel-wise distributions for real vs. synthetic data.}
+  \end{figure*}
+
+  \subsection{MJD}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/MJD/visualizations/tsne.png}
+    \caption{MJD: t-SNE embeddings of window-level features.}
+  \end{figure*}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png}
+    \caption{MJD: Channel-wise distributions for real vs. synthetic data.}
+  \end{figure*}
+
+  \subsection{GARCH11}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png}
+    \caption{GARCH11: t-SNE embeddings of window-level features.}
+  \end{figure*}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png}
+    \caption{GARCH11: Channel-wise distributions for real vs. synthetic data.}
+  \end{figure*}
+
+  \subsection{DEJD}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png}
+    \caption{DEJD: t-SNE embeddings of window-level features.}
+  \end{figure*}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png}
+    \caption{DEJD: Channel-wise distributions for real vs. synthetic data.}
+  \end{figure*}
+
+  \subsection{BlockBootstrap}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png}
+    \caption{BlockBootstrap: t-SNE embeddings of window-level features.}
+  \end{figure*}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png}
+    \caption{BlockBootstrap: Channel-wise distributions for real vs. synthetic data.}
+  \end{figure*}
+
+  \subsection{TimeGAN}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png}
+    \caption{TimeGAN: t-SNE embeddings of window-level features.}
+  \end{figure*}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png}
+    \caption{TimeGAN: Channel-wise distributions for real vs. synthetic data.}
+  \end{figure*}
+
+  \subsection{QuantGAN}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png}
+    \caption{QuantGAN: t-SNE embeddings of window-level features.}
+  \end{figure*}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/QuantGAN/visualizations/distribution_channels_combined.png}
+    \caption{QuantGAN: Channel-wise distributions for real vs. synthetic data.}
+  \end{figure*}
+
+  \subsection{TimeVAE}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png}
+    \caption{TimeVAE: t-SNE embeddings of window-level features.}
+  \end{figure*}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png}
+    \caption{TimeVAE: Channel-wise distributions for real vs. synthetic data.}
+  \end{figure*}
+
+  \subsection{Takahashi}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/Takahashi/visualizations/tsne.png}
+    \caption{Takahashi: t-SNE embeddings of window-level features.}
+  \end{figure*}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../results/evaluation_20251031_114743/Takahashi/visualizations/distribution_channels_combined.png}
+    \caption{Takahashi: Channel-wise distributions for real vs. synthetic data.}
+  \end{figure*}
+
+\section{Evaluation Metrics Visualizations}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../evaluation_plots/feature_based.png}
+    \caption{Feature-based evaluation metrics across all models.}
+  \end{figure*}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../evaluation_plots/similarity_metrics.png}
+    \caption{Similarity metrics across all models.}
+  \end{figure*}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../evaluation_plots/stylized_fact_heavy_tails.png}
+    \caption{Heavy tails stylized fact comparison across all models.}
+  \end{figure*}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../evaluation_plots/stylized_fact_autocorr_raw.png}
+    \caption{Autocorrelation stylized fact comparison across all models.}
+  \end{figure*}
+  \begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{../evaluation_plots/stylized_fact_volatility_clustering.png}
+    \caption{Volatility clustering stylized fact comparison across all models.}
   \end{figure*}
 
 \end{document}
