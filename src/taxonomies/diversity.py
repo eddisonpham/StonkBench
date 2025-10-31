@@ -9,74 +9,71 @@ from __future__ import annotations
 import numpy as np
 from scipy.spatial.distance import pdist
 from dtaidistance import dtw
-from src.utils.conversion_utils import to_numpy_abc
 import torch
 
 
-def _compute_icd_euclidean(data: np.ndarray) -> float:
+def compute_icd_euclidean(data: np.ndarray) -> np.ndarray:
     """
-    Compute Intra-Class Distance (ICD) using Euclidean metric.
+    Compute Intra-Class Distance (ICD) per channel using Euclidean metric.
 
-    Uses scipy.spatial.distance.pdist for efficient pairwise computation
-    (C-optimized, memory-efficient).
+    Computes the mean pairwise Euclidean distance between samples, for each channel separately.
 
     Args:
         data: np.ndarray of shape (n_samples, timesteps, n_channels)
 
     Returns:
-        float: Mean pairwise Euclidean distance between samples.
+        np.ndarray: Vector of ICD values, one for each channel (shape: n_channels,)
     """
     n_samples, timesteps, n_channels = data.shape
-    flattened = data.reshape(n_samples, -1)
-    dists = pdist(flattened, metric='euclidean')
-    icd = (2.0 * np.sum(dists)) / (n_samples ** 2)
-    return float(icd)
+    icd_vals = np.zeros(n_channels, dtype=np.float64)
+    for ch in range(n_channels):
+        channel_data = data[:, :, ch]
+        samples_flat = channel_data.reshape(n_samples, -1)
+        dists = pdist(samples_flat, metric='euclidean')
+        icd = (2.0 * np.sum(dists)) / (n_samples ** 2)
+        icd_vals[ch] = icd
+    return icd_vals
 
-
-def _compute_icd_dtw(data: np.ndarray) -> float:
+def compute_icd_dtw(data: np.ndarray) -> np.ndarray:
     """
-    Compute Intra-Class Distance (ICD) using DTW (Dynamic Time Warping).
+    Compute Intra-Class Distance (ICD) per channel using DTW (Dynamic Time Warping).
 
-    Computes DTW per channel and averages across channels.
+    Computes the mean pairwise DTW distance between samples, separately for each channel.
 
     Args:
         data: np.ndarray of shape (n_samples, timesteps, n_channels)
 
     Returns:
-        float: Mean pairwise DTW distance between samples.
+        np.ndarray: Vector of ICD values, one for each channel (shape: n_channels,)
     """
     n_samples, _, n_channels = data.shape
-    dist_matrix = np.zeros((n_samples, n_samples), dtype=np.float64)
-
+    icd_vals = np.zeros(n_channels, dtype=np.float64)
     for ch in range(n_channels):
         channel_data = [data[i, :, ch].astype(np.double) for i in range(n_samples)]
         channel_dist = dtw.distance_matrix_fast(channel_data, compact=False)
-        dist_matrix += channel_dist
+        upper_sum = np.sum(np.triu(channel_dist, k=1))
+        icd = (2.0 * upper_sum) / (n_samples ** 2)
+        icd_vals[ch] = icd
+    return icd_vals
 
-    dist_matrix /= n_channels
-    upper_sum = np.sum(np.triu(dist_matrix, k=1))
-    icd = (2.0 * upper_sum) / (n_samples ** 2)
-    return float(icd)
-
-def calculate_icd(comp_data: np.ndarray | torch.Tensor, metric: str = "euclidean") -> float:
+def calculate_icd(comp_data: np.ndarray, metric: str = "euclidean") -> np.ndarray:
     """
-    Calculate the Intra-Class Distance (ICD) for multivariate time series data.
+    Calculate the Intra-Class Distance (ICD) per channel for multivariate time series data.
 
-    ICD = (2 / A^2) * sum_{i<j} D(X_i, X_j)
+    ICD[ch] = (2 / A^2) * sum_{i<j} D(X_i^ch, X_j^ch)
 
     Args:
-        comp_data: np.ndarray or torch.Tensor of shape (n_samples, timesteps, n_channels)
+        comp_data: np.ndarray of shape (n_samples, timesteps, n_channels)
         metric: Distance metric ('euclidean' or 'dtw')
 
     Returns:
-        float: Average pairwise distance across all samples.
+        np.ndarray: Vector of average pairwise distance per channel (shape: n_channels,)
     """
     assert metric in ["euclidean", "dtw"], "Unsupported metric"
     assert comp_data.ndim == 3, "Expected 3D array (n_samples, timesteps, n_channels)"
 
-    data = to_numpy_abc(comp_data)
     if metric == "euclidean":
-        return _compute_icd_euclidean(data)
-    elif metric == "dtw":
-        return _compute_icd_dtw(data)
+        return compute_icd_euclidean(comp_data)
+    return compute_icd_dtw(comp_data)
+
 

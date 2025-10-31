@@ -105,7 +105,8 @@ def skew_torch(x, dim=(0, 1), dropdims=True):
     x_std_3 = torch.pow(x.std(dim, unbiased=True, keepdims=True), 3)
     skew = x_3 / x_std_3
     if dropdims:
-        skew = skew[0, 0]
+        # Remove the dimensions that were averaged over
+        skew = skew.squeeze()
     return skew
 
 
@@ -129,7 +130,8 @@ def kurtosis_torch(x, dim=(0, 1), excess=True, dropdims=True):
     if excess:
         kurtosis = kurtosis - 3
     if dropdims:
-        kurtosis = kurtosis[0, 0]
+        # Remove the dimensions that were averaged over
+        kurtosis = kurtosis.squeeze()
     return kurtosis
 
 

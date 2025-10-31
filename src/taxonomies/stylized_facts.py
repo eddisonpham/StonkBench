@@ -9,7 +9,6 @@ in real-world financial markets, such as:
 - Absence of autocorrelation in raw returns
 - Volatility clustering (autocorrelation in squared returns)
 - Long memory in absolute returns
-- Non-stationarity in price and volume series
 
 The provided functions operate on multivariate time series data (e.g., Open, High, Low, Close)
 and are intended for use in assessing the fidelity of synthetic data relative to real financial data.
@@ -18,136 +17,56 @@ and are intended for use in assessing the fidelity of synthetic data relative to
 import numpy as np
 from scipy.stats import kurtosis
 
-from src.utils.conversion_utils import to_numpy_abc
-
 
 def heavy_tails(data: np.ndarray) -> np.ndarray:
     """
-    Excess kurtosis (heavy tails) for all channels.
-    
-    Assumes data is already in log-return form.
-
-    Args:
-        data (np.ndarray): Array of shape (R, l, N) in log-return form
-
+    Compute excess kurtosis per sample, then average over samples for each channel.
     Returns:
-        np.ndarray: Excess kurtosis per channel
+        np.ndarray: Array of averaged excess kurtosis per channel.
     """
-    data = to_numpy_abc(data)
     R, l, N = data.shape
     kurt_vals = []
     for ch in range(N):
-        x = data[:, :, ch].flatten()
-        kurt_vals.append(kurtosis(x, fisher=True))
-    return np.array(kurt_vals)
-
+        sample_kurt = [kurtosis(data[r, :, ch], fisher=True) for r in range(R)]
+        kurt_vals.append(np.mean(sample_kurt))
+    return np.array(kurt_vals, dtype=float)
 
 def autocorr_raw(data: np.ndarray, lag: int = 1) -> np.ndarray:
     """
-    Lag-1 autocorrelation of raw log returns for all channels.
-    
-    Assumes data is already in log-return form.
-
-    Args:
-        data (np.ndarray): Array of shape (R, l, N) in log-return form
-        lag (int): Lag for autocorrelation
-
-    Returns:
-        np.ndarray: Autocorrelation per channel
+    Compute lag-k autocorrelation per sample, then average across samples for each channel.
     """
-    data = to_numpy_abc(data)
     R, l, N = data.shape
     ac_vals = []
+
     for ch in range(N):
-        x = data[:, :, ch].flatten()
-        if len(x) <= lag:
-            ac_vals.append(np.nan)
-            continue
-        x_mean = np.mean(x)
-        numerator = np.sum((x[:-lag] - x_mean) * (x[lag:] - x_mean))
-        denominator = np.sum((x - x_mean) ** 2) + 1e-12
-        ac_vals.append(numerator / denominator)
-    return np.array(ac_vals)
+        sample_ac = []
+        for r in range(R):
+            x = data[r, :, ch]
+            x_mean = x.mean()
+            numerator = np.sum((x[:-lag] - x_mean) * (x[lag:] - x_mean))
+            denominator = np.sum((x - x_mean)**2) + 1e-12
+            sample_ac.append(numerator / denominator)
+        ac_vals.append(np.mean(sample_ac))
 
+    return np.array(ac_vals, dtype=float)
 
-def volatility_clustering(data: np.ndarray) -> np.ndarray:
+def volatility_clustering(data: np.ndarray, lag: int = 1) -> np.ndarray:
     """
-    Lag-1 autocorrelation of squared log returns for all channels.
-    
-    Assumes data is already in log-return form.
-
-    Args:
-        data (np.ndarray): Array of shape (R, l, N) in log-return form
-
-    Returns:
-        np.ndarray: Autocorrelation of squared returns per channel
+    Compute lag-k autocorrelation of squared returns per sample,
+    then average across samples for each channel.
     """
-    data = to_numpy_abc(data)
     R, l, N = data.shape
     ac_sq_vals = []
+
     for ch in range(N):
-        x = data[:, :, ch].flatten()
-        if len(x) <= 1:
-            ac_sq_vals.append(np.nan)
-            continue
-        x_sq = x ** 2
-        x_mean = np.mean(x_sq)
-        numerator = np.sum((x_sq[:-1] - x_mean) * (x_sq[1:] - x_mean))
-        denominator = np.sum((x_sq - x_mean) ** 2) + 1e-12
-        ac_sq_vals.append(numerator / denominator)
-    return np.array(ac_sq_vals)
+        sample_ac = []
+        for r in range(R):
+            x = data[r, :, ch]
+            x_sq = x ** 2
+            x_mean = x_sq.mean()
+            numerator = np.sum((x_sq[:-lag] - x_mean) * (x_sq[lag:] - x_mean))
+            denominator = np.sum((x_sq - x_mean) ** 2) + 1e-12
+            sample_ac.append(numerator / denominator)
+        ac_sq_vals.append(np.mean(sample_ac))
 
-
-def long_memory_abs(data: np.ndarray, max_lag: int = 10) -> np.ndarray:
-    """
-    Average autocorrelation of absolute log returns for all channels.
-    
-    Assumes data is already in log-return form.
-
-    Args:
-        data (np.ndarray): Array of shape (R, l, N) in log-return form
-        max_lag (int): Maximum lag to compute
-
-    Returns:
-        np.ndarray: Average autocorrelation per channel
-    """
-    data = to_numpy_abc(data)
-    R, l, N = data.shape
-    avg_ac_abs = []
-    for ch in range(N):
-        x = np.abs(data[:, :, ch].flatten())
-        ac_vals = []
-        for lag in range(1, min(max_lag + 1, len(x))):
-            x_mean = np.mean(x)
-            numerator = np.sum((x[:-lag] - x_mean) * (x[lag:] - x_mean))
-            denominator = np.sum((x - x_mean) ** 2) + 1e-12
-            ac_vals.append(numerator / denominator)
-        avg_ac_abs.append(np.mean(ac_vals) if ac_vals else np.nan)
-    return np.array(avg_ac_abs)
-
-
-def non_stationarity(data: np.ndarray, window: int = 50) -> np.ndarray:
-    """
-    Non-stationarity via coefficient of variation of rolling variance.
-    
-    Assumes data is already in log-return form. Measures time-varying variance
-    (heteroscedasticity) in the log-return series.
-
-    Args:
-        data (np.ndarray): Array of shape (R, l, N) in log-return form
-        window (int): Rolling window length
-
-    Returns:
-        np.ndarray: Non-stationarity measure per channel
-    """
-    data = to_numpy_abc(data)
-    R, l, N = data.shape
-    nonstat_vals = []
-    for ch in range(N):
-        x = data[:, :, ch].flatten()
-        if len(x) < window:
-            nonstat_vals.append(np.nan)
-            continue
-        rolling_var = [np.var(x[i:i + window]) for i in range(len(x) - window + 1)]
-        nonstat_vals.append(np.std(rolling_var) / (np.mean(rolling_var) + 1e-8))
-    return np.array(nonstat_vals)
+    return np.array(ac_sq_vals, dtype=float)

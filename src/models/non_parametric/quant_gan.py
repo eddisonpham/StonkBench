@@ -1,142 +1,146 @@
+"""
+PyTorch implementation of QuantGAN.
+
+This module defines a QuantGAN model that inherits from DeepLearningModel
+and follows the formatting/style used by parametric models. It handles
+log returns without normalization and suppresses print outputs.
+"""
+
+from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from tqdm import tqdm
 
 from src.models.base.base_model import DeepLearningModel
 
 
-class TemporalBlock(nn.Module):
-    def __init__(self, n_inputs, n_hidden, n_outputs, kernel_size, dilation):
-        super(TemporalBlock, self).__init__()
+class _TemporalBlock(nn.Module):
+    def __init__(self, n_inputs: int, n_hidden: int, n_outputs: int, kernel_size: int, dilation: int):
+        super().__init__()
         self.conv1 = nn.Conv1d(n_inputs, n_hidden, kernel_size, stride=1, dilation=dilation, padding='same')
-
         self.relu1 = nn.PReLU()
         self.conv2 = nn.Conv1d(n_hidden, n_outputs, kernel_size, stride=1, dilation=dilation, padding='same')
         self.relu2 = nn.PReLU()
 
         self.net = nn.Sequential(self.conv1, self.relu1, self.conv2, self.relu2)
-
         self.downsample = nn.Conv1d(n_inputs, n_outputs, 1) if n_inputs != n_outputs else None
 
-        self.init_weights()
+        self._init_weights()
 
-    def init_weights(self):
+    def _init_weights(self):
         self.conv1.weight.data.normal_(0, 0.01)
         self.conv2.weight.data.normal_(0, 0.01)
         if self.downsample is not None:
             self.downsample.weight.data.normal_(0, 0.01)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.net(x)
         res = x if self.downsample is None else self.downsample(x)
         return out + res
 
-class TCN(nn.Module):
-    def __init__(self, input_size, output_size, n_hidden=80):
-        super(TCN, self).__init__()
+
+class _TCN(nn.Module):
+    def __init__(self, input_size: int, output_size: int, n_hidden: int = 80):
+        super().__init__()
         layers = []
         dilation = 1
         for i in range(7):
             num_inputs = input_size if i == 0 else n_hidden
             kernel_size = 2 if i > 0 else 1
-            layers += [TemporalBlock(num_inputs, n_hidden, n_hidden, kernel_size, dilation)]
-            dilation = 2 * dilation if i > 0 else 1
-        self.conv = nn.Conv1d(n_hidden, output_size, 1)
+            if i > 1:
+                dilation *= 2
+            layers.append(_TemporalBlock(num_inputs, n_hidden, n_hidden, kernel_size, dilation))
+        
         self.net = nn.Sequential(*layers)
-        self.init_weights()
+        self.conv = nn.Conv1d(n_hidden, output_size, 1)
+        self._init_weights()
 
-    def init_weights(self):
+    def _init_weights(self):
         self.conv.weight.data.normal_(0, 0.01)
     
-    def forward(self, x):
-        y1 = self.net(x.transpose(1, 2))
-        return self.conv(y1).transpose(1, 2)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        y = self.net(x.transpose(1, 2))
+        return self.conv(y).transpose(1, 2)
 
-class Generator(nn.Module):
-    def __init__(self, input_size, output_size):
-        super(Generator, self).__init__()
-        self.net = TCN(input_size, output_size)
 
-    def forward(self, x):
+class _Generator(nn.Module):
+    def __init__(self, input_size: int, output_size: int, n_hidden: int = 80):
+        super().__init__()
+        self.net = _TCN(input_size, output_size, n_hidden)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return torch.tanh(self.net(x))
 
-class Discriminator(nn.Module):
-    def __init__(self, input_size, output_size):
-        super(Discriminator, self).__init__()
-        self.net = TCN(input_size, output_size)
 
-    def forward(self, x):
+class _Discriminator(nn.Module):
+    def __init__(self, input_size: int, output_size: int, n_hidden: int = 80):
+        super().__init__()
+        self.net = _TCN(input_size, output_size, n_hidden)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return torch.sigmoid(self.net(x))
+
 
 class QuantGAN(DeepLearningModel):
     """
-    QuantGAN: Temporal Convolutional GAN for Financial Time Series Generation.
-    
-    Implements a Wasserstein GAN (WGAN) using TCN-based Generator and Discriminator.
-    
-    Inputs:
-        - seq_length: Length of each time series segment (l)
-        - num_features: Number of output channels (N)
-        - embedding_dim: Dimensionality of latent noise input (nz)
-        - hidden_dim: Hidden channel size in TCN layers
-        - lr: Learning rate for both generator and discriminator
-        - clip_value: Weight clipping threshold for WGAN
-        - n_critic: Number of discriminator updates per generator update
+    QuantGAN implemented with PyTorch.
+
+    - Inherits from DeepLearningModel and follows its interface.
+    - Expects fixed-length sequences from the provided DataLoader in fit.
+    - Handles log returns without normalization and does not print training logs.
     """
 
     def __init__(
         self,
-        seq_length: int,
-        num_features: int,
+        length: int,
+        num_channels: int,
         embedding_dim: int = 3,
         hidden_dim: int = 80,
         lr: float = 0.0002,
         clip_value: float = 0.01,
         n_critic: int = 5,
     ):
-        super().__init__()
-        self.seq_length = seq_length
-        self.num_features = num_features
-        self.embedding_dim = embedding_dim
-        self.hidden_dim = hidden_dim
-        self.lr = lr
-        self.clip_value = clip_value
-        self.n_critic = n_critic
+        super().__init__(length=length, num_channels=num_channels)
+        self.embedding_dim = int(embedding_dim)
+        self.hidden_dim = int(hidden_dim)
+        self.clip_value = float(clip_value)
+        self.n_critic = int(n_critic)
 
-        self.generator = Generator(self.embedding_dim, self.num_features).to(self.device)
-        self.discriminator = Discriminator(self.num_features, 1).to(self.device)
+        # Networks
+        self.generator = _Generator(embedding_dim, num_channels, hidden_dim)
+        self.discriminator = _Discriminator(num_channels, 1, hidden_dim)
 
-        self.opt_G = optim.RMSprop(self.generator.parameters(), lr=self.lr)
-        self.opt_D = optim.RMSprop(self.discriminator.parameters(), lr=self.lr)
+        # Optimizers
+        self.opt_G = optim.RMSprop(self.generator.parameters(), lr=lr)
+        self.opt_D = optim.RMSprop(self.discriminator.parameters(), lr=lr)
 
-        self.trained = False
+        self.to(self.device)
 
-    def fit(self, data_loader, num_epochs: int = 10, verbose: bool = True):
-        """
-        Train QuantGAN on time series data using Wasserstein GAN training loop.
+    def _sample_noise(self, batch_size: int, seq_len: int) -> torch.Tensor:
+        return torch.randn(batch_size, seq_len, self.embedding_dim, device=self.device)
 
-        Args:
-            data_loader (torch.utils.data.DataLoader): batches of (batch_size, seq_len, num_features)
-            verbose (bool): Whether to show tqdm progress bar.
-        """
-        self.generator.train()
-        self.discriminator.train()
+    def fit(
+        self,
+        data_loader,
+        num_epochs: int = 10,
+    ):
+        self.train()
 
-        progress_bar = tqdm(range(num_epochs)) if verbose else range(num_epochs)
+        for epoch in range(num_epochs):
+            for i, real_batch in enumerate(data_loader):
+                if isinstance(real_batch, (list, tuple)):
+                    real_batch = real_batch[0]
+                real = real_batch.to(self.device)  # (B, L, N)
+                batch_size, seq_len, _ = real.shape
 
-        for epoch in progress_bar:
-            for i, real in enumerate(data_loader):
-                real = real.to(self.device)
-                batch_size = real.size(0)
+                # Sample noise
+                z = self._sample_noise(batch_size, seq_len)
 
-                # ==========================
-                # Train Discriminator (n_critic times)
-                # ==========================
-                self.discriminator.zero_grad()
-                z = torch.randn(batch_size, self.seq_length, self.embedding_dim, device=self.device)
+                # Train Discriminator
+                self.opt_D.zero_grad(set_to_none=True)
                 fake = self.generator(z).detach()
-
+                
                 loss_D = -torch.mean(self.discriminator(real)) + torch.mean(self.discriminator(fake))
                 loss_D.backward()
                 self.opt_D.step()
@@ -145,42 +149,28 @@ class QuantGAN(DeepLearningModel):
                 for p in self.discriminator.parameters():
                     p.data.clamp_(-self.clip_value, self.clip_value)
 
-                # ==========================
-                # Train Generator
-                # ==========================
+                # Train Generator (every n_critic steps)
                 if i % self.n_critic == 0:
-                    self.generator.zero_grad()
-                    z = torch.randn(batch_size, self.seq_length, self.embedding_dim, device=self.device)
+                    self.opt_G.zero_grad(set_to_none=True)
                     fake = self.generator(z)
                     loss_G = -torch.mean(self.discriminator(fake))
                     loss_G.backward()
                     self.opt_G.step()
 
-            if verbose:
-                progress_bar.set_description(
-                    f"Epoch [{epoch+1}/{num_epochs}] | Loss_D: {loss_D.item():.6f} | Loss_G: {loss_G.item():.6f}"
-                )
+            print(f"QuantGAN epoch {epoch + 1}/{num_epochs}")
 
-        self.trained = True
+        self.eval()
 
     @torch.no_grad()
-    def generate(self, num_samples: int, seq_length: int = None):
-        """
-        Generate synthetic time series samples after training.
-
-        Args:
-            num_samples (int): Number of samples to generate (R)
-            seq_length (int, optional): Sequence length (defaults to training seq_length)
-
-        Returns:
-            torch.Tensor: Generated synthetic samples (R, l, N)
-        """
-        if not self.trained:
-            raise RuntimeError("QuantGAN must be trained before generation.")
-
-        self.generator.eval()
-        seq_length = seq_length or self.seq_length
-
-        z = torch.randn(num_samples, seq_length, self.embedding_dim, device=self.device)
+    def generate(
+        self,
+        num_samples: int,
+        seq_length: Optional[int] = None,
+        seed: int = 42,
+    ) -> torch.Tensor:
+        if seq_length is None:
+            seq_length = self.length
+        torch.manual_seed(seed)
+        z = self._sample_noise(num_samples, seq_length)
         fake = self.generator(z)
         return fake.detach().cpu()

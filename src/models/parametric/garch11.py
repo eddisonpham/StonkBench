@@ -1,90 +1,68 @@
+import torch
 import numpy as np
 from arch import arch_model
 from src.models.base.base_model import ParametricModel
 
+
 class GARCH11(ParametricModel):
-    """
-    Simplified GARCH(1,1) model fitting each channel independently.
-    Assumes input data is already log returns.
-    """
+    def __init__(self, length: int, num_channels: int, device='cpu'):
+        super().__init__(length, num_channels)
+        self.device = device
+        self.models = [None] * num_channels
+        self.fitted_params = [None] * num_channels
 
-    def __init__(self):
-        super().__init__()
-        self.params = None
-        self.models = None
-        self.fitted = False
-        self.series_length = None
-
-    def fit(self, data: np.ndarray):
-        data = np.asarray(data, dtype=np.float64)
-        T, N = data.shape
-        self.series_length = T
-        self.params = np.zeros((N, 3), dtype=np.float64)
+    def fit(self, log_returns, dist='normal'):
+        """
+        Fit GARCH(1,1) models to each channel of log returns.
+        dist: 'normal' or 't' for student-t innovations
+        """
+        L, N = log_returns.shape
         self.models = []
+        self.fitted_params = []
 
         for i in range(N):
-            series = data[:, i]
-            scale_factor = 10 / np.std(series)
-            series_scaled = series * scale_factor
-            model = arch_model(series_scaled, vol="Garch", p=1, q=1, mean="Zero", dist="normal")
-            fitted = model.fit(disp="off")
-            omega = fitted.params["omega"] / (scale_factor ** 2)
-            alpha = fitted.params["alpha[1]"]
-            beta  = fitted.params["beta[1]"]
-            self.params[i] = [omega, alpha, beta]
-            print(f"Channel {i+1}/{N} fitted: omega={omega:.6e}, alpha={alpha:.6e}, beta={beta:.6e}")
+            series = log_returns[:, i]
+            am = arch_model(
+                series,
+                mean='Constant',
+                vol='GARCH',
+                p=1,
+                q=1,
+                dist=dist,
+                rescale=False
+            )
+            res = am.fit(disp='off')
+            alpha = res.params.get('alpha[1]', res.params.iloc[1])
+            beta = res.params.get('beta[1]', res.params.iloc[2])
 
-        self.fitted = True
+            self.models.append(am)
+            self.fitted_params.append(res)
 
+    def generate(self, num_samples, seq_length=None, seed=42):
+        torch.manual_seed(seed)
+        np.random.seed(seed)
 
-    def generate(self, num_samples: int, output_length: int = None, init_values: np.ndarray = None, seed: int = None):
-        """
-        Generate synthetic multivariate log-return time series using fitted GARCH(1,1) parameters.
-
-        Args:
-            num_samples: Number of independent synthetic series to generate.
-            output_length: Length of each generated series. Defaults to fitted series length.
-            init_values: Optional initial values to start the series. Shape (N,) or (num_samples, N).
-            seed: Random seed for reproducibility.
-
-        Returns:
-            synthetic: np.ndarray of shape (num_samples, output_length, N)
-        """
-        if not self.fitted:
-            raise RuntimeError("Model must be fitted before generating data.")
-
-        if output_length is None:
-            output_length = self.series_length
-
-        if seed is not None:
-            np.random.seed(seed)
-
-        L, N = self.params.shape[0], self.params.shape[0]  # N channels
-        synthetic = np.zeros((num_samples, output_length, N), dtype=np.float64)
+        N = self.num_channels
+        L = seq_length if seq_length is not None else self.length
+        log_returns_sim = torch.zeros((num_samples, L, N), device=self.device)
 
         for i in range(N):
-            omega, alpha, beta = self.params[i]
-            sigma2 = np.zeros((num_samples, output_length), dtype=np.float64)
+            res = self.fitted_params[i]
+            params = res.params
+            mu = float(params.get('mu', 0.0))
+            omega = float(params.get('omega', params.iloc[0]))
+            alpha = float(params.get('alpha[1]', params.iloc[1]))
+            beta = float(params.get('beta[1]', params.iloc[2]))
+            last_sigma2 = float(res.conditional_volatility[-1])**2
+            last_r = float(self.models[i].y[-1])
+            sigma2 = torch.full((num_samples,), last_sigma2, device=self.device)
+            r_prev = torch.full((num_samples,), last_r, device=self.device)
+            for t in range(L):
+                z = torch.randn(num_samples, device=self.device)
+                sigma_t = torch.sqrt(sigma2)
+                r_t = mu + sigma_t * z
+                log_returns_sim[:, t, i] = r_t
+                sigma2 = omega + alpha * r_prev**2 + beta * sigma2
+                r_prev = r_t
 
-            # Initialize first value
-            if init_values is not None:
-                if init_values.ndim == 1:
-                    synthetic[:, 0, i] = init_values[i]
-                else:
-                    synthetic[:, 0, i] = init_values[:, i]
-
-                sigma2[:, 0] = omega + alpha * synthetic[:, 0, i]**2
-                sigma2[:, 0] = np.maximum(sigma2[:, 0], 1e-12)
-
-            else:
-                # Use unconditional variance for log returns
-                sigma2[:, 0] = omega / max(1e-8, 1 - alpha - beta)
-                synthetic[:, 0, i] = np.random.randn(num_samples) * np.sqrt(sigma2[:, 0])
-
-            # GARCH recursion
-            for t in range(1, output_length):
-                sigma2[:, t] = omega + alpha * synthetic[:, t-1, i]**2 + beta * sigma2[:, t-1]
-                sigma2[:, t] = np.maximum(sigma2[:, t], 1e-12)
-                synthetic[:, t, i] = np.random.randn(num_samples) * np.sqrt(sigma2[:, t])
-
-        return synthetic
+        return log_returns_sim.cpu()

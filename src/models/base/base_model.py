@@ -29,7 +29,9 @@ class ParametricModel(ABC):
     - Outputs generated samples of shape (R, l, N) where R is the number of simulated realizations.
     """
 
-    def __init__(self):
+    def __init__(self, length: int, num_channels: int):
+        self.length = int(length)
+        self.num_channels = int(num_channels)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     @abstractmethod
@@ -44,7 +46,7 @@ class ParametricModel(ABC):
         pass
 
     @abstractmethod
-    def generate(self, num_samples, *args, **kwargs):
+    def generate(self, num_samples, seq_length=None, init_values=None, seed=42, *args, **kwargs):
         """
         Generates synthetic time series realizations.
 
@@ -66,13 +68,14 @@ class DeepLearningModel(torch.nn.Module, ABC):
     - Outputs generated samples of shape (R, l, N).
     """
 
-    def __init__(self):
+    def __init__(self, length: int, num_channels: int):
+        self.length = int(length)
+        self.num_channels = int(num_channels)
         torch.nn.Module.__init__(self)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.to(self.device)
 
     @abstractmethod
-    def fit(self, data_loader, *args, **kwargs):
+    def fit(self, data_loader, num_epochs=10, *args, **kwargs):
         """
         Trains the network via a DataLoader with batches.
 
@@ -83,7 +86,7 @@ class DeepLearningModel(torch.nn.Module, ABC):
         pass
 
     @abstractmethod
-    def generate(self, num_samples, *args, **kwargs):
+    def generate(self, num_samples, seq_length=None, seed=42, *args, **kwargs):
         """
         Generates synthetic samples after training.
 
