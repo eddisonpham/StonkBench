@@ -253,40 +253,41 @@ def visualize_tsne(ori_data, gen_data, result_path):
     plt.close()
 
 def visualize_distribution(ori_data, gen_data, result_path):
-    sns.set(style="whitegrid", context="paper", font_scale=1.2)
-    ori_idx = np.random.permutation(len(ori_data))
-    gen_idx = np.random.permutation(len(gen_data))
-    ori_data = ori_data[ori_idx]
-    gen_data = gen_data[gen_idx]
-
+    """
+    Joyplot (ridge plot) per channel, overlaying original and generated distributions.
+    Horizontal overlay: density on x-axis, channel on y-axis, two KDEs per channel.
+    """
+    CHANNEL_NAMES = ['Open', 'High', 'Low', 'Close']
     n_channels = ori_data.shape[2]
+    sns.set(style="whitegrid", context="paper", font_scale=1.2)
+    fig, axes = plt.subplots(1, n_channels, figsize=(2.5 * n_channels, 6), sharey=True)
+    colors = ['#1f77b4', '#ff7f0e']
+    linestyles = ['-', '--']
 
-    n_cols = 3
-    n_rows = (n_channels + n_cols - 1) // n_cols
+    for ch, ax in enumerate(axes):
+        ori_flat = ori_data[:, :, ch].flatten()
+        gen_flat = gen_data[:, :, ch].flatten()
 
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5*n_cols, 4*n_rows))
-    axes = axes.flatten()
+        # Overlay KDEs horizontally
+        sns.kdeplot(
+            y=ori_flat, color=colors[0], linewidth=2, linestyle=linestyles[0],
+            label='Original', fill=True, alpha=0.5, ax=ax
+        )
+        sns.kdeplot(
+            y=gen_flat, color=colors[1], linewidth=2, linestyle=linestyles[1],
+            label='Generated', fill=True, alpha=0.5, ax=ax
+        )
 
-    for ch in range(n_channels):
-        ax = axes[ch]
-        prep_ori = ori_data[:, :, ch].flatten()
-        prep_gen = gen_data[:, :, ch].flatten()
+        ax.set_xlabel("Density")
+        ax.set_title(f"{CHANNEL_NAMES[ch]}", fontsize=12)
+        ax.legend(frameon=False, fontsize=10)
+        ax.grid(False)
 
-        sns.kdeplot(prep_ori, color='#1f77b4', linewidth=2, label='Original', fill=False, ax=ax)
-        sns.kdeplot(prep_gen, color='#ff7f0e', linewidth=2, linestyle='--', label='Generated', fill=False, ax=ax)
-
-        ax.set_title(f"Channel {ch+1}", fontsize=12)
-        ax.set_xlabel("Value")
-        ax.set_ylabel("Density")
-        ax.set_xlim(min(prep_ori.min(), prep_gen.min()), max(prep_ori.max(), prep_gen.max()))
-        sns.despine(ax=ax, top=True, right=True)
-        ax.legend(frameon=False)
-
-    for ch in range(n_channels, len(axes)):
-        fig.delaxes(axes[ch])
-
-    plt.tight_layout()
+    axes[0].set_ylabel("Value")
+    plt.tight_layout(rect=[0, 0, 1, 0.97])
     os.makedirs(result_path, exist_ok=True)
-    save_path = os.path.join(result_path, 'distribution_channels_combined.png')
-    plt.savefig(save_path, dpi=400, bbox_inches='tight')
+    plt.savefig(
+        os.path.join(result_path, 'distribution.png'),
+        dpi=400, bbox_inches='tight'
+    )
     plt.close()

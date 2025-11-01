@@ -59,7 +59,7 @@ class PerformancePlot(MetricPlot):
         times = []
         for model in self.models:
             model_dict = self.data.get(model, {})
-            gen_keys = [k for k in model_dict.keys() if k.startswith('generation_time_') and k.endswith('_samples')]
+            gen_keys = [k for k in model_dict.keys() if k.startswith('generation_') and k.endswith('_samples')]
             if gen_keys:
                 val = model_dict[gen_keys[0]]
                 if isinstance(val, (list, tuple, np.ndarray)):
@@ -230,62 +230,80 @@ class StylizedFactsPlot(MetricPlot):
                    bbox_inches='tight', dpi=self.dpi)
         plt.close()
 
-class ModelRankingPlot(MetricPlot):
-    """Create model ranking based on multiple criteria."""
-    
-    def plot(self) -> None:
-        """Generate model ranking plot."""
-        ranking_metrics = {
-            'generation_time': 'lower',
-            'mdd': 'lower', 
-            'md': 'lower',
-            'sdd': 'lower',
-            'icd_euclidean': 'lower',
-            'icd_dtw': 'lower'
-        }
-        
-        rankings = {}
-        for metric, direction in ranking_metrics.items():
-            values = []
-            for model in self.models:
-                model_dict = self.data.get(model, {})
-                if metric == 'generation_time':
-                    gen_keys = [k for k in model_dict.keys() if k.startswith('generation_time_') and k.endswith('_samples')]
-                    if gen_keys:
-                        v = model_dict[gen_keys[0]]
-                    else:
-                        v = np.nan
-                else:
-                    v = model_dict.get(metric, np.nan)
-                if isinstance(v, (list, tuple, np.ndarray)):
-                    # Fallback to first element if array is provided
-                    try:
-                        values.append(float(v[0]))
-                    except Exception:
-                        values.append(np.nan)
-                else:
-                    values.append(float(v))
-            if direction == 'lower':
-                sorted_models = [model for _, model in sorted(zip(values, self.models))]
-            else:
-                sorted_models = [model for _, model in sorted(zip(values, self.models), reverse=True)]
-            
-            for i, model in enumerate(sorted_models):
-                if model not in rankings:
-                    rankings[model] = []
-                rankings[model].append(i + 1)
-        
-        avg_rankings = {model: np.mean(ranks) for model, ranks in rankings.items()}
-        sorted_models = sorted(avg_rankings.items(), key=lambda x: x[1])
-        
-        fig, ax = plt.subplots(figsize=(10, 6), dpi=self.dpi)
-        models = [item[0] for item in sorted_models]
-        ranks = [item[1] for item in sorted_models]
-        
-        bars = ax.bar(models, ranks, color=sns.color_palette("viridis", len(models)))
-        ax.set_ylabel('Average Ranking (Lower is Better)')
-        ax.set_title('Model Performance Ranking')
-        ax.tick_params(axis='x', rotation=45)
-        
-        self.add_value_labels(bars, ranks, ax)
-        self.save_plot('model_ranking.png')
+class CombinedVisualizationPlot(MetricPlot):
+    """
+    Combine 'distribution.png' and 'tsne.png' side-by-side per model into a single visualization,
+    saving each combined image in a 'visualizations' subfolder named '[model name].png'
+    """
+
+    def __init__(self, data: Dict[str, Any], output_dir: Path, 
+                    eval_results_dir: Optional[Path] = None, figsize: Tuple[int, int] = (10, 6), dpi: int = 300):
+        """
+        Args:
+            data: Evaluation data dictionary
+            output_dir: Primary output directory (plots + visualizations/ subdir)
+            eval_results_dir: Path to evaluation results parent folder
+            figsize, dpi: Passed to MetricPlot
+        """
+        super().__init__(data, output_dir, figsize, dpi)
+        self.eval_results_dir = Path(eval_results_dir) if eval_results_dir else None
+        self.visualizations_dir = self.output_dir / 'visualizations'
+        self.visualizations_dir.mkdir(exist_ok=True, parents=True)
+
+    def _find_visualization_files(self, model: str):
+        """
+        Helper to find distribution.png and tsne.png for a given model
+        """
+        search_root = self.eval_results_dir
+        if search_root is None:
+            # Guess: assume output_dir = .../evaluation_[timestamp]_plots or .../evaluation_[timestamp]
+            parent = self.output_dir
+            while parent.name not in ["results", "output", "evaluate"] and parent != parent.parent:
+                if parent.name.startswith("evaluation_"):
+                    break
+                parent = parent.parent
+            search_root = parent
+        # paths: [search_root]/[model]/visualizations/distribution.png, tsne.png
+        model_vis_dir = search_root / model / "visualizations"
+        dist_path = model_vis_dir / "distribution.png"
+        tsne_path = model_vis_dir / "tsne.png"
+        if not dist_path.exists() or not tsne_path.exists():
+            warnings.warn(
+                f"Missing visualization for model {model}: "
+                f"{'distribution.png missing' if not dist_path.exists() else ''} "
+                f"{'tsne.png missing' if not tsne_path.exists() else ''}"
+            )
+            return None, None
+        return str(dist_path), str(tsne_path)
+
+    def plot(self):
+        """
+        For each model, load tsne.png and distribution.png, concatenate side by side (height-consistent),
+        then save to visualizations/[model name].png in output_dir.
+        """
+        from PIL import Image
+
+        for model in self.models:
+            dist_path, tsne_path = self._find_visualization_files(model)
+            if not dist_path or not tsne_path:
+                continue
+            try:
+                img_dist = Image.open(dist_path)
+                img_tsne = Image.open(tsne_path)
+                # Resize tsne to match dist height (preserving aspect)
+                h = img_dist.height
+                tsne_aspect = img_tsne.width / img_tsne.height if img_tsne.height > 0 else 1
+                img_tsne_resized = img_tsne.resize(
+                    (int(tsne_aspect * h), h), resample=Image.LANCZOS)
+                # Now, side by side concat
+                total_width = img_tsne_resized.width + img_dist.width
+                new_im = Image.new("RGBA", (total_width, h), (255, 255, 255, 0))
+                new_im.paste(img_tsne_resized, (0, 0))
+                new_im.paste(img_dist, (img_tsne_resized.width, 0))
+                # Save in visualizations/[model].png (as standard png RGBA)
+                output_file = self.visualizations_dir / f"{model}.png"
+                new_im.save(output_file)
+            except Exception as e:
+                warnings.warn(
+                    f"Failed to create combined visualization for '{model}': {e}"
+                )
