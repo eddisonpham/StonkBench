@@ -153,20 +153,25 @@
       cutting edge in synthetic data generation.
 
       \subsubsection{Scope of Datasets}
-      We evaluate models on diverse financial datasets spanning:
-      \begin{itemize}
-        \item Stock market indices (S\&P 500, NASDAQ, TSX)
-        \item Individual stock prices from major exchanges
-        \item Forex trading pairs
-      \end{itemize}
-
+        We evaluate models on diverse financial datasets covering multiple asset classes and temporal granularities, 
+        ranging from high-frequency (1-minute, 5-minute) to low-frequency (daily) resolutions. 
+        This range enables the assessment of generative performance across varying market dynamics and forecasting horizons.  
+        \begin{itemize}
+            \item \textbf{Stock market indices:} S\&P~500, NASDAQ, and TSX.
+            \item \textbf{Individual equities:} Price series from major exchanges (NYSE, NASDAQ, TSX).
+            \item \textbf{Foreign exchange (Forex):} Major trading pairs (e.g., EUR/USD, USD/JPY).
+        \end{itemize}
+        
       \subsubsection{Scope of Evaluation Taxonomical Criteria}
-      Our evaluation framework follows the taxonomy structure proposed by Stenger et al. \cite{Stenger24}, 
-      incorporating various evaluation measures from different papers in the field.
-
-      We systematically integrate evaluation metrics from multiple sources while maintaining this 
-      structured taxonomical approach, ensuring comprehensive coverage of all critical aspects of 
-      SDGFTS evaluation and setting a standard for future research in time series SDG as a whole.
+        Our evaluation framework adopts the taxonomy proposed by Stenger et al. as an organizing structure, 
+        while drawing specific evaluation metrics primarily from TSGBench, which provides an existing and well-established benchmark for general synthetic time series benchmarking. 
+        Although Stenger et al.\ introduce an extensive set of potential measures, our selection focuses on metrics that are 
+        both widely used in recent synthetic time series benchmarks and empirically meaningful for financial applications. 
+        Our reformulation leverages Stenger's taxonomy to provide a coherent organizational hierarchy, particularly Fidelity, Diversity, Efficiency, and Utility, while ensuring that each chosen metric remains interpretable, 
+        computationally feasible, and directly comparable to prior benchmarks. 
+        By grounding our framework in the pragmatic evaluation design of TSGBench and aligning it with 
+        Stenger’s structured taxonomy, we ensure both methodological rigor and cross-study consistency in SDGFTS assessment.
+    
 
 \section{Overview of Synthetic FTS Methods}
     We categorize synthetic financial time series generation methods into two main families: classical parametric (stochastic) models, which rely on explicit assumptions about the data-generating process, and modern non-parametric (deep learning) models, which learn complex dependencies directly from data without predefined functional forms. The following subsections provide a detailed overview of the methods included in our benchmark.
@@ -207,6 +212,8 @@
         \begin{equation}
         dS_t = \mu S_t\,dt + \sigma S_t\,dW_t.
         \end{equation}
+        The GBM parameters are estimated from historical log returns: the drift $\mu$ is set to the sample mean and the volatility $\sigma$ is set to the sample standard deviation. This corresponds to maximum likelihood estimation under the assumption that log returns are normally distributed.
+
 
         \item \label{alg:ou} \textbf{Ornstein–Uhlenbeck (OU).} 
         A mean-reverting Gaussian process for log-prices or spreads. Model-specific parameters are 
@@ -214,41 +221,84 @@
         \begin{equation}
         dX_t = \theta(\mu - X_t)\,dt + \sigma\,dW_t.
         \end{equation}
-
-        \item \label{alg:mjd} \textbf{Merton Jump Diffusion (MJD).} Extends GBM by incorporating 
-        normally-distributed jumps. Model-specific parameters are \(\lambda\) (jump intensity), 
-        \(\mu_j\) and \(\sigma_j\) (mean and standard deviation of jump sizes).
-        \begin{equation}
-        \frac{dS_t}{S_t} = \mu\,dt + \sigma\,dW_t + J\,dN_t,\\
-        \end{equation}
-        where $J \sim \mathcal N(\mu_j, \sigma_j^2),\quad N_t\sim\mathrm{Poisson}(\lambda t)$.
+        The OU process parameters are estimated from historical log-prices by fitting a discrete-time AR(1) model $X_{t+1} = \phi X_t + c + \varepsilon_t$ and mapping the coefficients to continuous-time parameters. The mean-reversion rate $\theta$, long-term mean $\mu$, and volatility $\sigma$ are derived from $\phi$, $c$, and the residual standard deviation, corresponding to statistical estimation from data.
 
 
-        \item \label{alg:dejd} \textbf{Double-Exponential Jump Diffusion (DEJD).} 
-        A jump-diffusion model with asymmetric double-exponential jump sizes. Model-specific 
-        parameters are \(p\) (probability of upward jump) and \(\eta_1, \eta_2\) 
-        (exponential parameters for upward/downward jumps).
+        \item \label{alg:mjd} \textbf{Merton Jump Diffusion (MJD).}  
+        Extends GBM by incorporating normally-distributed jumps. Model-specific parameters are 
+        \(\lambda\) (jump intensity) and \(\mu_j, \sigma_j\) (mean and standard deviation of jump sizes):
         \begin{align}
-          \frac{dS_t}{S_t} &= \mu\,dt + \sigma\,dW_t + Y\,dN_t,\\
-          Y &=
-          \begin{cases}
-          \mathrm{Exp}(\eta_1), &\text{with probability } p,\\[4pt]
-          -\mathrm{Exp}(\eta_2), &\text{with probability } 1-p.
-          \end{cases} \nonumber
+        \frac{dS_t}{S_{t^-}} &= \mu\,dt + \sigma\,dW_t + (e^Z-1)\,dN_t, \\
+        Z &\sim \mathcal{N}(\mu_j, \sigma_j^2), \quad N_t \sim \text{Poisson}(\lambda t). \nonumber
         \end{align}
-
-        \item \label{alg:garch} \textbf{GARCH(1,1).} 
-        A discrete-time conditional heteroskedastic model for returns. Model-specific parameters 
-        are \(\omega>0,\ \alpha\ge0,\ \beta\ge0\) (GARCH coefficients) and \(\mathcal D\) 
-        (innovation distribution, usually standard Normal or Student-t). Captures volatility clustering 
-        via time-varying conditional variance.
+        
+        Jumps in the log-returns $r_t$ are identified as returns exceeding a threshold of $k$ standard deviations from the mean, and the jump intensity $\lambda$ is estimated as
+        \[
+        \lambda = \frac{\text{number of jumps}}{T}.
+        \]
+        
+        The jump size mean and variance are computed from the detected jumps:
         \begin{align}
-          r_t &= \sigma_t z_t,\quad z_t\sim\mathcal D,\\
-          \sigma_t^2 &= \omega + \alpha r_{t-1}^2 + \beta \sigma_{t-1}^2. \nonumber
+        \mu_J &= \frac{1}{n_{\text{jumps}}} \sum_{\text{jumps}} r_t, \\
+        \sigma_J^2 &= \frac{1}{n_{\text{jumps}}-1} \sum_{\text{jumps}} (r_t - \mu_J)^2.
         \end{align}
-        \item \label{alg:blockbootstrap} \textbf{Block Bootstrap.} 
-        A resampling technique that preserves short-range dependence by sampling contiguous blocks of returns. 
-        Although not parametric, it is included here as it is a statistical model.
+        
+        The diffusion volatility $\sigma$ is obtained by removing the jump contribution from the total variance per unit time:
+        \[
+        \sigma = \sqrt{\frac{\mathrm{Var}(r_t)}{\delta t} - \lambda (\mu_J^2 + \sigma_J^2)},
+        \]
+        and the drift $\mu$ is corrected for the expected jump contribution:
+        \[
+        \mu = \frac{\mathbb{E}[r_t]}{\delta t} - \lambda \mu_J.
+        \]
+        
+
+        \item \label{alg:dejd} \textbf{Double-Exponential Jump Diffusion (DEJD).}  
+        A jump-diffusion model with asymmetric double-exponential jump sizes. Model-specific parameters are 
+        \(p\) (probability of upward jump) and \(\eta_1, \eta_2\) (exponential parameters for upward/downward jumps):
+        \begin{align}
+        \frac{dS_t}{S_{t^-}} &= \mu\,dt + \sigma\,dW_t + (e^Y-1)\,dN_t,\\
+        Y &=
+        \begin{cases}
+        \mathrm{Exp}(\eta_1), &\text{with probability } p,\\[2pt]
+        -\mathrm{Exp}(\eta_2), &\text{with probability } 1-p.
+        \end{cases} \nonumber
+        \end{align}
+        
+        Jumps in the log-returns $r_t$ are identified using a robust threshold based on the median absolute deviation, and the jump intensity $\lambda$ is estimated as
+        \[
+        \lambda = \frac{\text{number of jumps}}{T},
+        \]
+        corresponding to the compound Poisson process $N_t$.
+        
+        The jump size distribution $Y$ is separated into positive and negative jumps to estimate the double-exponential parameters:
+        \begin{align}
+        p &= \frac{\text{number of positive jumps}}{\text{total jumps}}, \\
+        \eta_1 &= \frac{1}{\text{mean of positive jumps}}, \\
+        \eta_2 &= \frac{1}{-\text{mean of negative jumps}}.
+        \end{align}
+        
+        Finally, the drift $\mu$ and diffusion volatility $\sigma$ of the continuous part are corrected for the expected jump contribution:
+        \begin{align}
+        \mu &= \frac{\mathbb{E}[r_t]}{\delta t} - \lambda \, \mathbb{E}[Y], \\
+        \sigma &= \sqrt{\frac{\mathrm{Var}(r_t)}{\delta t} - \lambda \, \mathbb{E}[Y^2]},
+        \end{align}
+        with
+        \begin{align}
+        \mathbb{E}[Y] &= \frac{p}{\eta_1} - \frac{1 - p}{\eta_2}, \\
+        \mathbb{E}[Y^2] &= 2 \left( \frac{p}{\eta_1^2} + \frac{1 - p}{\eta_2^2} \right).
+        \end{align}
+        
+       \item \label{alg:garch} \textbf{GARCH(1,1).}  
+        A discrete-time conditional heteroskedastic model for returns. Model-specific parameters are 
+        \(\omega>0,\, \alpha\ge0,\, \beta\ge0\) (GARCH coefficients) and \(\mathcal{D}\) (innovation distribution, usually standard Normal or Student-$t$). The model captures volatility clustering via time-varying conditional variance:
+        \begin{align}
+        r_t &= \sigma_t z_t, \quad z_t \sim \mathcal{D}, \\
+        \sigma_t^2 &= \omega + \alpha r_{t-1}^2 + \beta \sigma_{t-1}^2. \nonumber
+        \end{align}
+        The parameters \((\omega, \alpha, \beta)\) are estimated via maximum likelihood from the observed log-return series.
+        
+        
       \end{enumerate}
 
 
@@ -353,7 +403,7 @@
     The preprocessing follows the general TSGBench framework, with the following adaptations:
 
     \begin{itemize}
-        \item Log returns are used directly instead of TSGBench's min-max normalization, preserving 
+        \item Log returns are used directly instead of TSGBench's min-max normalization, preserving the time serie's distribution along with
         financial properties such as heavy tails and volatility clustering.
         \item For parametric models, the transformed series is divided into contiguous training, 
         validation, and test segments with ratios \((1-\alpha-\beta):\alpha:\beta\), where 
@@ -367,7 +417,6 @@
         to the maximum significant PACF peak across channels is selected, resulting in \(L=13\). This approach 
         captures relevant temporal dependencies within the data.
         \item The dataset is split into train, validation, and test sets while preserving temporal order to prevent future information from leaking into the past. Only the training set is shuffled during model training to improve convergence. In contrast, TSG-Bench shuffles time series samples before splitting, which introduces data leakage. Our approach ensures strictly forward-looking evaluation for realistic forecasting.
-
         proper evaluation, consistent with TSGBench.
     \end{itemize}
 
