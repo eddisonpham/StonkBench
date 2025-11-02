@@ -493,6 +493,7 @@ INPUT /opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/latex/inconso
 INPUT /opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/latex/inconsolata/t1zi4.fd
 INPUT /opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/latex/inconsolata/t1zi4.fd
 INPUT /opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/tfm/public/inconsolata/t1-zi4r-4.tfm
+INPUT /opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-4.enc
 OUTPUT comment.cut
 INPUT ./comment.cut
 INPUT ./comment.cut
@@ -500,7 +501,6 @@ INPUT comment.cut
 INPUT ./stonk-bench.bbl
 INPUT ./stonk-bench.bbl
 INPUT stonk-bench.bbl
-INPUT /opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-4.enc
 INPUT /opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/tfm/public/libertine/LinLibertineTZ-tlf-ot1.tfm
 INPUT /opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/tfm/public/inconsolata/t1-zi4b-4.tfm
 INPUT ../results/evaluation_20251031_114743/GBM/visualizations/tsne.png

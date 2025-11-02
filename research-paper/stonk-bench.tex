@@ -764,9 +764,40 @@
   different SDGFTS models, ultimately providing a more standardized and reliable means of assessing 
   synthetic data quality.
   \subsection{Summary of Findings}
+    We presented Stonk-Bench, a comprehensive benchmark for evaluating Synthetic Data Generation for Financial Time Series (SDGFTS) models.
+    Our benchmark integrates statistical fidelity, diversity, stylized facts verification, and utility evaluation through deep hedging.
+    We evaluated a suite of 5 traditional, 3 deep learning-based, and 1 other SDGFTS models on
   \subsection{Implications for SDGFTS Research}
+    We believe that Stonk-Bench will serve as a valuable resource for researchers and practitioners in the field of synthetic financial time series generation.
+    We hope that our benchmark will facilitate more rigorous and standardized evaluations of SDGFTS models, ultimately advancing the state of the art in this important area of research.
+    For the broader field of synthetic data generation, our work highlights the importance of a comprehensive and unifying evaluation frameworks that consider both statistical properties 
+    and practical utility that is proposed by Stenger \textit{et al.} .
   \subsection{Current Limitations and Shortcomings}
   \subsection{Future Research Directions}
+  \subsubsection{Progress for the remaining duration of the project} In regard to the next portion of our project, we aim to expand Stonk-Bench in several key areas:
+    \begin{itemize}
+      \item \textbf{Complete Utility Evaluations:} As of now, our utility evaluation through deep hedging is still in progress. We plan to finalize this component and integrate the 
+      results into the overall benchmark.
+      \item \textbf{Matching Distribution Metrics:} We intend to incorporate additional distribution matching metrics, such as the the Komogorov-Smirnov (KS) statistic 
+      to further enhance the fidelity evaluation.
+      \item \textbf{Expansive Datasets:} We plan to test Stonk-Bench on a wider variety of financial time series datasets, including indices and intraday (1-minute) data, to assess 
+      the generalizability of our benchmark and its performance in downstreamq tasks evaluations.
+    \end{itemize}
+
+  \subsubsection{Beyond this project.} In regards the larger scope of our Stonk-Bennch project, we envision several avenues for future research and project development:
+    \begin{itemize}
+      \item \textbf{Incorporation of Advanced SDGFTS Models:} As new models are developed, we plan to continuously update Stonk-Bench to include these advancements, 
+      ensuring that our benchmark remains relevant and comprehensive.
+      \item \textbf{Develop rigorous evaluation metric selection:} We aim to refine and expand the selection of evaluation metrics used in Stonk-Bench, ensuring they capture the 
+      multifaceted nature of synthetic financial time series data. A proposed direction is to perform ablation studies to identify the most informative metrics for 
+      different types of SDGFTS models with its known stylized facts and characteristics \cite{Stenger24}.
+      \item \textbf{Host a benchmark website:} To facilitate wider adoption and accessibility, we plan to develop a dedicated website for Stonk-Bench. 
+      This platform will provide comprehensive documentation, code repositories, and resources for researchers and practitioners interested in utilizing the benchmark.
+      We envision this website to also feature a ranking leaderboard where researchers can submit their SDGFTS models and compare their performance against existing 
+      models evaluated using Stonk-Bench.
+      \item \textbf{Community Engagement and Collaboration:} We hope to foster a collaborative environment where researchers can contribute to the development and refinement 
+      of Stonk-Bench, promoting shared progress in the field of synthetic data generation.
+    \end{itemize}
 
 
 \begin{acks}
