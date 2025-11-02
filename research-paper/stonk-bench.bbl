@@ -2,7 +2,7 @@
 %%% Do NOT edit. File created by BibTeX with style
 %%% ACM-Reference-Format-Journals [18-Jan-2012].
 
-\begin{thebibliography}{14}
+\begin{thebibliography}{16}
 
 %%% ====================================================================
 %%% NOTE TO THE USER: you can override these defaults by providing
@@ -36,6 +36,18 @@
 \providecommand\natexlab[1]{#1}
 \providecommand\showeprint[2][]{arXiv:#2}
 
+\bibitem[Acciaio et~al\mbox{.}(2024)]%
+        {acciaio2024vae}
+\bibfield{author}{\bibinfo{person}{Beatrice Acciaio}, \bibinfo{person}{Stephan Eckstein}, {and} \bibinfo{person}{Songyan Hou}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \bibinfo{title}{Time-Causal VAE: Robust Financial Time Series Generator}.
+\newblock
+\showeprint[arxiv]{2411.02947}~[cs.LG]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/2411.02947}
+\showURL{%
+\tempurl}
+
+
 \bibitem[Ang et~al\mbox{.}(2023)]%
         {Ang23}
 \bibfield{author}{\bibinfo{person}{Yihao Ang}, \bibinfo{person}{Qiang Huang}, \bibinfo{person}{Yifan Bao}, \bibinfo{person}{Anthony K.~H. Tung}, {and} \bibinfo{person}{Zhiyong Huang}.} \bibinfo{year}{2023}\natexlab{}.
@@ -56,12 +68,36 @@
 \tempurl}
 
 
+\bibitem[Goodfellow et~al\mbox{.}(2014)]%
+        {goodfellow2014gan}
+\bibfield{author}{\bibinfo{person}{Ian~J. Goodfellow}, \bibinfo{person}{Jean Pouget-Abadie}, \bibinfo{person}{Mehdi Mirza}, \bibinfo{person}{Bing Xu}, \bibinfo{person}{David Warde-Farley}, \bibinfo{person}{Sherjil Ozair}, \bibinfo{person}{Aaron Courville}, {and} \bibinfo{person}{Yoshua Bengio}.} \bibinfo{year}{2014}\natexlab{}.
+\newblock \bibinfo{title}{Generative Adversarial Networks}.
+\newblock
+\showeprint[arxiv]{1406.2661}~[stat.ML]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/1406.2661}
+\showURL{%
+\tempurl}
+
+
 \bibitem[Ho et~al\mbox{.}(2020)]%
         {ho2020denoising}
 \bibfield{author}{\bibinfo{person}{Jonathan Ho}, \bibinfo{person}{Ajay Jain}, {and} \bibinfo{person}{Pieter Abbeel}.} \bibinfo{year}{2020}\natexlab{}.
 \newblock \showarticletitle{Denoising diffusion probabilistic models}. In \bibinfo{booktitle}{\emph{Proceedings of the 34th International Conference on Neural Information Processing Systems}} (Vancouver, BC, Canada) \emph{(\bibinfo{series}{NIPS '20})}. \bibinfo{publisher}{Curran Associates Inc.}, \bibinfo{address}{Red Hook, NY, USA}, Article \bibinfo{articleno}{574}, \bibinfo{numpages}{12}~pages.
 \newblock
 \showISBNx{9781713829546}
+
+
+\bibitem[Kingma and Welling(2022)]%
+        {kingma2022vae}
+\bibfield{author}{\bibinfo{person}{Diederik~P Kingma} {and} \bibinfo{person}{Max Welling}.} \bibinfo{year}{2022}\natexlab{}.
+\newblock \bibinfo{title}{Auto-Encoding Variational Bayes}.
+\newblock
+\showeprint[arxiv]{1312.6114}~[stat.ML]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/1312.6114}
+\showURL{%
+\tempurl}
 
 
 \bibitem[Lee et~al\mbox{.}(2022)]%
@@ -106,13 +142,6 @@
 \bibfield{author}{\bibinfo{person}{Feng Qi}.} \bibinfo{year}{2025}\natexlab{}.
 \newblock \showarticletitle{GAN-Based Financial Data Generation and Prediction: Improving The Authenticity and Prediction Ability of Financial Statements}.
 \newblock \bibinfo{journal}{\emph{Informatica}} (\bibinfo{year}{2025}).
-\newblock
-
-
-\bibitem[Rezende et~al\mbox{.}(2014)]%
-        {rezende2014stochastic}
-\bibfield{author}{\bibinfo{person}{Danilo~Jimenez Rezende}, \bibinfo{person}{Shakir Mohamed}, {and} \bibinfo{person}{Daan Wierstra}.} \bibinfo{year}{2014}\natexlab{}.
-\newblock \showarticletitle{Stochastic backpropagation and approximate inference in deep generative models}. In \bibinfo{booktitle}{\emph{Proceedings of the 31st International Conference on International Conference on Machine Learning - Volume 32}} (Beijing, China) \emph{(\bibinfo{series}{ICML'14})}. \bibinfo{publisher}{JMLR.org}, \bibinfo{pages}{II–1278–II–1286}.
 \newblock
 
 

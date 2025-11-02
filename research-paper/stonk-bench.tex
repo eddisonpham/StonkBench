@@ -7,11 +7,11 @@
 % \setcopyright{acmlicensed}
 \copyrightyear{2025}
 \acmYear{2025}
-% \acmDOI{XXXXXXX.XXXXXXX}
-% \acmConference[Conference acronym 'XX]{Make sure to enter the correct
-%   conference title from your rights confirmation email}{June 03--05,
-%   2018}{Woodstock, NY}
-% \acmISBN{978-1-4503-XXXX-X/2018/06}
+\acmDOI{XXXXXXX.XXXXXXX}
+\acmConference[Conference acronym 'XX]{Make sure to enter the correct
+  conference title from your rights confirmation email}{June 03--05,
+  2018}{Woodstock, NY}
+\acmISBN{978-1-4503-XXXX-X/2018/06}
 
 
 
@@ -348,7 +348,7 @@
   \subsubsection{Diffusion Models}
     Diffusion models (or score-based generative models) have emerged as powerful methods for modeling complex 
     data distributions via a forward (noise-adding) process and a learned reverse (denoising) process 
-    \cite{sohl2015deep, ho2020denoising}. In the forward direction, one gradually corrupts a data sample 
+    \cite{ho2020denoising}. In the forward direction, one gradually corrupts a data sample 
     \(x_0\) into noise via a Markov chain:
    
     \begin{align}
@@ -380,18 +380,28 @@
     \cite{wang24denoiser}.  
     
     \subsubsection{Variational Autoencoders (VAEs)}
-    Variational Autoencoders \cite{kingma2013auto, rezende2014stochastic} are latent-variable generative 
+    Variational Autoencoders \cite{kingma2022vae} are latent-variable generative 
     models that posit a probabilistic encoder \(q_\phi(z \mid x)\) and decoder \(p_\theta(x \mid z)\). 
     One maximizes the evidence lower bound (ELBO):
     \[
-    \mathcal{L}_{\text{VAE}} = \mathbb{E}_{q_\phi(z \mid x)}\bigl[\log p_\theta(x \mid z)\bigr] - \mathrm{KL}\bigl(q_\phi(z \mid x)\,\Vert\,p(z)\bigr).
+    \mathcal{L}_{\text{VAE}} = \mathbb{E}_{q_\phi(z \mid x)}\bigl[\log p_\theta(x \mid z)\bigr] - 
+    \mathrm{KL}\bigl(q_\phi(z \mid x)\,\Vert\,p(z)\bigr).
     \]
-    Often one uses a standard Gaussian prior \(p(z) = \mathcal{N}(0, I)\). The encoder–decoder structure allows sampling by first drawing \(z \sim p(z)\), then generating \(x \sim p_\theta(x \mid z)\).
+    Often one uses a standard Gaussian prior \(p(z) = \mathcal{N}(0, I)\). The encoder–decoder structure 
+    allows sampling by first drawing \(z \sim p(z)\), then generating \(x \sim p_\theta(x \mid z)\).
     
-    In financial time-series generation, specialized versions such as the Time-Causal VAE (TC-VAE) have been proposed to enforce causality in the encoding/decoding of temporal data. For instance, Acciaio et al.\ (2024) propose TC-VAE, which ensures that generated paths respect temporal causality and show that the model reproduces stylized facts (e.g., heavy tails, volatility clustering) on real markets \cite{acciaio2024tcvae}. Because VAEs provide a principled latent representation, they are useful in finance to model underlying latent drivers of asset dynamics and to sample coherent trajectories.
+    In financial time-series generation, specialized versions such as the Time-Causal VAE (TC-VAE) have 
+    been proposed to enforce causality in the encoding/decoding of temporal data. For instance, 
+    Acciaio et al.\ (2024) propose TC-VAE, which ensures that generated paths respect temporal causality 
+    and show that the model reproduces stylized facts (e.g., heavy tails, volatility clustering) on real 
+    markets \cite{acciaio2024vae}. Because VAEs provide a principled latent representation, 
+    they are useful in finance to model underlying latent drivers of asset dynamics and to sample 
+    coherent trajectories.
     
     \subsubsection{Generative Adversarial Networks (GANs)}
-    Generative Adversarial Networks \cite{goodfellow2014generative} approach generation as a two-player game between a generator \(G\) and a discriminator \(D\). The discriminator is trained to maximize the probability of correctly classifying real data and generated data, with loss
+    Generative Adversarial Networks \cite{goodfellow2014gan} approach generation as a 
+    two-player game between a generator \(G\) and a discriminator \(D\). The discriminator is trained 
+    to maximize the probability of correctly classifying real data and generated data, with loss
     \[
     L_D = -\mathbb{E}_{x \sim p_{\text{data}}}\bigl[\log D(x)\bigr] - \mathbb{E}_{z \sim p(z)}\bigl[\log (1 - D(G(z)))\bigr].
     \]
@@ -732,13 +742,12 @@
     is provided in Appendix~\ref{app:metrics-comparison}. 
     
     \subsection{Statistical Evaluation Results}
-    
         Analysis of the evaluation metrics reveals several noteworthy findings. 
         First, the GBM, OU, and GARCH(1,1) model all fail to fully capture 
         key stylized facts of financial time series, particularly extreme 
         events and fat-tailed behavior. This limitation is evident in the 
         kurtosis metrics, where these models substantially underestimate the 
-        frequency and magnitude of rare, high-impact returns (Table~\ref{tab:metrics-comparison}). 
+        frequency and magnitude of rare, high-impact returns (Appendix~\ref{app:metrics-comparison}). 
         These shortcomings reflect the inherent assumptions of each model: GBM assumes log-normal 
         returns with constant volatility, OU is mean-reverting with Gaussian noise, and GARCH(1,1), 
         despite modeling conditional heteroskedasticity, does not sufficiently reproduce the tails 
@@ -746,13 +755,44 @@
         in kurtosis and other distributional metrics, highlighting their inability to generate the 
         extreme events observed in real financial time series.
         
-        Among all models, the Block Bootstrap approach consistently performs well across nearly all statistical metrics. This strong performance is expected, as Block Bootstrap samples directly from historical log returns, inherently preserving the empirical distribution, including autocorrelation structures and heavy tails. Kurtosis and skewness deviations are minimal, and temporal similarity metrics remain high (Appendix~\ref{app:evaluation-tables}), confirming its ability to retain higher-order moments and realistic sequence dynamics.
+        Among all models, the Block Bootstrap approach consistently performs well across nearly 
+        all statistical metrics. This strong performance is expected, as Block Bootstrap samples 
+        directly from historical log returns, inherently preserving the empirical distribution, 
+        including autocorrelation structures and heavy tails. Kurtosis and skewness deviations 
+        are minimal, and temporal similarity metrics remain high (Appendix~\ref{app:evaluation-tables}), 
+        confirming its ability to retain higher-order moments and realistic sequence dynamics.
         
-        Deep learning-based models generally underperform relative to parametric approaches. In particular, TimeVAE and Takahashi Diffusion generate distributional plots that fail to reproduce key features of the real data (Appendix~\ref{app:visualizations}). This underperformance is likely attributable to insufficient data expressivity and limited training: the batch size was set to 32, the number of training epochs to 20, and the window length selected via the Partial Correlation Function (PCF) was 13. As a result, only $620/9035$ time series samples were effectively used to train each model. Under these conditions, the models were unable to capture complex temporal dependencies and higher-order moments, leading to underfitting, as evidenced by deviations in both statistical and temporal metrics. Future work will address these limitations by increasing batch size and training epochs, as well as experimenting with higher-granularity index data (e.g., minute-level stock prices), consistent with the data granularity used to successfully train the Takahashi DDPM.
+        Deep learning-based models generally underperform relative to parametric approaches. 
+        In particular, TimeVAE and Takahashi Diffusion generate distributional plots that fail 
+        to reproduce key features of the real data (Appendix~\ref{app:visualizations}). 
+        This underperformance is likely attributable to insufficient data expressivity and 
+        limited training: the batch size was set to 32, the number of training epochs to 20, 
+        and the window length selected via the Partial Correlation Function (PCF) was 13. 
+        As a result, only $620/9035$ time series samples were effectively used to train each model. 
+        Under these conditions, the models were unable to capture complex temporal dependencies 
+        and higher-order moments, leading to underfitting, as evidenced by deviations in both 
+        statistical and temporal metrics. Future work will address these limitations by 
+        increasing batch size and training epochs, as well as experimenting with higher-granularity 
+        index data (e.g., minute-level stock prices), consistent with the data granularity used 
+        to successfully train the Takahashi DDPM.
         
-        Merton Jump Diffusion (MJD) and, especially, Double Exponential Jump Diffusion (DEJD) display extremely high kurtosis, consistent with their intended design. DEJD was explicitly developed to model extreme market movements and heavy tails for robust backtesting, producing rare but impactful price jumps. In T-SNE visualizations (Appendix~\ref{app:visualizations}), DEJD-generated data forms distinct clusters separated from the main cluster, highlighting the presence of extreme outliers. MJD exhibits moderate kurtosis increases relative to GBM, reflecting its capacity to generate jumps.
+        Merton Jump Diffusion (MJD) and, especially, Double Exponential Jump Diffusion (DEJD) 
+        display extremely high kurtosis, consistent with their intended design. DEJD was 
+        explicitly developed to model extreme market movements and heavy tails for robust 
+        backtesting, producing rare but impactful price jumps. In T-SNE visualizations 
+        (Appendix~\ref{app:visualizations}), DEJD-generated data forms distinct clusters 
+        separated from the main cluster, highlighting the presence of extreme outliers. 
+        MJD exhibits moderate kurtosis increases relative to GBM, reflecting its 
+        capacity to generate jumps.
         
-        Overall, these results illustrate the trade-offs between model simplicity, parametric assumptions, and the ability to replicate complex statistical properties of financial time series. Parametric jump models effectively capture extreme events, Block Bootstrap preserves empirical distribution fidelity, and deep learning models require larger and more expressive datasets to reach their theoretical potential. The comparative metrics in Appendix~\ref{app:metrics-comparison} further highlight the relative strengths and weaknesses of each approach in both quantitative and visual terms.
+        Overall, these results illustrate the trade-offs between model simplicity, 
+        parametric assumptions, and the ability to replicate complex statistical properties 
+        of financial time series. Parametric jump models effectively capture extreme events, 
+        Block Bootstrap preserves empirical distribution fidelity, and deep learning models 
+        require larger and more expressive datasets to reach their theoretical potential. 
+        The comparative metrics in Appendix~\ref{app:metrics-comparison} further highlight 
+        the relative strengths and weaknesses of each approach in both quantitative and 
+        visual terms.
   
   \subsection{Utility Evaluation Results}
   Results of the deep hedging evaluation (replication error, P\&L distribution, risk-adjusted metrics) can be summarized in tables analogous to the 

@@ -6,10 +6,6 @@ Reallocated singl_function (elt_size=4) to 100 items from 50.
 Reallocated singl_function (elt_size=4) to 100 items from 50.
 Reallocated wiz_functions (elt_size=4) to 6000 items from 3000.
 Database file #1: stonk-bench.bib
-Warning--I didn't find a database entry for "sohl2015deep"
-Warning--I didn't find a database entry for "kingma2013auto"
-Warning--I didn't find a database entry for "acciaio2024tcvae"
-Warning--I didn't find a database entry for "goodfellow2014generative"
 Reallocated singl_function (elt_size=4) to 100 items from 50.
 Reallocated wiz_functions (elt_size=4) to 9000 items from 6000.
 Reallocated glb_str_ptr (elt_size=4) to 20 items from 10.
@@ -21,47 +17,46 @@ Warning--empty address in lee2022vrnngan
 Warning--page numbers missing in both pages and numpages fields in lee2022vrnngan
 Warning--no number and no volume in qi2025gan_financial
 Warning--page numbers missing in both pages and numpages fields in qi2025gan_financial
-Warning--empty address in rezende2014stochastic
 Warning--page numbers missing in both pages and numpages fields in Stenger24
-You've used 14 entries,
+You've used 16 entries,
             6273 wiz_defined-function locations,
-            1786 strings with 23833 characters,
-and the built_in function-call counts, 15911 in all, are:
-= -- 1867
-> -- 660
+            1790 strings with 23971 characters,
+and the built_in function-call counts, 17128 in all, are:
+= -- 1970
+> -- 762
 < -- 0
-+ -- 229
-- -- 249
-* -- 1256
-:= -- 1633
-add.period$ -- 63
-call.type$ -- 14
-change.case$ -- 128
-chr.to.int$ -- 14
-cite$ -- 21
-duplicate$ -- 1324
-empty$ -- 915
-format.name$ -- 277
-if$ -- 3685
++ -- 265
+- -- 287
+* -- 1417
+:= -- 1826
+add.period$ -- 70
+call.type$ -- 16
+change.case$ -- 149
+chr.to.int$ -- 16
+cite$ -- 22
+duplicate$ -- 1368
+empty$ -- 974
+format.name$ -- 323
+if$ -- 3878
 int.to.chr$ -- 2
 int.to.str$ -- 1
-missing$ -- 36
-newline$ -- 173
-num.names$ -- 98
-pop$ -- 510
+missing$ -- 31
+newline$ -- 202
+num.names$ -- 112
+pop$ -- 539
 preamble$ -- 1
-purify$ -- 234
+purify$ -- 268
 quote$ -- 0
-skip$ -- 546
+skip$ -- 541
 stack$ -- 0
-substring$ -- 1017
-swap$ -- 146
+substring$ -- 1055
+swap$ -- 110
 text.length$ -- 38
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 378
-warning$ -- 7
-while$ -- 66
+type$ -- 438
+warning$ -- 6
+while$ -- 75
 width$ -- 0
-write$ -- 323
-(There were 11 warnings)
+write$ -- 366
+(There were 6 warnings)

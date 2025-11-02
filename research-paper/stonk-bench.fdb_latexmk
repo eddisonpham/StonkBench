@@ -1,13 +1,13 @@
 # Fdb version 4
-["bibtex stonk-bench"] 1762054795.78344 "stonk-bench.aux" "stonk-bench.bbl" "stonk-bench" 1762054806.22998 0
+["bibtex stonk-bench"] 1762055452.30719 "stonk-bench.aux" "stonk-bench.bbl" "stonk-bench" 1762055544.50469 0
   "./ACM-Reference-Format.bst" 1762043279.52498 93560 12e0ced1522ea2bfa9b2fb12855c7e9e ""
-  "./stonk-bench.bib" 1762054152.02894 21138 c18024a0c2019fd75cc32d354a60bad8 ""
-  "stonk-bench.aux" 1762054805.97322 16939 c04ecd6469c1c7cd17eca9bb6dff39c7 "pdflatex"
+  "./stonk-bench.bib" 1762055431.04214 21113 fafa4cbc20a047023f09e5efd0474d44 ""
+  "stonk-bench.aux" 1762055544.22421 17023 91a9fc0c89f5668ef8196d867f4f6b11 "pdflatex"
   (generated)
   "stonk-bench.bbl"
   "stonk-bench.blg"
   (rewritten before read)
-["pdflatex"] 1762054795.83871 "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" "stonk-bench.pdf" "stonk-bench" 1762054806.23011 0
+["pdflatex"] 1762055533.96335 "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" "stonk-bench.pdf" "stonk-bench" 1762055544.50481 0
   "../evaluation_plots/distribution_metrics.png" 1762048635.83123 437018 a1f84bd2ba8961f0e68634999faa4bbb ""
   "../evaluation_plots/feature_based.png" 1761941141.43365 430557 18c4d5a1ce5789a78c78f085939982e5 ""
   "../evaluation_plots/performance_generation_time.png" 1762048635.41373 148854 eef5ec519cfe86df8a73d0e2ab76f4ce ""
@@ -25,7 +25,7 @@
   "../evaluation_plots/visualizations/Takahashi DDPM.png" 1762048635.18184 1597639 bda7df3549ed1fde76b3d6cb873c762b ""
   "../evaluation_plots/visualizations/TimeGAN.png" 1762048634.29553 1967571 25d9d50746089539dfa7fbb20536cfdc ""
   "../evaluation_plots/visualizations/TimeVAE.png" 1762048634.89768 1750504 8c62f4e00b71cc6f77bd582e2b7d680d ""
-  "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" 1762054785.30193 64411 201e3b6ef21aae17abaaf65a05ee32c1 ""
+  "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" 1762055533.69949 64681 ecc2fefdf7cc133e8a7774c5059f6a04 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_25tcsq.enc" 1741388039 2921 8ca0eb0831f9bc5da080d3697cfe67bf ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_76gpa5.enc" 1741388039 2933 9ad527ce78d7c5fa0a642dead095f172 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_7grukw.enc" 1741388039 2934 a4a9158faed2e9e89c771b4e3b7fc12f ""
@@ -236,11 +236,11 @@
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/web2c/texmf.cnf" 1741388039 42151 79f67285bdd95beca4d137b380b4b9e5 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-var/web2c/pdftex/pdflatex.fmt" 1741388039 3346141 1288109d02d1c772df65535881471649 ""
   "acmart.cls" 1762043279.52713 122400 54cc4edcc7b9cb1bf0a23c528626957c ""
-  "comment.cut" 1762054796.59604 106 82e86724ef9105c31c8adad082073001 "pdflatex"
-  "stonk-bench.aux" 1762054805.97322 16939 c04ecd6469c1c7cd17eca9bb6dff39c7 "pdflatex"
-  "stonk-bench.bbl" 1762054795.83618 9743 9a6f9277103f85baba82c394c6668437 "bibtex stonk-bench"
-  "stonk-bench.out" 1762054805.97426 5766 d71106f5676f160c36693b937b13fb90 "pdflatex"
-  "stonk-bench.tex" 1762054785.30193 64411 201e3b6ef21aae17abaaf65a05ee32c1 ""
+  "comment.cut" 1762055534.76976 106 82e86724ef9105c31c8adad082073001 "pdflatex"
+  "stonk-bench.aux" 1762055544.22421 17023 91a9fc0c89f5668ef8196d867f4f6b11 "pdflatex"
+  "stonk-bench.bbl" 1762055452.36548 10518 d5ae4ed0556c3cf9e2198765415dba4e "bibtex stonk-bench"
+  "stonk-bench.out" 1762055544.22541 5766 d71106f5676f160c36693b937b13fb90 "pdflatex"
+  "stonk-bench.tex" 1762055533.69949 64681 ecc2fefdf7cc133e8a7774c5059f6a04 ""
   "tse-1981.png" 1762043279.68024 539416 c776518dbdfbed39b781745f416968c2 ""
   (generated)
   "comment.cut"

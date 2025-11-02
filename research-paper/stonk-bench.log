@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.3.15)  1 NOV 2025 23:39
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.3.15)  1 NOV 2025 23:52
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -966,6 +966,11 @@ LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
 (Font)              scaled to size 8.0pt on input line 74.
 LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
 (Font)              scaled to size 6.0pt on input line 74.
+
+
+[1.1{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/map/pdftex/updmap/pdftex.map}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_25tcsq.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_76gpa5.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_naooyc.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_nh77jq.enc}
+
+{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_7grukw.enc} <./tse-1981.png>]
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/m/n' will be
 (Font)              scaled to size 9.0pt on input line 92.
 LaTeX Font Info:    Font shape `OML/nxlmi/m/it' will be
@@ -984,10 +989,6 @@ LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
 (Font)              scaled to size 9.0pt on input line 92.
 
 
-[1.1{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/map/pdftex/updmap/pdftex.map}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_25tcsq.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_76gpa5.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_naooyc.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_nh77jq.enc}
-
-{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_7grukw.enc} <./tse-1981.png>]
-
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
 (Font)              scaled to size 9.0pt on input line 159.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
@@ -999,9 +1000,12 @@ LaTeX Font Info:    Font shape `T1/LinuxBiolinumT-TLF/m/n' will be
 LaTeX Font Info:    Font shape `T1/LinuxBiolinumT-TLF/m/it' will be
 (Font)              scaled to size 9.0pt on input line 171.
 
+Underfull \vbox (badness 2894) has occurred while \output is active []
+
+
 
 LaTeX Font Info:    Font shape `T1/LinuxBiolinumT-TLF/m/n' will be
-(Font)              scaled to size 7.0pt on input line 191.
+(Font)              scaled to size 7.0pt on input line 189.
 [2.2{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_fygcup.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_oexx6f.enc}]
 Overfull \hbox (10.00021pt too wide) in paragraph at lines 191--192
 []\T1/LinuxLibertineT-TLF/b/n/9 (-20) Foreign ex-change (Forex): \T1/LinuxLibertineT-TLF/m/n/9 (-20) Ma-jor trad-ing pairs (e.g., EUR/USD,
@@ -1026,31 +1030,18 @@ Overfull \hbox (10.43973pt too wide) in paragraph at lines 285--288
 [3.3]
 
 
-Package natbib Warning: Citation `sohl2015deep' on page 4 undefined on input line 351.
-
-
 Overfull \hbox (6.59732pt too wide) in paragraph at lines 372--381
 []\T1/LinuxLibertineT-TLF/m/n/9 (-20) In finance/time-series, dif-fu-sion mod-els have re-cently been adapted
  []
 
 
-Package natbib Warning: Citation `kingma2013auto' on page 4 undefined on input line 383.
-
-
-Package natbib Warning: Citation `acciaio2024tcvae' on page 4 undefined on input line 391.
-
-
 
 [4.4]
-
-Package natbib Warning: Citation `goodfellow2014generative' on page 5 undefined on input line 394.
-
-
 
 
 
 [5.5]
-Overfull \hbox (6.79115pt too wide) in paragraph at lines 488--490
+Overfull \hbox (6.79115pt too wide) in paragraph at lines 498--500
 []\T1/LinuxLibertineT-TLF/b/n/9 (-20) Kurtosis Dif-fer-ence (KD): \T1/LinuxLibertineT-TLF/m/n/9 (-20) Ab-so-lute dif-fer-ence of per-channel
  []
 
@@ -1062,9 +1053,6 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 
 [6.6]
-
-
-LaTeX Warning: Reference `tab:metrics-comparison' on page 7 undefined on input line 741.
 
 
 
@@ -1079,16 +1067,20 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 \openout3 = `comment.cut'.
 
  Comment 'acks' writing to comment.cut. Straight input of comment.cut. (./comment.cut) (./stonk-bench.bbl
+LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
+(Font)              scaled to size 7.3pt on input line 48.
+
 Underfull \vbox (badness 3009) has occurred while \output is active []
 
 
 
-LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 7.3pt on input line 56.
-LaTeX Info: Redefining \tempurl on input line 99.
+LaTeX Info: Redefining \tempurl on input line 66.
+LaTeX Info: Redefining \tempurl on input line 78.
+LaTeX Info: Redefining \tempurl on input line 98.
 LaTeX Info: Redefining \tempurl on input line 135.
-LaTeX Info: Redefining \tempurl on input line 147.
-LaTeX Info: Redefining \tempurl on input line 159.
+LaTeX Info: Redefining \tempurl on input line 164.
+LaTeX Info: Redefining \tempurl on input line 176.
+LaTeX Info: Redefining \tempurl on input line 188.
 )
 
 [9.9]
@@ -1096,71 +1088,71 @@ LaTeX Info: Redefining \tempurl on input line 159.
 [10.10
 
 ]
-<../evaluation_plots/visualizations/GBM.png, id=347, 6236.29875pt x 2277.50874pt>
+<../evaluation_plots/visualizations/GBM.png, id=360, 6236.29875pt x 2277.50874pt>
 File: ../evaluation_plots/visualizations/GBM.png Graphic file (type png)
 <use ../evaluation_plots/visualizations/GBM.png>
-Package pdftex.def Info: ../evaluation_plots/visualizations/GBM.png  used on input line 948.
+Package pdftex.def Info: ../evaluation_plots/visualizations/GBM.png  used on input line 988.
 (pdftex.def)             Requested size: 243.01942pt x 88.7217pt.
-<../evaluation_plots/visualizations/OU Process.png, id=349, 6236.29875pt x 2277.50874pt>
+<../evaluation_plots/visualizations/OU Process.png, id=362, 6236.29875pt x 2277.50874pt>
 File: ../evaluation_plots/visualizations/OU Process.png Graphic file (type png)
 <use ../evaluation_plots/visualizations/OU Process.png>
-Package pdftex.def Info: ../evaluation_plots/visualizations/OU Process.png  used on input line 955.
+Package pdftex.def Info: ../evaluation_plots/visualizations/OU Process.png  used on input line 995.
 (pdftex.def)             Requested size: 243.01942pt x 88.7217pt.
 
 
-Class acmart Warning: A possible image without description on input line 959.
+Class acmart Warning: A possible image without description on input line 999.
 
-<../evaluation_plots/visualizations/MJD.png, id=350, 6233.2875pt x 2277.50874pt>
+<../evaluation_plots/visualizations/MJD.png, id=363, 6233.2875pt x 2277.50874pt>
 File: ../evaluation_plots/visualizations/MJD.png Graphic file (type png)
 <use ../evaluation_plots/visualizations/MJD.png>
-Package pdftex.def Info: ../evaluation_plots/visualizations/MJD.png  used on input line 965.
+Package pdftex.def Info: ../evaluation_plots/visualizations/MJD.png  used on input line 1005.
 (pdftex.def)             Requested size: 243.01942pt x 88.7912pt.
-<../evaluation_plots/visualizations/DEJD.png, id=351, 6236.29875pt x 2277.50874pt>
+<../evaluation_plots/visualizations/DEJD.png, id=364, 6236.29875pt x 2277.50874pt>
 File: ../evaluation_plots/visualizations/DEJD.png Graphic file (type png)
 <use ../evaluation_plots/visualizations/DEJD.png>
-Package pdftex.def Info: ../evaluation_plots/visualizations/DEJD.png  used on input line 972.
+Package pdftex.def Info: ../evaluation_plots/visualizations/DEJD.png  used on input line 1012.
 (pdftex.def)             Requested size: 243.01942pt x 88.7217pt.
 
-Class acmart Warning: A possible image without description on input line 976.
+Class acmart Warning: A possible image without description on input line 1016.
 
-<../evaluation_plots/visualizations/GARCH11.png, id=352, 6236.29875pt x 2277.50874pt>
+<../evaluation_plots/visualizations/GARCH11.png, id=365, 6236.29875pt x 2277.50874pt>
 File: ../evaluation_plots/visualizations/GARCH11.png Graphic file (type png)
 <use ../evaluation_plots/visualizations/GARCH11.png>
-Package pdftex.def Info: ../evaluation_plots/visualizations/GARCH11.png  used on input line 982.
+Package pdftex.def Info: ../evaluation_plots/visualizations/GARCH11.png  used on input line 1022.
 (pdftex.def)             Requested size: 243.01942pt x 88.7217pt.
-<../evaluation_plots/visualizations/BlockBootstrap.png, id=353, 6236.29875pt x 2277.50874pt>
+<../evaluation_plots/visualizations/BlockBootstrap.png, id=366, 6236.29875pt x 2277.50874pt>
 File: ../evaluation_plots/visualizations/BlockBootstrap.png Graphic file (type png)
 <use ../evaluation_plots/visualizations/BlockBootstrap.png>
-Package pdftex.def Info: ../evaluation_plots/visualizations/BlockBootstrap.png  used on input line 989.
+Package pdftex.def Info: ../evaluation_plots/visualizations/BlockBootstrap.png  used on input line 1029.
 (pdftex.def)             Requested size: 243.01942pt x 88.7217pt.
 
-Class acmart Warning: A possible image without description on input line 993.
+Class acmart Warning: A possible image without description on input line 1033.
 
-<../evaluation_plots/visualizations/TimeGAN.png, id=354, 6236.29875pt x 2277.50874pt>
+<../evaluation_plots/visualizations/TimeGAN.png, id=367, 6236.29875pt x 2277.50874pt>
 File: ../evaluation_plots/visualizations/TimeGAN.png Graphic file (type png)
 <use ../evaluation_plots/visualizations/TimeGAN.png>
-Package pdftex.def Info: ../evaluation_plots/visualizations/TimeGAN.png  used on input line 999.
+Package pdftex.def Info: ../evaluation_plots/visualizations/TimeGAN.png  used on input line 1039.
 (pdftex.def)             Requested size: 243.01942pt x 88.7217pt.
-<../evaluation_plots/visualizations/TimeVAE.png, id=355, 6236.29875pt x 2277.50874pt>
+<../evaluation_plots/visualizations/TimeVAE.png, id=368, 6236.29875pt x 2277.50874pt>
 File: ../evaluation_plots/visualizations/TimeVAE.png Graphic file (type png)
 <use ../evaluation_plots/visualizations/TimeVAE.png>
-Package pdftex.def Info: ../evaluation_plots/visualizations/TimeVAE.png  used on input line 1006.
+Package pdftex.def Info: ../evaluation_plots/visualizations/TimeVAE.png  used on input line 1046.
 (pdftex.def)             Requested size: 243.01942pt x 88.7217pt.
 
-Class acmart Warning: A possible image without description on input line 1010.
+Class acmart Warning: A possible image without description on input line 1050.
 
-<../evaluation_plots/visualizations/QuantGAN.png, id=356, 6236.29875pt x 2277.50874pt>
+<../evaluation_plots/visualizations/QuantGAN.png, id=369, 6236.29875pt x 2277.50874pt>
 File: ../evaluation_plots/visualizations/QuantGAN.png Graphic file (type png)
 <use ../evaluation_plots/visualizations/QuantGAN.png>
-Package pdftex.def Info: ../evaluation_plots/visualizations/QuantGAN.png  used on input line 1016.
+Package pdftex.def Info: ../evaluation_plots/visualizations/QuantGAN.png  used on input line 1056.
 (pdftex.def)             Requested size: 243.01942pt x 88.7217pt.
-<../evaluation_plots/visualizations/Takahashi DDPM.png, id=357, 6236.29875pt x 2277.50874pt>
+<../evaluation_plots/visualizations/Takahashi DDPM.png, id=370, 6236.29875pt x 2277.50874pt>
 File: ../evaluation_plots/visualizations/Takahashi DDPM.png Graphic file (type png)
 <use ../evaluation_plots/visualizations/Takahashi DDPM.png>
-Package pdftex.def Info: ../evaluation_plots/visualizations/Takahashi DDPM.png  used on input line 1023.
+Package pdftex.def Info: ../evaluation_plots/visualizations/Takahashi DDPM.png  used on input line 1063.
 (pdftex.def)             Requested size: 243.01942pt x 88.7217pt.
 
-Class acmart Warning: A possible image without description on input line 1027.
+Class acmart Warning: A possible image without description on input line 1067.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
@@ -1170,65 +1162,62 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 [11.11 <../evaluation_plots/visualizations/GBM.png> <../evaluation_plots/visualizations/OU Process.png> <../evaluation_plots/visualizations/MJD.png> <../evaluation_plots/visualizations/DEJD.png> <../evaluation_plots/visualizations/GARCH11.png> <../evaluation_plots/visualizations/BlockBootstrap.png> <../evaluation_plots/visualizations/TimeGAN.png> <../evaluation_plots/visualizations/TimeVAE.png>]
 
 [12.12 <../evaluation_plots/visualizations/QuantGAN.png> <../evaluation_plots/visualizations/Takahashi DDPM.png>]
-<../evaluation_plots/distribution_metrics.png, id=381, 1072.4868pt x 715.473pt>
+<../evaluation_plots/distribution_metrics.png, id=395, 1072.4868pt x 715.473pt>
 File: ../evaluation_plots/distribution_metrics.png Graphic file (type png)
 <use ../evaluation_plots/distribution_metrics.png>
-Package pdftex.def Info: ../evaluation_plots/distribution_metrics.png  used on input line 1038.
+Package pdftex.def Info: ../evaluation_plots/distribution_metrics.png  used on input line 1078.
 (pdftex.def)             Requested size: 506.295pt x 337.75711pt.
-<../evaluation_plots/feature_based.png, id=382, 1076.823pt x 715.2321pt>
+<../evaluation_plots/feature_based.png, id=396, 1076.823pt x 715.2321pt>
 File: ../evaluation_plots/feature_based.png Graphic file (type png)
 <use ../evaluation_plots/feature_based.png>
-Package pdftex.def Info: ../evaluation_plots/feature_based.png  used on input line 1045.
+Package pdftex.def Info: ../evaluation_plots/feature_based.png  used on input line 1085.
 (pdftex.def)             Requested size: 506.295pt x 336.27919pt.
 
 
-Class acmart Warning: A possible image without description on input line 1049.
+Class acmart Warning: A possible image without description on input line 1089.
 
 
-LaTeX Warning: Float too large for page by 95.0363pt on input line 1049.
+LaTeX Warning: Float too large for page by 95.0363pt on input line 1089.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<../evaluation_plots/similarity_metrics.png, id=383, 854.7132pt x 354.123pt>
+<../evaluation_plots/similarity_metrics.png, id=397, 854.7132pt x 354.123pt>
 File: ../evaluation_plots/similarity_metrics.png Graphic file (type png)
 <use ../evaluation_plots/similarity_metrics.png>
-Package pdftex.def Info: ../evaluation_plots/similarity_metrics.png  used on input line 1055.
+Package pdftex.def Info: ../evaluation_plots/similarity_metrics.png  used on input line 1095.
 (pdftex.def)             Requested size: 506.295pt x 209.76828pt.
-<../evaluation_plots/performance_generation_time.png, id=384, 715.2321pt x 426.393pt>
+<../evaluation_plots/performance_generation_time.png, id=398, 715.2321pt x 426.393pt>
 File: ../evaluation_plots/performance_generation_time.png Graphic file (type png)
 <use ../evaluation_plots/performance_generation_time.png>
-Package pdftex.def Info: ../evaluation_plots/performance_generation_time.png  used on input line 1062.
+Package pdftex.def Info: ../evaluation_plots/performance_generation_time.png  used on input line 1102.
 (pdftex.def)             Requested size: 506.295pt x 301.83678pt.
 
-Class acmart Warning: A possible image without description on input line 1066.
+Class acmart Warning: A possible image without description on input line 1106.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<../evaluation_plots/stylized_fact_heavy_tails.png, id=385, 1286.6469pt x 426.1521pt>
+<../evaluation_plots/stylized_fact_heavy_tails.png, id=399, 1286.6469pt x 426.1521pt>
 File: ../evaluation_plots/stylized_fact_heavy_tails.png Graphic file (type png)
 <use ../evaluation_plots/stylized_fact_heavy_tails.png>
-Package pdftex.def Info: ../evaluation_plots/stylized_fact_heavy_tails.png  used on input line 1072.
+Package pdftex.def Info: ../evaluation_plots/stylized_fact_heavy_tails.png  used on input line 1112.
 (pdftex.def)             Requested size: 506.295pt x 167.68773pt.
-<../evaluation_plots/stylized_fact_autocorr_raw.png, id=386, 1287.3696pt x 426.1521pt>
+<../evaluation_plots/stylized_fact_autocorr_raw.png, id=400, 1287.3696pt x 426.1521pt>
 File: ../evaluation_plots/stylized_fact_autocorr_raw.png Graphic file (type png)
 <use ../evaluation_plots/stylized_fact_autocorr_raw.png>
-Package pdftex.def Info: ../evaluation_plots/stylized_fact_autocorr_raw.png  used on input line 1079.
+Package pdftex.def Info: ../evaluation_plots/stylized_fact_autocorr_raw.png  used on input line 1119.
 (pdftex.def)             Requested size: 506.295pt x 167.5967pt.
-<../evaluation_plots/stylized_fact_volatility_clustering.png, id=387, 1287.3696pt x 426.1521pt>
+<../evaluation_plots/stylized_fact_volatility_clustering.png, id=401, 1287.3696pt x 426.1521pt>
 File: ../evaluation_plots/stylized_fact_volatility_clustering.png Graphic file (type png)
 <use ../evaluation_plots/stylized_fact_volatility_clustering.png>
-Package pdftex.def Info: ../evaluation_plots/stylized_fact_volatility_clustering.png  used on input line 1086.
+Package pdftex.def Info: ../evaluation_plots/stylized_fact_volatility_clustering.png  used on input line 1126.
 (pdftex.def)             Requested size: 506.295pt x 167.5967pt.
 
-Class acmart Warning: A possible image without description on input line 1090.
+Class acmart Warning: A possible image without description on input line 1130.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
-
-
-Package natbib Warning: There were undefined citations.
 
 
 Class acmart Warning: Some images may lack descriptions.
@@ -1245,11 +1234,11 @@ Class acmart Warning: CCS concepts are mandatory for papers over two pages.
 [14.14 <../evaluation_plots/similarity_metrics.png> <../evaluation_plots/performance_generation_time.png>]
 
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 12.0pt on input line 1093.
+(Font)              scaled to size 12.0pt on input line 1133.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 8.8pt on input line 1093.
+(Font)              scaled to size 8.8pt on input line 1133.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 8.8pt on input line 1093.
+(Font)              scaled to size 8.8pt on input line 1133.
 (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/generic/stringenc/se-pdfdoc.def
 File: se-pdfdoc.def 2019/11/29 v1.12 stringenc: PDFDocEncoding
 ) (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/generic/stringenc/se-utf8.def
@@ -1259,26 +1248,22 @@ File: se-utf8.def 2019/11/29 v1.12 stringenc: UTF-8
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
  ***********
-
-
-LaTeX Warning: There were undefined references.
-
 Package rerunfilecheck Info: File `stonk-bench.out' has not changed.
 (rerunfilecheck)             Checksum: D71106F5676F160C36693B937B13FB90;5766.
  ) 
 Here is how much of TeX's memory you used:
- 22180 strings out of 473190
- 371979 string characters out of 5704335
- 835843 words of memory out of 5000000
- 44175 multiletter control sequences out of 15000+600000
- 784804 words of font info for 517 fonts, out of 8000000 for 9000
+ 22196 strings out of 473190
+ 372324 string characters out of 5704335
+ 838909 words of memory out of 5000000
+ 44180 multiletter control sequences out of 15000+600000
+ 785819 words of font info for 523 fonts, out of 8000000 for 9000
  1302 hyphenation exceptions out of 8191
- 90i,16n,131p,1204b,672s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 90i,16n,131p,1096b,672s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI5.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI7.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathRM.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumT.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumTB.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumTI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineT.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTB.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTZ.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/NewTXMI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/NewTXMI7.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txexs.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txmiaX.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txsym.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txsys.pfb>
-Output written on stonk-bench.pdf (15 pages, 19935676 bytes).
+Output written on stonk-bench.pdf (15 pages, 19937056 bytes).
 PDF statistics:
- 529 PDF objects out of 1000 (max. 8388607)
- 430 compressed objects within 5 object streams
- 147 named destinations out of 1000 (max. 500000)
+ 542 PDF objects out of 1000 (max. 8388607)
+ 443 compressed objects within 5 object streams
+ 149 named destinations out of 1000 (max. 500000)
  131425 words of extra memory for PDF output out of 154059 (max. 10000000)
 
