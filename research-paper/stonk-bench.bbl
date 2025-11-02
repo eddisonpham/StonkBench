@@ -2,7 +2,7 @@
 %%% Do NOT edit. File created by BibTeX with style
 %%% ACM-Reference-Format-Journals [18-Jan-2012].
 
-\begin{thebibliography}{13}
+\begin{thebibliography}{14}
 
 %%% ====================================================================
 %%% NOTE TO THE USER: you can override these defaults by providing
@@ -87,6 +87,18 @@
 \newblock
 \showeprint[arxiv]{1909.13403}~[cs.LG]
 \href{https://doi.org/10.1145/3419394.3423643}{doi:\nolinkurl{10.1145/3419394.3423643}}
+
+
+\bibitem[Potluru et~al\mbox{.}(2024)]%
+        {Potluru24}
+\bibfield{author}{\bibinfo{person}{Vamsi~K. Potluru}, \bibinfo{person}{Daniel Borrajo}, \bibinfo{person}{Andrea Coletta}, \bibinfo{person}{Niccolo Dalmasso}, \bibinfo{person}{Yousef El-Laham}, \bibinfo{person}{Elizabeth Fons}, \bibinfo{person}{Mohsen Ghassemi}, \bibinfo{person}{Sriram Gopalakrishnan}, \bibinfo{person}{Vikesh Gosai}, \bibinfo{person}{Eleonora Kreacic}, \bibinfo{person}{Ganapathy Mani}, \bibinfo{person}{Saheed Obitayo}, \bibinfo{person}{Deepak Paramanand}, \bibinfo{person}{Natraj Raman}, \bibinfo{person}{Mikhail Solonin}, \bibinfo{person}{Srijan Sood}, \bibinfo{person}{Svitlana Vyetrenko}, \bibinfo{person}{Haibei Zhu}, \bibinfo{person}{Manuela Veloso}, {and} \bibinfo{person}{Tucker Balch}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \bibinfo{title}{Synthetic Data Applications in Finance}.
+\newblock
+\showeprint[arxiv]{2401.00081}~[cs.LG]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/2401.00081}
+\showURL{%
+\tempurl}
 
 
 \bibitem[Qi(2025)]%

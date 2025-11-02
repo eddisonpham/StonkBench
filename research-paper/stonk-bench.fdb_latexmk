@@ -1,18 +1,18 @@
 # Fdb version 4
-["bibtex stonk-bench"] 1762043515.74519 "stonk-bench.aux" "stonk-bench.bbl" "stonk-bench" 1762043527.5109 0
+["bibtex stonk-bench"] 1762050176.56911 "stonk-bench.aux" "stonk-bench.bbl" "stonk-bench" 1762050363.34567 0
   "./ACM-Reference-Format.bst" 1762043279.52498 93560 12e0ced1522ea2bfa9b2fb12855c7e9e ""
-  "./stonk-bench.bib" 1762043279.58806 21138 c18024a0c2019fd75cc32d354a60bad8 ""
-  "stonk-bench.aux" 1762043527.23355 19578 8bddf0cb6189adf298c8c830619990da "pdflatex"
+  "./stonk-bench.bib" 1762049436.39478 21138 c18024a0c2019fd75cc32d354a60bad8 ""
+  "stonk-bench.aux" 1762050363.08141 19559 b9df1da8991bc18f5e5e75c3f8d57de6 "pdflatex"
   (generated)
   "stonk-bench.bbl"
   "stonk-bench.blg"
   (rewritten before read)
-["pdflatex"] 1762043515.82171 "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" "stonk-bench.pdf" "stonk-bench" 1762043527.51101 0
+["pdflatex"] 1762050352.51958 "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" "stonk-bench.pdf" "stonk-bench" 1762050363.34581 0
   "../evaluation_plots/feature_based.png" 1761941141.43365 430557 18c4d5a1ce5789a78c78f085939982e5 ""
-  "../evaluation_plots/similarity_metrics.png" 1761941141.56034 151804 3e6b14f7a8df0016df8464c141f2cda2 ""
-  "../evaluation_plots/stylized_fact_autocorr_raw.png" 1761941142.22106 423797 1ad6bc9cb3864a60e3d173b9b9bf6cc0 ""
-  "../evaluation_plots/stylized_fact_heavy_tails.png" 1761941141.89409 421896 050965be4024d9d896503d01ee511261 ""
-  "../evaluation_plots/stylized_fact_volatility_clustering.png" 1761941142.5287 405419 952588b62f7e84aaa1b6fc503396f423 ""
+  "../evaluation_plots/similarity_metrics.png" 1762048635.97579 158645 23a4da6ea0f8a64d5cc1e36a83360c45 ""
+  "../evaluation_plots/stylized_fact_autocorr_raw.png" 1762048636.68904 454648 b1f2b2ccd9de03f6ec7321e109bf82f0 ""
+  "../evaluation_plots/stylized_fact_heavy_tails.png" 1762048636.31242 417862 04470da80ef97560eade18c8c9c75d40 ""
+  "../evaluation_plots/stylized_fact_volatility_clustering.png" 1762048637.04318 447004 10048b798196e6a8e23eff44bcbd723f ""
   "../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png" 1761925682.57802 426864 57b5475d721a542c99a0956ba024ba05 ""
   "../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png" 1761925682.12535 900605 62ce42028561845c3871a734ffac8ba1 ""
   "../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png" 1761925679.60634 391636 b58824218eff4b2dd13b126987223af0 ""
@@ -33,7 +33,7 @@
   "../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png" 1761922881.62868 898331 9840d91725175e70c2ccb4a60a33b712 ""
   "../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png" 1761925855.17903 343370 cfdeccc09ee841f5ba57a684ae51a96e ""
   "../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png" 1761925854.61852 480073 fa9bbc48210f28b62cf66d578887943f ""
-  "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" 1762043516.31497 56779 84573c617cdf9b515f195f199c9172a5 ""
+  "/Users/uyenlamho/Documents/vscode/CSCD94F25/Unified-benchmark-for-SDGFTS/research-paper/stonk-bench.tex" 1762050352.26778 64154 f5d3fe64f651d82db735ab9645d2028a ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-4.enc" 1741388039 7693 0f2dce6d313c82989ec3a67fc24df2a0 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_25tcsq.enc" 1741388039 2921 8ca0eb0831f9bc5da080d3697cfe67bf ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_76gpa5.enc" 1741388039 2933 9ad527ce78d7c5fa0a642dead095f172 ""
@@ -250,11 +250,11 @@
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/web2c/texmf.cnf" 1741388039 42151 79f67285bdd95beca4d137b380b4b9e5 ""
   "/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-var/web2c/pdftex/pdflatex.fmt" 1741388039 3346141 1288109d02d1c772df65535881471649 ""
   "acmart.cls" 1762043279.52713 122400 54cc4edcc7b9cb1bf0a23c528626957c ""
-  "comment.cut" 1762043516.7369 106 82e86724ef9105c31c8adad082073001 "pdflatex"
-  "stonk-bench.aux" 1762043527.23355 19578 8bddf0cb6189adf298c8c830619990da "pdflatex"
-  "stonk-bench.bbl" 1762043515.81867 8741 80b7d00e7750b35b4370f29769435b34 "bibtex stonk-bench"
-  "stonk-bench.out" 1762043527.23458 7721 4bef4ed3f59c269e06810fc095a6647b "pdflatex"
-  "stonk-bench.tex" 1762043516.31497 56779 84573c617cdf9b515f195f199c9172a5 ""
+  "comment.cut" 1762050353.31961 106 82e86724ef9105c31c8adad082073001 "pdflatex"
+  "stonk-bench.aux" 1762050363.08141 19559 b9df1da8991bc18f5e5e75c3f8d57de6 "pdflatex"
+  "stonk-bench.bbl" 1762050176.623 9743 9a6f9277103f85baba82c394c6668437 "bibtex stonk-bench"
+  "stonk-bench.out" 1762050363.08247 7645 f6a6b736606f0265b21c94ffe615b345 "pdflatex"
+  "stonk-bench.tex" 1762050352.26778 64154 f5d3fe64f651d82db735ab9645d2028a ""
   "tse-1981.png" 1762043279.68024 539416 c776518dbdfbed39b781745f416968c2 ""
   (generated)
   "comment.cut"

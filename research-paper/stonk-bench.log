@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.3.15)  1 NOV 2025 20:31
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.3.15)  1 NOV 2025 22:25
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -616,11 +616,7 @@ Package: balance 1999/02/23 4.3 (PWD)
 File: l3backend-pdftex.def 2024-05-08 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count324
 \l__pdf_internal_box=\box63
-) (./stonk-bench.aux
-
-LaTeX Warning: Label `alg:blockbootstrap' multiply defined.
-
-)
+) (./stonk-bench.aux)
 \openout1 = `stonk-bench.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/nxlmi/m/it on input line 18.
@@ -928,10 +924,12 @@ LaTeX Font Info:    Font shape `TS1/LinuxLibertineT-TLF/m/n' will be
 (Font)              scaled to size 7.0pt on input line 74.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/b/n' will be
 (Font)              scaled to size 10.95pt on input line 74.
+LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/it' will be
+(Font)              scaled to size 9.0pt on input line 74.
+
+
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/n' will be
 (Font)              scaled to size 8.0pt on input line 74.
-
-
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/b/n' will be
 (Font)              scaled to size 8.0pt on input line 74.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/it' will be
@@ -968,9 +966,6 @@ LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
 (Font)              scaled to size 8.0pt on input line 74.
 LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
 (Font)              scaled to size 6.0pt on input line 74.
-
-Package natbib Warning: Citation `potluru24survey' on page 1 undefined on input line 78.
-
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/m/n' will be
 (Font)              scaled to size 9.0pt on input line 92.
 LaTeX Font Info:    Font shape `OML/nxlmi/m/it' will be
@@ -993,102 +988,87 @@ LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
 
 {/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_7grukw.enc} <./tse-1981.png>]
 
-Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 106.
-
-
-Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 109.
-
-
-Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 111.
-
-
-Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 116.
-
-
-Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 124.
-
-LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 6.6pt on input line 141.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 9.0pt on input line 143.
+(Font)              scaled to size 9.0pt on input line 159.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 6.6pt on input line 143.
+(Font)              scaled to size 6.6pt on input line 159.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 5.5pt on input line 143.
+(Font)              scaled to size 5.5pt on input line 159.
 LaTeX Font Info:    Font shape `T1/LinuxBiolinumT-TLF/m/n' will be
-(Font)              scaled to size 9.0pt on input line 148.
+(Font)              scaled to size 9.0pt on input line 171.
 LaTeX Font Info:    Font shape `T1/LinuxBiolinumT-TLF/m/it' will be
-(Font)              scaled to size 9.0pt on input line 148.
-
-Underfull \vbox (badness 2600) has occurred while \output is active []
+(Font)              scaled to size 9.0pt on input line 171.
 
 
+LaTeX Font Info:    Font shape `T1/LinuxBiolinumT-TLF/m/n' will be
+(Font)              scaled to size 7.0pt on input line 191.
+[2.2{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_fygcup.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_oexx6f.enc}]
+Overfull \hbox (10.00021pt too wide) in paragraph at lines 191--192
+[]\T1/LinuxLibertineT-TLF/b/n/9 (-20) Foreign ex-change (Forex): \T1/LinuxLibertineT-TLF/m/n/9 (-20) Ma-jor trad-ing pairs (e.g., EUR/USD,
+ []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 182--187
+Underfull \hbox (badness 10000) in paragraph at lines 210--215
 
  []
 
 
-LaTeX Warning: `h' float specifier changed to `ht'.
 
+LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/n' will be
+(Font)              scaled to size 6.6pt on input line 262.
 
-
-LaTeX Font Info:    Font shape `T1/LinuxBiolinumT-TLF/m/n' will be
-(Font)              scaled to size 7.0pt on input line 220.
-[2.2{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_oexx6f.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_fygcup.enc}]
-Overfull \hbox (10.43973pt too wide) in paragraph at lines 233--237
+Overfull \hbox (10.43973pt too wide) in paragraph at lines 285--288
 \T1/LinuxLibertineT-TLF/m/n/9 (-20) jump) and $\OML/nxlmi/m/it/9 ^^Q[]; ^^Q[]$ \T1/LinuxLibertineT-TLF/m/n/9 (-20) (ex-po-nen-tial pa-ram-e-ters for up-ward/downward
  []
 
 
 
+[3.3]
 
-Package natbib Warning: Citation `sohl2015deep' on page 3 undefined on input line 278.
+
+Package natbib Warning: Citation `sohl2015deep' on page 4 undefined on input line 351.
 
 
-Overfull \hbox (6.59732pt too wide) in paragraph at lines 299--308
+Overfull \hbox (6.59732pt too wide) in paragraph at lines 372--381
 []\T1/LinuxLibertineT-TLF/m/n/9 (-20) In finance/time-series, dif-fu-sion mod-els have re-cently been adapted
  []
 
 
-Package natbib Warning: Citation `kingma2013auto' on page 3 undefined on input line 310.
+Package natbib Warning: Citation `kingma2013auto' on page 4 undefined on input line 383.
 
 
-Package natbib Warning: Citation `acciaio2024tcvae' on page 3 undefined on input line 318.
-
-
-
-[3.3]
-
-Package natbib Warning: Citation `goodfellow2014generative' on page 4 undefined on input line 321.
-
-
+Package natbib Warning: Citation `acciaio2024tcvae' on page 4 undefined on input line 391.
 
 
 
 [4.4]
-Overfull \hbox (6.79115pt too wide) in paragraph at lines 416--418
+
+Package natbib Warning: Citation `goodfellow2014generative' on page 5 undefined on input line 394.
+
+
+
+
+
+[5.5]
+Overfull \hbox (6.79115pt too wide) in paragraph at lines 488--490
 []\T1/LinuxLibertineT-TLF/b/n/9 (-20) Kurtosis Dif-fer-ence (KD): \T1/LinuxLibertineT-TLF/m/n/9 (-20) Ab-so-lute dif-fer-ence of per-channel
  []
 
 
 
-LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/it' will be
-(Font)              scaled to size 9.0pt on input line 531.
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
 
 
-[5.5]
+[6.6]
 
-LaTeX Font Info:    Trying to load font information for T1+zi4 on input line 654.
+LaTeX Font Info:    Trying to load font information for T1+zi4 on input line 726.
 (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/latex/inconsolata/t1zi4.fd
 File: t1zi4.fd 2018/01/14 T1/zi4 (Inconsolata)
 )
 LaTeX Font Info:    Font shape `T1/zi4/m/n' will be
-(Font)              scaled to size 9.0pt on input line 654.
+(Font)              scaled to size 9.0pt on input line 726.
 Package microtype Info: Loading generic protrusion settings for font family
 (microtype)             `zi4' (encoding: T1).
 (microtype)             For optimal results, create family-specific settings.
@@ -1108,18 +1088,18 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 
 
-[6.6{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-4.enc}]
+[7.7{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-4.enc}]
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
 
 
 
-Underfull \vbox (badness 6412) has occurred while \output is active []
+Underfull \vbox (badness 2096) has occurred while \output is active []
 
 
 
-[7.7]
-Underfull \vbox (badness 1910) has occurred while \output is active []
+[8.8]
+Underfull \vbox (badness 10000) has occurred while \output is active []
 
 
 
@@ -1129,307 +1109,309 @@ Processing 'acks' comment.
  Comment 'acks' writing to comment.cut. Straight input of comment.cut. (./comment.cut) (./stonk-bench.bbl
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
 (Font)              scaled to size 7.3pt on input line 56.
-LaTeX Info: Redefining \tempurl on input line 123.
+
+Underfull \vbox (badness 2027) has occurred while \output is active []
+
+
+
+[9.9]
+LaTeX Info: Redefining \tempurl on input line 99.
 LaTeX Info: Redefining \tempurl on input line 135.
 LaTeX Info: Redefining \tempurl on input line 147.
-
-Underfull \vbox (badness 3364) has occurred while \output is active []
-
-
-
-[8.8])
+LaTeX Info: Redefining \tempurl on input line 159.
+)
 LaTeX Font Info:    Font shape `T1/zi4/b/n' will be
-(Font)              scaled to size 9.0pt on input line 820.
+(Font)              scaled to size 9.0pt on input line 927.
 
-
-Class acmart Warning: A possible image without description on input line 821.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-
-Class acmart Warning: A possible image without description on input line 828.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-
-Class acmart Warning: A possible image without description on input line 835.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/GBM/visualizations/tsne.png, id=362, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/GBM/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/GBM/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/GBM/visualizations/tsne.png  used on input line 842.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 844.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png, id=364, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png  used on input line 847.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 849.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png, id=365, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png  used on input line 854.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 856.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png, id=366, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png  used on input line 859.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 861.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/MJD/visualizations/tsne.png, id=367, 422.41815pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/MJD/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/MJD/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/MJD/visualizations/tsne.png  used on input line 866.
-(pdftex.def)             Requested size: 480.9787pt x 480.7823pt.
-
-Class acmart Warning: A possible image without description on input line 868.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png, id=368, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png  used on input line 871.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 873.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png, id=369, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png  used on input line 878.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 880.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png, id=370, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png  used on input line 883.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 885.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png, id=371, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png  used on input line 890.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 892.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png, id=372, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png  used on input line 895.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 897.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png, id=373, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png  used on input line 902.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 904.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png, id=374, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png  used on input line 907.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 909.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png, id=375, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png  used on input line 914.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 916.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png, id=376, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png  used on input line 919.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 921.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png, id=377, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png  used on input line 926.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
 
 Class acmart Warning: A possible image without description on input line 928.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<../results/evaluation_20251031_114743/QuantGAN/visualizations/distribution_channels_combined.png, id=378, 1073.39018pt x 567.13882pt>
+
+Class acmart Warning: A possible image without description on input line 935.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+
+Class acmart Warning: A possible image without description on input line 942.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/GBM/visualizations/tsne.png, id=388, 422.96017pt x 422.23747pt>
+File: ../results/evaluation_20251031_114743/GBM/visualizations/tsne.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/GBM/visualizations/tsne.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/GBM/visualizations/tsne.png  used on input line 949.
+(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
+
+Class acmart Warning: A possible image without description on input line 951.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png, id=390, 1073.39018pt x 567.13882pt>
+File: ../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png  used on input line 954.
+(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
+
+Class acmart Warning: A possible image without description on input line 956.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png, id=391, 422.96017pt x 422.23747pt>
+File: ../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png  used on input line 961.
+(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
+
+Class acmart Warning: A possible image without description on input line 963.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png, id=392, 1073.39018pt x 567.13882pt>
+File: ../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png  used on input line 966.
+(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
+
+Class acmart Warning: A possible image without description on input line 968.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/MJD/visualizations/tsne.png, id=393, 422.41815pt x 422.23747pt>
+File: ../results/evaluation_20251031_114743/MJD/visualizations/tsne.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/MJD/visualizations/tsne.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/MJD/visualizations/tsne.png  used on input line 973.
+(pdftex.def)             Requested size: 480.9787pt x 480.7823pt.
+
+Class acmart Warning: A possible image without description on input line 975.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png, id=394, 1073.39018pt x 567.13882pt>
+File: ../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png  used on input line 978.
+(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
+
+Class acmart Warning: A possible image without description on input line 980.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png, id=395, 422.96017pt x 422.23747pt>
+File: ../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png  used on input line 985.
+(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
+
+Class acmart Warning: A possible image without description on input line 987.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png, id=396, 1073.39018pt x 567.13882pt>
+File: ../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png  used on input line 990.
+(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
+
+Class acmart Warning: A possible image without description on input line 992.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png, id=397, 422.96017pt x 422.23747pt>
+File: ../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png  used on input line 997.
+(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
+
+Class acmart Warning: A possible image without description on input line 999.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png, id=398, 1073.39018pt x 567.13882pt>
+File: ../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png  used on input line 1002.
+(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
+
+Class acmart Warning: A possible image without description on input line 1004.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png, id=399, 422.96017pt x 422.23747pt>
+File: ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png  used on input line 1009.
+(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
+
+Class acmart Warning: A possible image without description on input line 1011.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png, id=400, 1073.39018pt x 567.13882pt>
+File: ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png  used on input line 1014.
+(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
+
+Class acmart Warning: A possible image without description on input line 1016.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png, id=401, 422.96017pt x 422.23747pt>
+File: ../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png  used on input line 1021.
+(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
+
+Class acmart Warning: A possible image without description on input line 1023.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png, id=402, 1073.39018pt x 567.13882pt>
+File: ../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png  used on input line 1026.
+(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
+
+Class acmart Warning: A possible image without description on input line 1028.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png, id=403, 422.96017pt x 422.23747pt>
+File: ../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png Graphic file (type png)
+<use ../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png>
+Package pdftex.def Info: ../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png  used on input line 1033.
+(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
+
+Class acmart Warning: A possible image without description on input line 1035.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+<../results/evaluation_20251031_114743/QuantGAN/visualizations/distribution_channels_combined.png, id=404, 1073.39018pt x 567.13882pt>
 File: ../results/evaluation_20251031_114743/QuantGAN/visualizations/distribution_channels_combined.png Graphic file (type png)
 <use ../results/evaluation_20251031_114743/QuantGAN/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/QuantGAN/visualizations/distribution_channels_combined.png  used on input line 931.
+Package pdftex.def Info: ../results/evaluation_20251031_114743/QuantGAN/visualizations/distribution_channels_combined.png  used on input line 1038.
 (pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
 
-Class acmart Warning: A possible image without description on input line 933.
+Class acmart Warning: A possible image without description on input line 1040.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png, id=379, 422.96017pt x 422.23747pt>
+<../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png, id=405, 422.96017pt x 422.23747pt>
 File: ../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png Graphic file (type png)
 <use ../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png  used on input line 938.
+Package pdftex.def Info: ../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png  used on input line 1045.
 (pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
 
-Class acmart Warning: A possible image without description on input line 940.
+Class acmart Warning: A possible image without description on input line 1047.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png, id=380, 1073.39018pt x 567.13882pt>
+<../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png, id=406, 1073.39018pt x 567.13882pt>
 File: ../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png Graphic file (type png)
 <use ../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png  used on input line 943.
+Package pdftex.def Info: ../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png  used on input line 1050.
 (pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
 
-Class acmart Warning: A possible image without description on input line 945.
+Class acmart Warning: A possible image without description on input line 1052.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<../results/evaluation_20251031_114743/Takahashi/visualizations/tsne.png, id=381, 422.96017pt x 422.23747pt>
+<../results/evaluation_20251031_114743/Takahashi/visualizations/tsne.png, id=407, 422.96017pt x 422.23747pt>
 File: ../results/evaluation_20251031_114743/Takahashi/visualizations/tsne.png Graphic file (type png)
 <use ../results/evaluation_20251031_114743/Takahashi/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/Takahashi/visualizations/tsne.png  used on input line 950.
+Package pdftex.def Info: ../results/evaluation_20251031_114743/Takahashi/visualizations/tsne.png  used on input line 1057.
 (pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
 
-Class acmart Warning: A possible image without description on input line 952.
+Class acmart Warning: A possible image without description on input line 1059.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<../results/evaluation_20251031_114743/Takahashi/visualizations/distribution_channels_combined.png, id=382, 1073.39018pt x 567.13882pt>
+<../results/evaluation_20251031_114743/Takahashi/visualizations/distribution_channels_combined.png, id=408, 1073.39018pt x 567.13882pt>
 File: ../results/evaluation_20251031_114743/Takahashi/visualizations/distribution_channels_combined.png Graphic file (type png)
 <use ../results/evaluation_20251031_114743/Takahashi/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/Takahashi/visualizations/distribution_channels_combined.png  used on input line 955.
+Package pdftex.def Info: ../results/evaluation_20251031_114743/Takahashi/visualizations/distribution_channels_combined.png  used on input line 1062.
 (pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
 
-Class acmart Warning: A possible image without description on input line 957.
+Class acmart Warning: A possible image without description on input line 1064.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<../evaluation_plots/feature_based.png, id=383, 1076.823pt x 715.2321pt>
+<../evaluation_plots/feature_based.png, id=409, 1076.823pt x 715.2321pt>
 File: ../evaluation_plots/feature_based.png Graphic file (type png)
 <use ../evaluation_plots/feature_based.png>
-Package pdftex.def Info: ../evaluation_plots/feature_based.png  used on input line 962.
+Package pdftex.def Info: ../evaluation_plots/feature_based.png  used on input line 1069.
 (pdftex.def)             Requested size: 480.9787pt x 319.46141pt.
 
-Class acmart Warning: A possible image without description on input line 964.
+Class acmart Warning: A possible image without description on input line 1071.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<../evaluation_plots/similarity_metrics.png, id=384, 860.013pt x 354.123pt>
+<../evaluation_plots/similarity_metrics.png, id=410, 854.7132pt x 354.123pt>
 File: ../evaluation_plots/similarity_metrics.png Graphic file (type png)
 <use ../evaluation_plots/similarity_metrics.png>
-Package pdftex.def Info: ../evaluation_plots/similarity_metrics.png  used on input line 967.
-(pdftex.def)             Requested size: 480.9787pt x 198.04814pt.
+Package pdftex.def Info: ../evaluation_plots/similarity_metrics.png  used on input line 1074.
+(pdftex.def)             Requested size: 480.9787pt x 199.28014pt.
 
-Class acmart Warning: A possible image without description on input line 969.
+Class acmart Warning: A possible image without description on input line 1076.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<../evaluation_plots/stylized_fact_heavy_tails.png, id=385, 1285.6833pt x 426.1521pt>
+<../evaluation_plots/stylized_fact_heavy_tails.png, id=411, 1286.6469pt x 426.1521pt>
 File: ../evaluation_plots/stylized_fact_heavy_tails.png Graphic file (type png)
 <use ../evaluation_plots/stylized_fact_heavy_tails.png>
-Package pdftex.def Info: ../evaluation_plots/stylized_fact_heavy_tails.png  used on input line 972.
-(pdftex.def)             Requested size: 480.9787pt x 159.42299pt.
+Package pdftex.def Info: ../evaluation_plots/stylized_fact_heavy_tails.png  used on input line 1079.
+(pdftex.def)             Requested size: 480.9787pt x 159.30594pt.
 
-Class acmart Warning: A possible image without description on input line 974.
+Class acmart Warning: A possible image without description on input line 1081.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<../evaluation_plots/stylized_fact_autocorr_raw.png, id=386, 1285.4424pt x 426.1521pt>
+<../evaluation_plots/stylized_fact_autocorr_raw.png, id=412, 1287.3696pt x 426.1521pt>
 File: ../evaluation_plots/stylized_fact_autocorr_raw.png Graphic file (type png)
 <use ../evaluation_plots/stylized_fact_autocorr_raw.png>
-Package pdftex.def Info: ../evaluation_plots/stylized_fact_autocorr_raw.png  used on input line 977.
-(pdftex.def)             Requested size: 480.9787pt x 159.44899pt.
+Package pdftex.def Info: ../evaluation_plots/stylized_fact_autocorr_raw.png  used on input line 1084.
+(pdftex.def)             Requested size: 480.9787pt x 159.2149pt.
 
-Class acmart Warning: A possible image without description on input line 979.
+Class acmart Warning: A possible image without description on input line 1086.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<../evaluation_plots/stylized_fact_volatility_clustering.png, id=387, 1285.4424pt x 426.1521pt>
+<../evaluation_plots/stylized_fact_volatility_clustering.png, id=413, 1287.3696pt x 426.1521pt>
 File: ../evaluation_plots/stylized_fact_volatility_clustering.png Graphic file (type png)
 <use ../evaluation_plots/stylized_fact_volatility_clustering.png>
-Package pdftex.def Info: ../evaluation_plots/stylized_fact_volatility_clustering.png  used on input line 982.
-(pdftex.def)             Requested size: 480.9787pt x 159.44899pt.
+Package pdftex.def Info: ../evaluation_plots/stylized_fact_volatility_clustering.png  used on input line 1089.
+(pdftex.def)             Requested size: 480.9787pt x 159.2149pt.
 
-Class acmart Warning: A possible image without description on input line 984.
+Class acmart Warning: A possible image without description on input line 1091.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
@@ -1449,42 +1431,38 @@ Class acmart Warning: CCS concepts are mandatory for papers over two pages.
 
 
 
-[9.9] [10.10 <../results/evaluation_20251031_114743/GBM/visualizations/tsne.png>] [11.11 <../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png>] [12.12 <../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png>] [13.13 <../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png>] [14.14 <../results/evaluation_20251031_114743/MJD/visualizations/tsne.png>] [15.15 <../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png>] [16.16 <../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png>] [17.17 <../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png>] [18.18 <../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png>] [19.19 <../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png>] [20.20 <../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png>] [21.21 <../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png>] [22.22 <../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png>] [23.23 <../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png>] [24.24 <../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png>] [25.25 <../results/evaluation_20251031_114743/QuantGAN/visualizations/distribution_channels_combined.png>] [26.26 <../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png>] [27.27 <../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png>] [28.28 <../results/evaluation_20251031_114743/Takahashi/visualizations/tsne.png>] [29.29 <../results/evaluation_20251031_114743/Takahashi/visualizations/distribution_channels_combined.png>] [30.30 <../evaluation_plots/feature_based.png> <../evaluation_plots/similarity_metrics.png>]
+[10.10] [11.11 <../results/evaluation_20251031_114743/GBM/visualizations/tsne.png>] [12.12 <../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png>] [13.13 <../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png>] [14.14 <../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png>] [15.15 <../results/evaluation_20251031_114743/MJD/visualizations/tsne.png>] [16.16 <../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png>] [17.17 <../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png>] [18.18 <../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png>] [19.19 <../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png>] [20.20 <../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png>] [21.21 <../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png>] [22.22 <../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png>] [23.23 <../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png>] [24.24 <../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png>] [25.25 <../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png>] [26.26 <../results/evaluation_20251031_114743/QuantGAN/visualizations/distribution_channels_combined.png>] [27.27 <../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png>] [28.28 <../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png>] [29.29 <../results/evaluation_20251031_114743/Takahashi/visualizations/tsne.png>] [30.30 <../results/evaluation_20251031_114743/Takahashi/visualizations/distribution_channels_combined.png>] [31.31 <../evaluation_plots/feature_based.png> <../evaluation_plots/similarity_metrics.png>]
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 12.0pt on input line 986.
+(Font)              scaled to size 12.0pt on input line 1093.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 8.8pt on input line 986.
+(Font)              scaled to size 8.8pt on input line 1093.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 8.8pt on input line 986.
+(Font)              scaled to size 8.8pt on input line 1093.
  (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/generic/stringenc/se-pdfdoc.def
 File: se-pdfdoc.def 2019/11/29 v1.12 stringenc: PDFDocEncoding
 ) (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/generic/stringenc/se-utf8.def
 File: se-utf8.def 2019/11/29 v1.12 stringenc: UTF-8
-) [31.31 <../evaluation_plots/stylized_fact_heavy_tails.png> <../evaluation_plots/stylized_fact_autocorr_raw.png> <../evaluation_plots/stylized_fact_volatility_clustering.png>] (./stonk-bench.aux)
+) [32.32 <../evaluation_plots/stylized_fact_heavy_tails.png> <../evaluation_plots/stylized_fact_autocorr_raw.png> <../evaluation_plots/stylized_fact_volatility_clustering.png>] (./stonk-bench.aux)
  ***********
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
  ***********
-
-
-LaTeX Warning: There were multiply-defined labels.
-
 Package rerunfilecheck Info: File `stonk-bench.out' has not changed.
-(rerunfilecheck)             Checksum: 4BEF4ED3F59C269E06810FC095A6647B;7721.
+(rerunfilecheck)             Checksum: F6A6B736606F0265B21C94FFE615B345;7645.
  ) 
 Here is how much of TeX's memory you used:
- 22290 strings out of 473190
- 380663 string characters out of 5704335
- 855742 words of memory out of 5000000
- 44243 multiletter control sequences out of 15000+600000
- 785077 words of font info for 517 fonts, out of 8000000 for 9000
+ 22307 strings out of 473190
+ 380882 string characters out of 5704335
+ 856480 words of memory out of 5000000
+ 44246 multiletter control sequences out of 15000+600000
+ 785152 words of font info for 517 fonts, out of 8000000 for 9000
  1302 hyphenation exceptions out of 8191
- 90i,16n,131p,1096b,726s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 90i,16n,131p,1096b,711s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/inconsolata/Inconsolata-zi4b.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/inconsolata/Inconsolata-zi4r.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI5.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI7.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathRM.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumT.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumTB.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumTI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineT.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTB.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTZ.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/NewTXMI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/NewTXMI7.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txexs.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txmiaX.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txsym.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txsys.pfb>
-Output written on stonk-bench.pdf (31 pages, 12960984 bytes).
+Output written on stonk-bench.pdf (32 pages, 13035826 bytes).
 PDF statistics:
- 671 PDF objects out of 1000 (max. 8388607)
- 537 compressed objects within 6 object streams
- 184 named destinations out of 1000 (max. 500000)
- 130545 words of extra memory for PDF output out of 154059 (max. 10000000)
+ 701 PDF objects out of 1000 (max. 8388607)
+ 566 compressed objects within 6 object streams
+ 198 named destinations out of 1000 (max. 500000)
+ 132593 words of extra memory for PDF output out of 154059 (max. 10000000)
 
