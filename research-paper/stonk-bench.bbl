@@ -1,0 +1,161 @@
+%%% -*-BibTeX-*-
+%%% Do NOT edit. File created by BibTeX with style
+%%% ACM-Reference-Format-Journals [18-Jan-2012].
+
+\begin{thebibliography}{13}
+
+%%% ====================================================================
+%%% NOTE TO THE USER: you can override these defaults by providing
+%%% customized versions of any of these macros before the \bibliography
+%%% command.  Each of them MUST provide its own final punctuation,
+%%% except for \shownote{} and \showURL{}.  The latter two
+%%% do not use final punctuation, in order to avoid confusing it with
+%%% the Web address.
+%%%
+%%% To suppress output of a particular field, define its macro to expand
+%%% to an empty string, or better, \unskip, like this:
+%%%
+%%% \newcommand{\showURL}[1]{\unskip}   % LaTeX syntax
+%%%
+%%% \def \showURL #1{\unskip}           % plain TeX syntax
+%%%
+%%% ====================================================================
+
+\ifx \showCODEN    \undefined \def \showCODEN     #1{\unskip}     \fi
+\ifx \showISBNx    \undefined \def \showISBNx     #1{\unskip}     \fi
+\ifx \showISBNxiii \undefined \def \showISBNxiii  #1{\unskip}     \fi
+\ifx \showISSN     \undefined \def \showISSN      #1{\unskip}     \fi
+\ifx \showLCCN     \undefined \def \showLCCN      #1{\unskip}     \fi
+\ifx \shownote     \undefined \def \shownote      #1{#1}          \fi
+\ifx \showarticletitle \undefined \def \showarticletitle #1{#1}   \fi
+\ifx \showURL      \undefined \def \showURL       {\relax}        \fi
+% The following commands are used for tagged output and should be
+% invisible to TeX
+\providecommand\bibfield[2]{#2}
+\providecommand\bibinfo[2]{#2}
+\providecommand\natexlab[1]{#1}
+\providecommand\showeprint[2][]{arXiv:#2}
+
+\bibitem[Ang et~al\mbox{.}(2023)]%
+        {Ang23}
+\bibfield{author}{\bibinfo{person}{Yihao Ang}, \bibinfo{person}{Qiang Huang}, \bibinfo{person}{Yifan Bao}, \bibinfo{person}{Anthony K.~H. Tung}, {and} \bibinfo{person}{Zhiyong Huang}.} \bibinfo{year}{2023}\natexlab{}.
+\newblock \showarticletitle{TSGBench: Time Series Generation Benchmark}.
+\newblock \bibinfo{journal}{\emph{Proc. {VLDB} Endow.}} \bibinfo{volume}{17}, \bibinfo{number}{3} (\bibinfo{year}{2023}), \bibinfo{pages}{305--318}.
+\newblock
+
+
+\bibitem[Boursin et~al\mbox{.}(2022)]%
+        {Boursin22}
+\bibfield{author}{\bibinfo{person}{Nicolas Boursin}, \bibinfo{person}{Carl Remlinger}, \bibinfo{person}{Joseph Mikael}, {and} \bibinfo{person}{Carol~Anne Hargreaves}.} \bibinfo{year}{2022}\natexlab{}.
+\newblock \bibinfo{title}{Deep Generators on Commodity Markets; application to Deep Hedging}.
+\newblock
+\showeprint[arxiv]{2205.13942}~[q-fin.RM]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/2205.13942}
+\showURL{%
+\tempurl}
+
+
+\bibitem[Ho et~al\mbox{.}(2020)]%
+        {ho2020denoising}
+\bibfield{author}{\bibinfo{person}{Jonathan Ho}, \bibinfo{person}{Ajay Jain}, {and} \bibinfo{person}{Pieter Abbeel}.} \bibinfo{year}{2020}\natexlab{}.
+\newblock \showarticletitle{Denoising diffusion probabilistic models}. In \bibinfo{booktitle}{\emph{Proceedings of the 34th International Conference on Neural Information Processing Systems}} (Vancouver, BC, Canada) \emph{(\bibinfo{series}{NIPS '20})}. \bibinfo{publisher}{Curran Associates Inc.}, \bibinfo{address}{Red Hook, NY, USA}, Article \bibinfo{articleno}{574}, \bibinfo{numpages}{12}~pages.
+\newblock
+\showISBNx{9781713829546}
+
+
+\bibitem[Lee et~al\mbox{.}(2022)]%
+        {lee2022vrnngan}
+\bibfield{author}{\bibinfo{person}{J. Lee} {et~al\mbox{.}}} \bibinfo{year}{2022}\natexlab{}.
+\newblock \showarticletitle{VRNNGAN: A Recurrent VAE-GAN Framework for Synthetic Time-Series Generation}. In \bibinfo{booktitle}{\emph{Conference}}.
+\newblock
+
+
+\bibitem[Leznik et~al\mbox{.}(2021)]%
+        {Leznik21}
+\bibfield{author}{\bibinfo{person}{Mark Leznik}, \bibinfo{person}{Patrick Michalsky}, \bibinfo{person}{Peter Willis}, \bibinfo{person}{Benjamin Schanzel}, \bibinfo{person}{Per-Olov \"{O}stberg}, {and} \bibinfo{person}{J\"{o}rg Domaschka}.} \bibinfo{year}{2021}\natexlab{}.
+\newblock \showarticletitle{Multivariate Time Series Synthesis Using Generative Adversarial Networks}. In \bibinfo{booktitle}{\emph{Proceedings of the ACM/SPEC International Conference on Performance Engineering}} (Virtual Event, France) \emph{(\bibinfo{series}{ICPE '21})}. \bibinfo{publisher}{Association for Computing Machinery}, \bibinfo{address}{New York, NY, USA}, \bibinfo{pages}{43–50}.
+\newblock
+\showISBNx{9781450381949}
+\href{https://doi.org/10.1145/3427921.3450257}{doi:\nolinkurl{10.1145/3427921.3450257}}
+
+
+\bibitem[Lin et~al\mbox{.}(2021)]%
+        {Lin21}
+\bibfield{author}{\bibinfo{person}{Zinan Lin}, \bibinfo{person}{Alankar Jain}, \bibinfo{person}{Chen Wang}, \bibinfo{person}{Giulia Fanti}, {and} \bibinfo{person}{Vyas Sekar}.} \bibinfo{year}{2021}\natexlab{}.
+\newblock \bibinfo{title}{Using GANs for Sharing Networked Time Series Data: Challenges, Initial Promise, and Open Questions}.
+\newblock
+\showeprint[arxiv]{1909.13403}~[cs.LG]
+\href{https://doi.org/10.1145/3419394.3423643}{doi:\nolinkurl{10.1145/3419394.3423643}}
+
+
+\bibitem[Qi(2025)]%
+        {qi2025gan_financial}
+\bibfield{author}{\bibinfo{person}{Feng Qi}.} \bibinfo{year}{2025}\natexlab{}.
+\newblock \showarticletitle{GAN-Based Financial Data Generation and Prediction: Improving The Authenticity and Prediction Ability of Financial Statements}.
+\newblock \bibinfo{journal}{\emph{Informatica}} (\bibinfo{year}{2025}).
+\newblock
+
+
+\bibitem[Rezende et~al\mbox{.}(2014)]%
+        {rezende2014stochastic}
+\bibfield{author}{\bibinfo{person}{Danilo~Jimenez Rezende}, \bibinfo{person}{Shakir Mohamed}, {and} \bibinfo{person}{Daan Wierstra}.} \bibinfo{year}{2014}\natexlab{}.
+\newblock \showarticletitle{Stochastic backpropagation and approximate inference in deep generative models}. In \bibinfo{booktitle}{\emph{Proceedings of the 31st International Conference on International Conference on Machine Learning - Volume 32}} (Beijing, China) \emph{(\bibinfo{series}{ICML'14})}. \bibinfo{publisher}{JMLR.org}, \bibinfo{pages}{II–1278–II–1286}.
+\newblock
+
+
+\bibitem[Stenger et~al\mbox{.}(2024)]%
+        {Stenger24}
+\bibfield{author}{\bibinfo{person}{Michael Stenger}, \bibinfo{person}{Robert Leppich}, \bibinfo{person}{Ian Foster}, \bibinfo{person}{Samuel Kounev}, {and} \bibinfo{person}{André Bauer}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \showarticletitle{Evaluation is key: a survey on evaluation measures for synthetic time series}.
+\newblock \bibinfo{journal}{\emph{J Big Data}} \bibinfo{volume}{11}, \bibinfo{number}{66} (\bibinfo{date}{May} \bibinfo{year}{2024}).
+\newblock
+\href{https://doi.org/10.1186/s40537-024-00924-7}{doi:\nolinkurl{10.1186/s40537-024-00924-7}}
+
+
+\bibitem[Takahashi and Mizuno(2024)]%
+        {Takahashi24}
+\bibfield{author}{\bibinfo{person}{Tomonori Takahashi} {and} \bibinfo{person}{Takayuki Mizuno}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \bibinfo{title}{Generation of synthetic financial time series by diffusion models}.
+\newblock
+\showeprint[arxiv]{2410.18897}~[q-fin.CP]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/2410.18897}
+\showURL{%
+\tempurl}
+
+
+\bibitem[Tanaka et~al\mbox{.}(2025)]%
+        {Tanaka25}
+\bibfield{author}{\bibinfo{person}{Yuki Tanaka}, \bibinfo{person}{Ryuji Hashimoto}, \bibinfo{person}{Takehiro Takayanagi}, \bibinfo{person}{Zhe Piao}, \bibinfo{person}{Yuri Murayama}, {and} \bibinfo{person}{Kiyoshi Izumi}.} \bibinfo{year}{2025}\natexlab{}.
+\newblock \bibinfo{title}{CoFinDiff: Controllable Financial Diffusion Model for Time Series Generation}.
+\newblock
+\showeprint[arxiv]{2503.04164}~[q-fin.CP]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/2503.04164}
+\showURL{%
+\tempurl}
+
+
+\bibitem[Wang et~al\mbox{.}(2020)]%
+        {wang20gan}
+\bibfield{author}{\bibinfo{person}{Zhengwei Wang}, \bibinfo{person}{Qi She}, {and} \bibinfo{person}{Tomas~E. Ward}.} \bibinfo{year}{2020}\natexlab{}.
+\newblock \bibinfo{title}{Generative Adversarial Networks in Computer Vision: A Survey and Taxonomy}.
+\newblock
+\showeprint[arxiv]{1906.01529}~[cs.LG]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/1906.01529}
+\showURL{%
+\tempurl}
+
+
+\bibitem[Wang and Ventre(2024)]%
+        {wang24denoiser}
+\bibfield{author}{\bibinfo{person}{Zhuohan Wang} {and} \bibinfo{person}{Carmine Ventre}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \showarticletitle{A Financial Time Series Denoiser Based on Diffusion Models}. In \bibinfo{booktitle}{\emph{Proceedings of the 5th ACM International Conference on AI in Finance}} (Brooklyn, NY, USA) \emph{(\bibinfo{series}{ICAIF '24})}. \bibinfo{publisher}{Association for Computing Machinery}, \bibinfo{address}{New York, NY, USA}, \bibinfo{pages}{72–80}.
+\newblock
+\showISBNx{9798400710810}
+\href{https://doi.org/10.1145/3677052.3698649}{doi:\nolinkurl{10.1145/3677052.3698649}}
+
+
+\end{thebibliography}
