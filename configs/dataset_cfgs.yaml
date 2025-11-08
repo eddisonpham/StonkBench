@@ -3,7 +3,6 @@ nonparametric_dataset_cfg:
   original_data_path: "data/raw/${ticker}/${ticker}.csv"
   valid_ratio: 0.10
   test_ratio: 0.10
-  seed: 42
 
 parametric_dataset_cfg:
   ticker: "AAPL"
@@ -11,4 +10,3 @@ parametric_dataset_cfg:
   valid_ratio: 0.10
   test_ratio: 0.10
   is_parametric: true
-  seed: 42

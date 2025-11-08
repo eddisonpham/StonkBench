@@ -5,48 +5,44 @@ This module defines abstract base classes for two main types of generative time 
 
 1. ParametricModel:
     - An abstract interface for statistical (parametric) generative models, such as GBM, O-U Process, GARCH, etc.
-    - Assumes direct fitting to arrays/tensors representing time series data.
-    - Provides methods to fit model parameters, generate synthetic series, and save/load model state.
 
 2. DeepLearningModel:
     - An abstract interface for non-parametric (deep learning) generative models using PyTorch.
     - Assumes usage of DataLoader-based training and batch processing.
-    - Provides methods for training (fit), sample generation, and saving/loading PyTorch model weights.
-
-Custom model classes should inherit from one of these base classes.
 """
 
 import torch
+import numpy as np
 from abc import ABC, abstractmethod
 
 
 class ParametricModel(ABC):
     """
-    Abstract base class for parametric (statistical) generative time series models.
+    Base class for parametric (statistical) generative time series models.
 
-    - Expects as input for fitting: a single time series of shape (l, N) where
-      l is the sequence length and N is the number of channels/features.
-    - Outputs generated samples of shape (R, l, N) where R is the number of simulated realizations.
+    - Expects as input for fitting: a single univariate time series of shape (l,) or (l, 1) where
+      l is the sequence length. N is assumed to be 1 (univariate).
+    - Outputs generated samples of shape (R, l) where R is the number of simulated realizations.
     """
 
-    def __init__(self, length: int, num_channels: int):
-        self.length = int(length)
-        self.num_channels = int(num_channels)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    def __init__(self, seed: int = 42):
+        self.seed = seed
+        torch.manual_seed(self.seed)
+        np.random.seed(self.seed)
 
     @abstractmethod
-    def fit(self, data, *args, **kwargs):
+    def fit(self, data: torch.Tensor, *args, **kwargs) -> None:
         """
         Fits the model parameters using the entire time series.
 
         Args:
-            data (np.ndarray or torch.Tensor): Input data of shape (l, N)
+            data (np.ndarray or torch.Tensor): Input data of shape (l,) or (l, 1)
             *args, **kwargs: Extra keyword arguments for specialized models.
         """
         pass
 
     @abstractmethod
-    def generate(self, num_samples, seq_length=None, init_values=None, seed=42, *args, **kwargs):
+    def generate(self, num_samples: int, generation_length: int, *args, **kwargs) -> torch.Tensor:
         """
         Generates synthetic time series realizations.
 
@@ -55,7 +51,7 @@ class ParametricModel(ABC):
             *args, **kwargs: Extra keyword arguments.
 
         Returns:
-            np.ndarray or torch.Tensor: Generated series of shape (R, l, N)
+            np.ndarray or torch.Tensor: Generated series of shape (R, l)
         """
         pass
 
@@ -63,30 +59,30 @@ class DeepLearningModel(torch.nn.Module, ABC):
     """
     Abstract base class for non-parametric (deep learning) time series generative models.
 
-    - Expects as input for fitting: a DataLoader yielding batches of shape (batch_size, l, N)
-      suitable for gradient-based training.
-    - Outputs generated samples of shape (R, l, N).
+    - Expects as input for fitting: a DataLoader yielding batches of shape (batch_size, l) or (batch_size, l, 1)
+      suitable for gradient-based training (N=1).
+    - Outputs generated samples of shape (R, l).
     """
 
-    def __init__(self, length: int, num_channels: int):
-        self.length = int(length)
-        self.num_channels = int(num_channels)
+    def __init__(self, seed: int = 42):
         torch.nn.Module.__init__(self)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.seed = seed
+        torch.manual_seed(self.seed)
+        np.random.seed(self.seed)
 
     @abstractmethod
-    def fit(self, data_loader, num_epochs=10, *args, **kwargs):
+    def fit(self, data_loader: torch.utils.data.DataLoader, num_epochs: int = 10, *args, **kwargs) -> None:
         """
         Trains the network via a DataLoader with batches.
 
         Args:
-            data_loader (torch.utils.data.DataLoader): Batches of (batch_size, l, N)
+            data_loader (torch.utils.data.DataLoader): Batches of (batch_size, l)
             *args, **kwargs: Extra training keyword arguments.
         """
         pass
 
     @abstractmethod
-    def generate(self, num_samples, seq_length=None, seed=42, *args, **kwargs):
+    def generate(self, num_samples: int, generation_length: int, *args, **kwargs) -> torch.Tensor:
         """
         Generates synthetic samples after training.
 
@@ -95,6 +91,6 @@ class DeepLearningModel(torch.nn.Module, ABC):
             *args, **kwargs: Optional arguments.
 
         Returns:
-            torch.Tensor: Generated series of shape (R, l, N)
+            torch.Tensor: Generated series of shape (R, l)
         """
         pass

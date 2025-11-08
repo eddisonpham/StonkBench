@@ -17,60 +17,69 @@ from src.utils.display_utils import (
     show_with_end_divider
 )
 
-REQUIRED_COLUMNS = ['Open', 'High', 'Low', 'Close']
-
 
 class LogReturnTransformation:
     """
     Transform a price series into log returns and provide an inverse transformation
     to reconstruct the original prices.
+    When transforming, preserves the initial price(s) as part of the transformation output,
+    so inverse transformation can accurately recover the original series.
     """
+    
     def transform(self, data):
         """
-        Compute log returns.
+        Compute log returns and preserve the initial value.
+
+        Returns:
+            Tuple[np.ndarray, Any]: 
+                - log_returns of shape (L-1,)
+                - initial_value (the first price)
         """
         data = np.asarray(data)
-        return np.log(data[1:] / data[:-1])
+        log_returns = np.log(data[1:] / data[:-1])
+        initial_value = data[0]
+        return log_returns, initial_value
 
     def inverse_transform(self, log_returns, initial_value):
         """
         Reconstruct the original price series from log returns.
 
         Args:
-            log_returns (np.ndarray): Log returns of shape (L-1, N)
+            log_returns (np.ndarray): Log returns of shape (L-1)
             initial_value (np.ndarray or float): Initial price(s)
 
         Returns:
-            np.ndarray: Reconstructed price series of shape (L, N)
+            np.ndarray: Reconstructed price series of shape (L,)
         """
         prices = [np.asarray(initial_value)]
         for r in log_returns:
             prices.append(prices[-1] * np.exp(r))
-        return np.vstack(prices)
+        return np.array(prices)
 
 class TimeSeriesDataset(Dataset):
     """
-    PyTorch Dataset for 3D time series data (R, l, N):
+    PyTorch Dataset for 2D time series data (R, l):
     - R: number of sequences/windows
     - l: sequence length
-    - N: number of features
 
     Features:
     - Optional shuffling (only recommended for training)
-    - Seed support for reproducibility
+    - Seed support for reproducibility (for shuffling)
     - Optional transform on each sequence
     """
+
     def __init__(self, data: np.ndarray, shuffle: bool = False, seed: int = 42, transform=None):
         if isinstance(data, torch.Tensor):
-            if data.ndim != 3:
-                raise ValueError(f"Data must be 3D with shape (R, l, N), got {data.shape}")
+            if data.ndim != 2:
+                raise ValueError(f"Data must be 2D with shape (R, l), got {data.shape}")
             self.data = data.float()
         elif isinstance(data, np.ndarray):
-            if data.ndim != 3:
-                raise ValueError(f"Data must be 3D with shape (R, l, N), got {data.shape}")
+            if data.ndim != 2:
+                raise ValueError(f"Data must be 2D with shape (R, l), got {data.shape}")
             self.data = torch.from_numpy(data).float()
         else:
             raise ValueError("Data must be a numpy array or a torch tensor")
+
         self.transform = transform
         self.shuffle = shuffle
         self.seed = seed
@@ -81,10 +90,8 @@ class TimeSeriesDataset(Dataset):
         """Initialize or reshuffle indices based on the shuffle flag."""
         self.indices = list(range(len(self.data)))
         if self.shuffle:
-            random.seed(self.seed)
-            np.random.seed(self.seed)
-            torch.manual_seed(self.seed)
-            random.shuffle(self.indices)
+            rnd = random.Random(self.seed)
+            rnd.shuffle(self.indices)
 
     def __len__(self):
         """Return the number of sequences/windows."""
@@ -93,10 +100,8 @@ class TimeSeriesDataset(Dataset):
     def __getitem__(self, idx):
         actual_idx = self.indices[idx]
         sample = self.data[actual_idx]
-
         if self.transform:
             sample = self.transform(sample)
-
         return sample
 
     def set_seed(self, seed: int):
@@ -139,42 +144,31 @@ def find_length(data):
     """
     Find the length of the time series segment using PACF.
     """
-    data = np.asarray(data)
+    print(f"Data shape in Find Length: {data.shape}")
     data = data[:min(20000, len(data))]
-    
-    nobs, nchan = data.shape
-    if nobs < 20:
-        raise ValueError("Too few observations to compute PACF.")
-
-    max_lag = 0
+    nobs = data.shape[0]
     nlags = int(min(10 * np.log10(nobs), nobs - 1))
-    
-    for ch in range(nchan):
-        pacf_vals = pacf(data[:, ch], nlags=nlags, method='yw')
-        peaks = argrelextrema(pacf_vals, np.greater)[0]
-        if len(peaks) > 0:
-            lag = peaks[np.argmax(pacf_vals[peaks])]
-            max_lag = max(max_lag, lag)
-
-    if max_lag == 0:
+    pacf_vals = pacf(data, nlags=nlags, method='yw')
+    peaks = argrelextrema(pacf_vals, np.greater)[0]
+    lag = int(peaks[np.argmax(pacf_vals[peaks])])
+    if lag == 0:
         raise ValueError("No significant PACF peaks found; series may be nearly white noise.")
+    return lag
 
-    return int(max_lag)
-
-def sliding_window_view(data: np.ndarray, window_size: int, step: int = 1) -> np.ndarray:
+def sliding_window_view(data: np.ndarray, window_size: int, stride: int = 1) -> np.ndarray:
     """
-    Segment a 2D time series (L, N) into overlapping windows (R, window_size, N).
+    Segment a 2D time series (L) into overlapping windows (R, window_size).
     """
-    assert data.ndim == 2, "Input array must be 2D"
-    L, N = data.shape
+    assert data.ndim == 1, "Input array must be 1D"
+    L = data.shape[0]
     assert L >= window_size, "Window size must be <= sequence length"
 
-    num_windows = (L - window_size) // step + 1
-    new_strides = (data.strides[0] * step, data.strides[0], data.strides[1])
-    new_shape = (num_windows, window_size, N)
+    num_windows = (L - window_size) // stride + 1
+    new_strides = (data.strides[0] * stride, data.strides[0])
+    new_shape = (num_windows, window_size)
     return np.lib.stride_tricks.as_strided(data, shape=new_shape, strides=new_strides)
 
-def _preprocess_parametric(ori_data, valid_ratio=0.1, test_ratio=0.1):
+def preprocess_parametric(ori_data, valid_ratio=0.1, test_ratio=0.1):
     """
     Preprocessing for parametric models: split full series into train/val/test.
     No transformation is applied here.
@@ -188,23 +182,22 @@ def _preprocess_parametric(ori_data, valid_ratio=0.1, test_ratio=0.1):
     test_data = ori_data[valid_end:]
     return train_data, valid_data, test_data
 
-def _preprocess_non_parametric(
+def preprocess_non_parametric(
     ori_data, 
     seq_length=None, 
     valid_ratio=0.1, 
     test_ratio=0.1, 
-    step=1, 
-    seed=42
+    stride=1
 ):
     """
     Preprocessing for non-parametric models: transformation, window length selection, sliding windows, and train/val/test split.
     """
-    data = ori_data
+    data = np.asarray(ori_data)
 
     if seq_length is None:
         seq_length = find_length(data)
 
-    windows = sliding_window_view(data, seq_length, step=step)
+    windows = sliding_window_view(data, seq_length, stride=stride)
     L = windows.shape[0]
     train_end = int(L * (1 - valid_ratio - test_ratio))
     valid_end = int(L * (1 - test_ratio))
@@ -226,25 +219,23 @@ def preprocess_data(cfg, supress_cfg_message=False):
     valid_ratio = cfg.get('valid_ratio', 0.1)
     test_ratio = cfg.get('test_ratio', 0.1)
     is_parametric = cfg.get('is_parametric', False)
-    seed = cfg.get('seed', 42)
 
     if not os.path.exists(ori_data_path):
         show_with_end_divider(f"File {ori_data_path} does not exist.")
-        return None
+        raise FileNotFoundError(f"File {ori_data_path} does not exist.")
 
     df = pd.read_csv(ori_data_path)
-    ori_data = df[REQUIRED_COLUMNS].values
+    ori_data = df['Close'].values
 
     scaler = LogReturnTransformation()
-    ori_data = scaler.transform(ori_data)
+    ori_data, _ = scaler.transform(ori_data)
 
     if is_parametric:
-        return _preprocess_parametric(ori_data, valid_ratio, test_ratio)
-    return _preprocess_non_parametric(
+        return preprocess_parametric(ori_data, valid_ratio, test_ratio)
+    return preprocess_non_parametric(
             ori_data, 
             seq_length=seq_length,
             valid_ratio=valid_ratio, 
             test_ratio=test_ratio,
-            step=1,
-            seed=seed
+            stride=1,
         )
