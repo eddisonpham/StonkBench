@@ -75,14 +75,15 @@ class PerformancePlot(MetricPlot):
 
 class DistributionPlot(MetricPlot):
     """Plot distribution metrics comparison."""
-    
+
     def plot(self) -> None:
         """Generate distribution metrics plot."""
         metrics = ['mdd', 'md', 'sdd', 'sd', 'kd']
-        
-        fig, axes = plt.subplots(2, 3, figsize=(15, 10), dpi=self.dpi)
+        n_metrics = len(metrics)
+        n_cols = 3
+        n_rows = (n_metrics + n_cols - 1) // n_cols
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 10), dpi=self.dpi)
         axes = axes.flatten()
-        
         for i, metric in enumerate(metrics):
             ax = axes[i]
             values = []
@@ -94,6 +95,9 @@ class DistributionPlot(MetricPlot):
             ax.set_ylabel('Value')
             ax.tick_params(axis='x', rotation=45)
             self.add_value_labels(bars, values, ax, fontsize=8)
+
+        for j in range(n_metrics, len(axes)):
+            fig.delaxes(axes[j])
 
         plt.tight_layout()
         plt.savefig(self.output_dir / 'distribution_metrics.png', bbox_inches='tight', dpi=self.dpi)
@@ -125,7 +129,7 @@ class SimilarityPlot(MetricPlot):
 
 class StylizedFactsPlot(MetricPlot):
     """Plot stylized facts comparison between real and synthetic data."""
-    
+
     def __init__(self, data: Dict[str, Any], output_dir: Path, figsize: Tuple[int, int] = (12, 6), dpi: int = 300):
         super().__init__(data, output_dir, figsize, dpi)
         self.stylized_facts = [
