@@ -1,5 +1,5 @@
 """
-Intra-Class Distance (ICD) Metric for Multivariate Time Series
+Intra-Class Distance (ICD) Metric for Time Series
 
 Computes the average pairwise distance between all time series samples
 in a dataset. Supports both Euclidean and DTW (Dynamic Time Warping) metrics.
@@ -12,68 +12,39 @@ from dtaidistance import dtw
 import torch
 
 
-def compute_icd_euclidean(data: np.ndarray) -> np.ndarray:
+def compute_icd_euclidean(data: np.ndarray) -> float:
     """
-    Compute Intra-Class Distance (ICD) per channel using Euclidean metric.
+    Compute Intra-Class Distance (ICD) for time series using the Euclidean metric.
 
-    Computes the mean pairwise Euclidean distance between samples, for each channel separately.
-
-    Args:
-        data: np.ndarray of shape (n_samples, timesteps, n_channels)
-
-    Returns:
-        np.ndarray: Vector of ICD values, one for each channel (shape: n_channels,)
+    Computes the mean pairwise Euclidean distance between samples.
     """
-    n_samples, timesteps, n_channels = data.shape
-    icd_vals = np.zeros(n_channels, dtype=np.float64)
-    for ch in range(n_channels):
-        channel_data = data[:, :, ch]
-        samples_flat = channel_data.reshape(n_samples, -1)
-        dists = pdist(samples_flat, metric='euclidean')
-        icd = (2.0 * np.sum(dists)) / (n_samples ** 2)
-        icd_vals[ch] = icd
-    return icd_vals
+    n_samples, _ = data.shape
+    dists = pdist(data, metric='euclidean')
+    icd = 2*np.sum(dists) / (n_samples * (n_samples - 1))
+    return icd
 
-def compute_icd_dtw(data: np.ndarray) -> np.ndarray:
+def compute_icd_dtw(data: np.ndarray) -> float:
     """
-    Compute Intra-Class Distance (ICD) per channel using DTW (Dynamic Time Warping).
+    Compute Intra-Class Distance (ICD) for univariate time series using DTW.
 
-    Computes the mean pairwise DTW distance between samples, separately for each channel.
-
-    Args:
-        data: np.ndarray of shape (n_samples, timesteps, n_channels)
-
-    Returns:
-        np.ndarray: Vector of ICD values, one for each channel (shape: n_channels,)
+    Computes the mean pairwise DTW distance between samples.
     """
-    n_samples, _, n_channels = data.shape
-    icd_vals = np.zeros(n_channels, dtype=np.float64)
-    for ch in range(n_channels):
-        channel_data = [data[i, :, ch].astype(np.double) for i in range(n_samples)]
-        channel_dist = dtw.distance_matrix_fast(channel_data, compact=False)
-        upper_sum = np.sum(np.triu(channel_dist, k=1))
-        icd = (2.0 * upper_sum) / (n_samples ** 2)
-        icd_vals[ch] = icd
-    return icd_vals
+    n_samples, _ = data.shape
+    sequences = [data[i, :].astype(np.double) for i in range(n_samples)]
+    dist_matrix = dtw.distance_matrix_fast(sequences, compact=False)
+    upper_sum = np.sum(dist_matrix)
+    icd = upper_sum / (n_samples * (n_samples - 1))
+    return icd
 
-def calculate_icd(comp_data: np.ndarray, metric: str = "euclidean") -> np.ndarray:
+def calculate_icd(comp_data: np.ndarray, metric: str = "euclidean") -> float:
     """
-    Calculate the Intra-Class Distance (ICD) per channel for multivariate time series data.
+    Calculate the Intra-Class Distance (ICD) for univariate time series data.
 
-    ICD[ch] = (2 / A^2) * sum_{i<j} D(X_i^ch, X_j^ch)
-
-    Args:
-        comp_data: np.ndarray of shape (n_samples, timesteps, n_channels)
-        metric: Distance metric ('euclidean' or 'dtw')
-
-    Returns:
-        np.ndarray: Vector of average pairwise distance per channel (shape: n_channels,)
+    ICD = (2 / A^2) * sum_{i<j} D(X_i, X_j)
     """
     assert metric in ["euclidean", "dtw"], "Unsupported metric"
-    assert comp_data.ndim == 3, "Expected 3D array (n_samples, timesteps, n_channels)"
+    assert comp_data.ndim == 2, "Expected 2D array (n_samples, timesteps)"
 
     if metric == "euclidean":
         return compute_icd_euclidean(comp_data)
     return compute_icd_dtw(comp_data)
-
-

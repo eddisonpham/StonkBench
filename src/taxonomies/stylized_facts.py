@@ -1,72 +1,104 @@
 """
-Stylized Facts Metrics for Financial Time Series
+Stylized Facts of Financial Time Series (Cont, 2001)
 
-This module implements quantitative metrics for evaluating the presence of stylized facts
-in financial time series data. Stylized facts are statistical properties commonly observed
-in real-world financial markets, such as:
+This module implements quantitative measures for the principal "stylized facts" observed in financial asset returns, following:
+Rama Cont, "Empirical properties of asset returns: stylized facts and statistical issues." Quantitative Finance, 2001.
 
-- Heavy tails (excess kurtosis) in returns
-- Absence of autocorrelation in raw returns
-- Volatility clustering (autocorrelation in squared returns)
-- Long memory in absolute returns
+Implemented stylized facts and their metrics:
 
-The provided functions operate on multivariate time series data (e.g., Open, High, Low, Close)
-and are intended for use in assessing the fidelity of synthetic data relative to real financial data.
+- Heavy Tails: Measured as the average sample excess kurtosis of returns.
+- Absence of Linear Autocorrelations: Measured as the average autocorrelation of raw returns at nonzero lags.
+- Volatility Clustering: Measured as the average autocorrelation of squared returns at short lags.
+- Long Memory in Volatility: Estimated as the decay exponent (beta) of autocorrelation in absolute returns.
+- Leverage Effect: Measured as the mean contemporaneous correlation between past returns and future squared returns.
+
+All metrics are computed as averages across sample time series.
 """
 
 import numpy as np
 from scipy.stats import kurtosis
+from scipy.optimize import curve_fit
 
 
-def heavy_tails(data: np.ndarray) -> np.ndarray:
+def autocorr_returns(data, lag=1):
     """
-    Compute excess kurtosis per sample, then average over samples for each channel.
-    Returns:
-        np.ndarray: Array of averaged excess kurtosis per channel.
+    Average lag-k autocorrelation of returns across samples.
+    data: np.ndarray of shape (n_samples, length)
     """
-    R, l, N = data.shape
-    kurt_vals = []
-    for ch in range(N):
-        sample_kurt = [kurtosis(data[r, :, ch], fisher=True) for r in range(R)]
-        kurt_vals.append(np.mean(sample_kurt))
-    return np.array(kurt_vals, dtype=float)
+    n_samples, n_len = data.shape
+    acfs = []
+    for sample in data:
+        r = sample
+        r_mean = r.mean()
+        numerator = np.sum((r[:-lag]-r_mean)*(r[lag:]-r_mean))
+        denominator = np.sum((r-r_mean)**2)
+        acfs.append(numerator / denominator)
+    return np.mean(acfs)
 
-def autocorr_raw(data: np.ndarray, lag: int = 1) -> np.ndarray:
+def excess_kurtosis(data):
     """
-    Compute lag-k autocorrelation per sample, then average across samples for each channel.
+    Average excess kurtosis across samples.
     """
-    R, l, N = data.shape
-    ac_vals = []
+    n_samples = data.shape[0]
+    kurts = [kurtosis(sample, fisher=True, bias=False) for sample in data]
+    return np.mean(kurts)
 
-    for ch in range(N):
-        sample_ac = []
-        for r in range(R):
-            x = data[r, :, ch]
-            x_mean = x.mean()
-            numerator = np.sum((x[:-lag] - x_mean) * (x[lag:] - x_mean))
-            denominator = np.sum((x - x_mean)**2) + 1e-12
-            sample_ac.append(numerator / denominator)
-        ac_vals.append(np.mean(sample_ac))
-
-    return np.array(ac_vals, dtype=float)
-
-def volatility_clustering(data: np.ndarray, lag: int = 1) -> np.ndarray:
+def volatility_clustering(data, lag=1):
     """
-    Compute lag-k autocorrelation of squared returns per sample,
-    then average across samples for each channel.
+    Average autocorrelation of squared returns across samples.
     """
-    R, l, N = data.shape
-    ac_sq_vals = []
+    n_samples, n_len = data.shape
+    acfs = []
+    for sample in data:
+        r2 = sample**2
+        r2_mean = r2.mean()
+        numerator = np.sum((r2[:-lag]-r2_mean)*(r2[lag:]-r2_mean))
+        denominator = np.sum((r2-r2_mean)**2)
+        acfs.append(numerator / denominator)
+    return np.mean(acfs)
 
-    for ch in range(N):
-        sample_ac = []
-        for r in range(R):
-            x = data[r, :, ch]
-            x_sq = x ** 2
-            x_mean = x_sq.mean()
-            numerator = np.sum((x_sq[:-lag] - x_mean) * (x_sq[lag:] - x_mean))
-            denominator = np.sum((x_sq - x_mean) ** 2) + 1e-12
-            sample_ac.append(numerator / denominator)
-        ac_sq_vals.append(np.mean(sample_ac))
+def leverage_effect(data, lag=1):
+    """
+    Average correlation between return and next squared return across samples.
+    """
+    n_samples, n_len = data.shape
+    cors = []
+    for sample in data:
+        r_t = sample[:-lag]
+        r_next2 = sample[lag:]**2
+        r_t_mean = r_t.mean()
+        r_next2_mean = r_next2.mean()
+        numerator = np.sum((r_t - r_t_mean)*(r_next2 - r_next2_mean))
+        denominator = np.sqrt(np.sum((r_t - r_t_mean)**2) * np.sum((r_next2 - r_next2_mean)**2))
+        cors.append(numerator / denominator)
+    return np.mean(cors)
 
-    return np.array(ac_sq_vals, dtype=float)
+def long_memory_volatility(data, max_lag=100):
+    """
+    Estimate decay exponent beta for autocorrelation of absolute returns.
+    Fits rho(tau) ~ tau^-beta.
+    Returns average beta across samples.
+    """
+    def power_law(x, c, beta):
+        return c * x**(-beta)
+
+    n_samples, n_len = data.shape
+    betas = []
+    for sample in data:
+        abs_r = np.abs(sample)
+        acf_vals = []
+        lags = np.arange(1, min(max_lag, n_len//2))
+        abs_r_mean = abs_r.mean()
+        var_r = np.sum((abs_r - abs_r_mean)**2)
+        for lag in lags:
+            cov = np.sum((abs_r[:-lag] - abs_r_mean)*(abs_r[lag:] - abs_r_mean))
+            acf_vals.append(cov / var_r)
+        acf_vals = np.array(acf_vals)
+        try:
+            popt, _ = curve_fit(power_law, lags, acf_vals, p0=(acf_vals[0], 0.5))
+            betas.append(popt[1])
+        except:
+            continue
+    return np.mean(betas)
+
+

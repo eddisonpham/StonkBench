@@ -6,7 +6,7 @@ matches the statistical and distributional characteristics of real/original data
 feature-level properties and summary statistics.
 
 Feature-based Metrics:
-- Marginal Distribution Distance (MDD): Histogram-based distance between real and generated data.
+- Marginal Distribution Distance (MDD): Average Wasserstein-1 distance between marginals of real and generated data.
 - Mean Distance (MD): Difference in means between real and generated data.
 - Standard Deviation Distance (SDD): Difference in standard deviations.
 - Skewness Distance (SD): Difference in skewness.
@@ -26,205 +26,77 @@ import numpy as np
 from torch import nn
 import matplotlib.pyplot as plt
 import seaborn as sns
+from typing import Tuple
 from sklearn.manifold import TSNE
-from scipy.stats import skew, kurtosis
-
-from src.utils.math_utils import (
-    histogram_torch,
-    acf_torch,
-    non_stationary_acf_torch,
-    skew_torch,
-    kurtosis_torch,
-    acf_diff,
-)
+from scipy.stats import skew, kurtosis, wasserstein_distance
 
 
-class Loss(nn.Module):
-    def __init__(self, reg=1.0, transform=lambda x: x, threshold=10., backward=False, norm_foo=lambda x: x):
-        super(Loss, self).__init__()
-        self.reg = reg
-        self.transform = transform
-        self.threshold = threshold
-        self.backward = backward
-        self.norm_foo = norm_foo
+def calculate_mdd(ori_data: np.ndarray, gen_data: np.ndarray) -> float:
+    """
+    Marginal Distribution Distance (MDD):
+    Computes the average 1-Wasserstein distance between the marginals
+    distributions of original and generated data along each time index.
+    """
+    assert ori_data.shape == gen_data.shape, "Real and generated data must have the same shape."
 
-    def forward(self, x_fake):
-        self.loss_componentwise = self.compute(x_fake)
-        return self.reg * self.loss_componentwise.mean()
+    wasserstein_values = [
+        wasserstein_distance(ori_data[:, t], gen_data[:, t])
+        for t in range(ori_data.shape[1])
+    ]
 
-    def compute(self, x_fake):
-        raise NotImplementedError()
-
-    @property
-    def success(self):
-        return torch.all(self.loss_componentwise <= self.threshold)
-
-# =======================================
-# Marginal Distribution Distance (MDD)
-class HistoLoss(Loss):
-    def __init__(self, x_real, n_bins, **kwargs):
-        super(HistoLoss, self).__init__(**kwargs)
-        self.densities = list()
-        self.locs = list()
-        self.deltas = list()
-        for i in range(x_real.shape[2]):
-            tmp_densities = list()
-            tmp_locs = list()
-            tmp_deltas = list()
-            for t in range(x_real.shape[1]):
-                x_ti = x_real[:, t, i].reshape(-1, 1)
-                d, b = histogram_torch(x_ti, n_bins, density=True)
-                tmp_densities.append(nn.Parameter(d).to(x_real.device))
-                delta = b[1:2] - b[:1]
-                loc = 0.5 * (b[1:] + b[:-1])
-                tmp_locs.append(loc)
-                tmp_deltas.append(delta)
-            self.densities.append(tmp_densities)
-            self.locs.append(tmp_locs)
-            self.deltas.append(tmp_deltas)
-
-    def compute(self, x_fake):
-        def relu(x):
-            return x * (x >= 0.).float()
-
-        loss_per_channel = []
-        for i in range(x_fake.shape[2]):
-            tmp_loss = []
-            for t in range(x_fake.shape[1]):
-                loc = self.locs[i][t].view(1, -1).to(x_fake.device)
-                x_ti = x_fake[:, t, i].contiguous().view(-1, 1).repeat(1, loc.shape[1])
-                dist = torch.abs(x_ti - loc)
-                counter = (relu(self.deltas[i][t].to(x_fake.device) / 2. - dist) > 0.).float()
-                density = counter.mean(0) / self.deltas[i][t].to(x_fake.device)
-                abs_metric = torch.abs(density - self.densities[i][t].to(x_fake.device))
-                tmp_loss.append(torch.mean(abs_metric, 0))
-            loss_per_channel.append(torch.stack(tmp_loss).mean())
-        
-        return torch.stack(loss_per_channel)
-
-def calculate_mdd(ori_data, gen_data):
-    ori_data = torch.tensor(ori_data)
-    gen_data = torch.tensor(gen_data)
-    mdd = HistoLoss(ori_data, n_bins=50).compute(gen_data).detach().cpu().numpy()
-    return mdd
-
-# =======================================
-# Autocorrelation Distance (ACD)
-class ACFLoss(Loss):
-    def __init__(self, x_real, max_lag=64, **kwargs):
-        super(ACFLoss, self).__init__(norm_foo=acf_diff, **kwargs)
-        self.max_lag = min(max_lag, x_real.shape[1])
-        self.acf_real = acf_torch(
-            self.transform(x_real),
-            self.max_lag, dim=(0, 1)
-        )
-
-    def compute(self, x_fake):
-        acf_fake = acf_torch(self.transform(x_fake), self.max_lag, dim=(0, 1))
-        diff = acf_fake - self.acf_real.to(x_fake.device)
-        return self.norm_foo(diff)
-
-def calculate_acd(ori_data, gen_data):
-    ori = torch.from_numpy(ori_data)
-    gen = torch.from_numpy(gen_data)
-    acf = ACFLoss(ori).compute(gen)
-    return acf.detach().cpu().numpy()
-
-# =======================================
-# Mean Distance (MD)
-class MeanLoss(Loss):
-    def __init__(self, x_real, **kwargs):
-        super(MeanLoss, self).__init__(norm_foo=torch.abs, **kwargs)
-        self.mean_real = x_real.mean(dim=(0, 1))
-
-    def compute(self, x_fake):
-        mean_fake = x_fake.mean(dim=(0, 1))
-        return self.norm_foo(mean_fake - self.mean_real)
+    return float(np.mean(wasserstein_values))
 
 def calculate_md(ori_data, gen_data):
-    ori = torch.from_numpy(ori_data)
-    gen = torch.from_numpy(gen_data)
-    mean_loss = MeanLoss(x_real=ori)
-    md = mean_loss.compute(gen)
-    return md.detach().cpu().numpy()
-
-# =======================================
-# Standard Deviation Distance (SDD)
-class StdLoss(Loss):
-    def __init__(self, x_real, **kwargs):
-        super(StdLoss, self).__init__(norm_foo=torch.abs, **kwargs)
-        self.std_real = x_real.std(dim=(0, 1), unbiased=True, keepdim=False)
-
-    def compute(self, x_fake):
-        std_fake = x_fake.std(dim=(0, 1), unbiased=True, keepdim=False)
-        return self.norm_foo(std_fake - self.std_real)
+    """Mean Distance (MD): Absolute difference between dataset mean of sample means."""
+    ori_mean = np.nanmean(ori_data, axis=1)
+    gen_mean = np.nanmean(gen_data, axis=1)
+    mean_ori = np.nanmean(ori_mean)
+    mean_gen = np.nanmean(gen_mean)
+    return float(np.abs(mean_gen - mean_ori))
 
 def calculate_sdd(ori_data, gen_data):
-    ori = torch.from_numpy(ori_data)
-    gen = torch.from_numpy(gen_data)
-    std_loss = StdLoss(x_real=ori)
-    sdd = std_loss.compute(gen)
-    return sdd.detach().cpu().numpy()
+    """Standard Deviation Distance (SDD): Absolute difference between dataset mean of sample stds."""
+    ori_std = np.nanstd(ori_data, axis=1, ddof=1)
+    gen_std = np.nanstd(gen_data, axis=1, ddof=1)
+    mean_ori = np.nanmean(ori_std)
+    mean_gen = np.nanmean(gen_std)
+    return float(np.abs(mean_gen - mean_ori))
 
-# =======================================
-# SD calculation and utilities functions
-class SkewnessLoss(Loss):
-    def __init__(self, x_real, **kwargs):
-        super(SkewnessLoss, self).__init__(norm_foo=torch.abs, **kwargs)
-        self.skew_real = skew_torch(x_real, dim=(0, 1), dropdims=True)
-
-    def compute(self, x_fake, **kwargs):
-        skew_fake = skew_torch(x_fake, dim=(0, 1), dropdims=True)
-        return self.norm_foo(skew_fake - self.skew_real)
-    
 def calculate_sd(ori_data, gen_data):
-    ori = torch.from_numpy(ori_data)
-    gen = torch.from_numpy(gen_data)
-    skewness = SkewnessLoss(x_real=ori)
-    sd = skewness.compute(gen)
-    return sd.detach().cpu().numpy()
+    """Skewness Distance (SD): Absolute difference between dataset mean of sample skewness."""
+    ori_skew = skew(ori_data, axis=1, bias=False, nan_policy="omit")
+    gen_skew = skew(gen_data, axis=1, bias=False, nan_policy="omit")
+    mean_ori = np.nanmean(ori_skew)
+    mean_gen = np.nanmean(gen_skew)
+    return float(np.abs(mean_gen - mean_ori))
 
-# =======================================
-# KD calculation and utilities functions
-class KurtosisLoss(Loss):
-    def __init__(self, x_real, **kwargs):
-        super(KurtosisLoss, self).__init__(norm_foo=torch.abs, **kwargs)
-        self.kurtosis_real = kurtosis_torch(x_real, dim=(0, 1), dropdims=True)
-
-    def compute(self, x_fake):
-        kurtosis_fake = kurtosis_torch(x_fake, dim=(0, 1), dropdims=True)
-        return self.norm_foo(kurtosis_fake - self.kurtosis_real)
-    
 def calculate_kd(ori_data, gen_data):
-    ori = torch.from_numpy(ori_data)
-    gen = torch.from_numpy(gen_data)
-    kurtosis = KurtosisLoss(x_real=ori)
-    kd = kurtosis.compute(gen)
-    return kd.detach().cpu().numpy()
+    """Kurtosis Distance (KD): Absolute difference between dataset mean of sample kurtosis."""
+    ori_kurt = kurtosis(ori_data, axis=1, bias=False, fisher=True, nan_policy="omit")
+    gen_kurt = kurtosis(gen_data, axis=1, bias=False, fisher=True, nan_policy="omit")
+    mean_ori = np.nanmean(ori_kurt)
+    mean_gen = np.nanmean(gen_kurt)
+    return float(np.abs(mean_gen - mean_ori))
 
 def visualize_tsne(ori_data, gen_data, result_path):
     sns.set(style="whitegrid", context="paper", font_scale=1.2)
 
-    anal_sample_no = len(ori_data)
-    idx = np.random.permutation(len(ori_data))[:anal_sample_no]
+    sample_no = len(ori_data)
+    idx = np.random.permutation(len(ori_data))[:sample_no]
     ori_data = ori_data[idx]
     gen_data = gen_data[idx]
 
-    # Feature extraction
     def extract_features(data):
         features = []
         for sample in data:
-            sample_feats = []
-            for ch in range(sample.shape[1]):
-                series = sample[:, ch]
-                ch_feats = [
-                    np.mean(series),
-                    np.std(series),
-                    skew(series),
-                    kurtosis(series)
-                ]
-                sample_feats.extend(ch_feats)
-            features.append(sample_feats)
+            series = sample
+            feats = [
+                np.mean(series),
+                np.std(series),
+                skew(series),
+                kurtosis(series)
+            ]
+            features.append(feats)
         return np.array(features)
 
     ori_features = extract_features(ori_data)
@@ -236,9 +108,9 @@ def visualize_tsne(ori_data, gen_data, result_path):
     tsne_results = tsne.fit_transform(prep_data_final)
 
     plt.figure(figsize=(6,6))
-    plt.scatter(tsne_results[:anal_sample_no,0], tsne_results[:anal_sample_no,1], 
+    plt.scatter(tsne_results[:sample_no,0], tsne_results[:sample_no,1], 
                 c='#1f77b4', alpha=0.7, s=40, label="Original", edgecolor='k', linewidth=0.2)
-    plt.scatter(tsne_results[anal_sample_no:,0], tsne_results[anal_sample_no:,1], 
+    plt.scatter(tsne_results[sample_no:,0], tsne_results[sample_no:,1], 
                 c='#ff7f0e', alpha=0.7, s=40, label="Generated", edgecolor='k', linewidth=0.2)
 
     plt.xlabel("t-SNE dimension 1")
@@ -253,38 +125,30 @@ def visualize_tsne(ori_data, gen_data, result_path):
     plt.close()
 
 def visualize_distribution(ori_data, gen_data, result_path):
-    """
-    Joyplot (ridge plot) per channel, overlaying original and generated distributions.
-    Horizontal overlay: density on x-axis, channel on y-axis, two KDEs per channel.
-    """
-    CHANNEL_NAMES = ['Open', 'High', 'Low', 'Close']
-    n_channels = ori_data.shape[2]
     sns.set(style="whitegrid", context="paper", font_scale=1.2)
-    fig, axes = plt.subplots(1, n_channels, figsize=(2.5 * n_channels, 6), sharey=True)
+    plt.figure(figsize=(5, 6))
     colors = ['#1f77b4', '#ff7f0e']
     linestyles = ['-', '--']
 
-    for ch, ax in enumerate(axes):
-        ori_flat = ori_data[:, :, ch].flatten()
-        gen_flat = gen_data[:, :, ch].flatten()
+    ori_flat = ori_data.flatten()
+    gen_flat = gen_data.flatten()
 
-        # Overlay KDEs horizontally
-        sns.kdeplot(
-            y=ori_flat, color=colors[0], linewidth=2, linestyle=linestyles[0],
-            label='Original', fill=True, alpha=0.5, ax=ax
-        )
-        sns.kdeplot(
-            y=gen_flat, color=colors[1], linewidth=2, linestyle=linestyles[1],
-            label='Generated', fill=True, alpha=0.5, ax=ax
-        )
+    sns.kdeplot(
+        y=ori_flat, color=colors[0], linewidth=2, linestyle=linestyles[0],
+        label='Original', fill=True, alpha=0.5
+    )
+    sns.kdeplot(
+        y=gen_flat, color=colors[1], linewidth=2, linestyle=linestyles[1],
+        label='Generated', fill=True, alpha=0.5
+    )
 
-        ax.set_xlabel("Density")
-        ax.set_title(f"{CHANNEL_NAMES[ch]}", fontsize=12)
-        ax.legend(frameon=False, fontsize=10)
-        ax.grid(False)
-
-    axes[0].set_ylabel("Value")
+    plt.xlabel("Density")
+    plt.ylabel("Value")
+    plt.title("Distribution Comparison", fontsize=12)
+    plt.legend(frameon=False, fontsize=10)
+    plt.grid(False)
     plt.tight_layout(rect=[0, 0, 1, 0.97])
+
     os.makedirs(result_path, exist_ok=True)
     plt.savefig(
         os.path.join(result_path, 'distribution.png'),

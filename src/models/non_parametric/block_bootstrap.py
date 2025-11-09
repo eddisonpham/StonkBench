@@ -1,10 +1,9 @@
 import torch
 import numpy as np
 
+
 class BlockBootstrap:
-    def __init__(self, block_size: int = 13, seed: int = 42):
-        torch.manual_seed(seed)
-        np.random.seed(seed)
+    def __init__(self, block_size: int, seed: int = 42):
         self.block_size = block_size
         self.seed = seed
         self.log_returns = None
@@ -13,11 +12,12 @@ class BlockBootstrap:
         self.log_returns = log_returns
 
     def generate(self, num_samples: int, generation_length: int):
+        torch.manual_seed(self.seed)
+        np.random.seed(self.seed)
         total_time_steps = self.log_returns.shape[0]
         num_blocks = int(np.ceil(generation_length / self.block_size))
 
-        samples = torch.zeros((num_samples, generation_length),
-                              dtype=self.log_returns.dtype)
+        samples = torch.zeros((num_samples, generation_length))
 
         for sample_idx in range(num_samples):
             idxs = []

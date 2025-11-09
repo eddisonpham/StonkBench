@@ -4,6 +4,7 @@ Main plotting class for evaluation results.
 
 import sys
 from pathlib import Path
+import shutil
 from typing import Dict, Any
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -22,17 +23,11 @@ class EvaluationPlotter:
     def __init__(self, data: Dict[str, Any], output_dir: str = "evaluation_plots", eval_results_dir: str = None):
         """
         Initialize the plotter with evaluation data.
-        
-        Args:
-            data: Evaluation data dictionary
-            output_dir: Output directory for plots
-            eval_results_dir: Path to evaluation results folder (e.g., results/evaluation_YYYYMMDD_HHMMSS)
         """
         self.data = data
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
         
-        # Initialize plot classes
         self.performance_plot = PerformancePlot(data, self.output_dir)
         self.distribution_plot = DistributionPlot(data, self.output_dir)
         self.similarity_plot = SimilarityPlot(data, self.output_dir)
@@ -71,18 +66,29 @@ def main():
         data = load_evaluation_data(latest_folder)
         print(f"Loaded data for {len(data)} models: {list(data.keys())}")
         
+        output_dir = "evaluation_plots"
+        output_path = Path(output_dir)
+        output_path.mkdir(exist_ok=True)
+
+        print(f"Clearing contents of '{output_dir}' before generating new plots...")
+        for item in output_path.iterdir():
+            if item.is_dir():
+                shutil.rmtree(item)
+            else:
+                item.unlink()
+
         print("Creating output directory...")
-        output_dir = create_output_directory()
-        print(f"Output directory: {output_dir}")
+        output_dir_actual = create_output_directory()
+        print(f"Output directory: {output_dir_actual}")
         
         print("Initializing plotter...")
-        plotter = EvaluationPlotter(data, output_dir, eval_results_dir=latest_folder)
+        plotter = EvaluationPlotter(data, output_dir_actual, eval_results_dir=latest_folder)
         
         print("Generating all plots...")
         plotter.generate_all_plots()
         
         print("All plots generated successfully!")
-        print(f"Plots saved to: {output_dir}")
+        print(f"Plots saved to: {output_dir_actual}")
         
     except Exception as e:
         print(f"Error generating plots: {str(e)}")

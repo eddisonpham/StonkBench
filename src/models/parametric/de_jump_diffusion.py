@@ -38,8 +38,11 @@ class DoubleExponentialJumpDiffusion(ParametricModel):
                         ((1 - self.p) * self.eta2 / (self.eta2 + 1)) 
         mean_return = torch.mean(log_returns)
         self.mu = float(mean_return + 0.5 * self.sigma**2 + self.kappa * self.lam)
+        print(f"mu: {self.mu}, sigma: {self.sigma}, lam: {self.lam}, p: {self.p}, eta1: {self.eta1}, eta2: {self.eta2}, kappa: {self.kappa}")
 
     def generate(self, num_samples: int, generation_length: int) -> torch.Tensor:
+        torch.manual_seed(self.seed)
+        np.random.seed(self.seed)
         log_returns = torch.zeros((num_samples, generation_length))
         drift = (self.mu - 0.5 * self.sigma**2 - self.kappa * self.lam)
         diffusion = self.sigma * torch.randn(num_samples, generation_length)

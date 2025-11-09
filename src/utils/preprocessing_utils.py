@@ -142,18 +142,17 @@ def create_dataloaders(
 
 def find_length(data):
     """
-    Find the length of the time series segment using PACF.
+    Find the time series sample length using PACF.
+    Picks the lag > 0 with the maximum PACF value.
     """
-    print(f"Data shape in Find Length: {data.shape}")
-    data = data[:min(20000, len(data))]
-    nobs = data.shape[0]
-    nlags = int(min(10 * np.log10(nobs), nobs - 1))
-    pacf_vals = pacf(data, nlags=nlags, method='yw')
-    peaks = argrelextrema(pacf_vals, np.greater)[0]
-    lag = int(peaks[np.argmax(pacf_vals[peaks])])
-    if lag == 0:
-        raise ValueError("No significant PACF peaks found; series may be nearly white noise.")
-    return lag
+    series = data[:min(20000, len(data))]
+    nobs = len(series)
+    nlags = min(200, nobs // 10)
+    pacf_vals = pacf(series, nlags=nlags, method='yw')
+    desired_length = int(np.argmax(pacf_vals[1:]) + 1)
+    print(f"Desired time series sample length (lag with max PACF >0): {desired_length}")
+    print(f"PACF at that lag: {pacf_vals[desired_length]}")
+    return desired_length
 
 def sliding_window_view(data: np.ndarray, window_size: int, stride: int = 1) -> np.ndarray:
     """

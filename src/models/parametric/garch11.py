@@ -29,8 +29,11 @@ class GARCH11(ParametricModel):
         self.omega = model_fit.params['omega']
         self.alpha = model_fit.params['alpha[1]']
         self.beta = model_fit.params['beta[1]']
+        print(f"mu: {self.mu}, omega: {self.omega}, alpha: {self.alpha}, beta: {self.beta}")
 
     def generate(self, num_samples: int, generation_length: int) -> torch.Tensor:
+        torch.manual_seed(self.seed)
+        np.random.seed(self.seed)
         log_returns = torch.zeros((num_samples, generation_length))
         sigma2 = torch.zeros((num_samples, generation_length))
         epsilon = torch.zeros((num_samples, generation_length))
