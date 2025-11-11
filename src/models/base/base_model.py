@@ -59,8 +59,7 @@ class DeepLearningModel(torch.nn.Module, ABC):
     """
     Abstract base class for non-parametric (deep learning) time series generative models.
 
-    - Expects as input for fitting: a DataLoader yielding batches of shape (batch_size, l) or (batch_size, l, 1)
-      suitable for gradient-based training (N=1).
+    - Expects as input for fitting: a DataLoader yielding batches of shape (batch_size, l)
     - Outputs generated samples of shape (R, l).
     """
 

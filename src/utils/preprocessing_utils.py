@@ -226,8 +226,8 @@ def preprocess_data(cfg, supress_cfg_message=False):
     df = pd.read_csv(ori_data_path)
     ori_data = df['Close'].values
 
-    scaler = LogReturnTransformation()
-    ori_data, _ = scaler.transform(ori_data)
+    # scaler = LogReturnTransformation()
+    # ori_data, _ = scaler.transform(ori_data)
 
     if is_parametric:
         return preprocess_parametric(ori_data, valid_ratio, test_ratio)
