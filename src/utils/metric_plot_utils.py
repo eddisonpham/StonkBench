@@ -13,12 +13,6 @@ from typing import Dict, Any, Optional
 def find_latest_evaluation_folder(results_dir: str = "results") -> str:
     """
     Find the latest evaluation folder based on timestamp in the folder name.
-    
-    Args:
-        results_dir: Path to the results directory
-        
-    Returns:
-        Path to the latest evaluation folder
     """
     results_path = Path(results_dir)
     
@@ -48,12 +42,6 @@ def find_latest_evaluation_folder(results_dir: str = "results") -> str:
 def load_evaluation_data(evaluation_folder: str) -> Dict[str, Any]:
     """
     Load evaluation data from the complete_evaluation.json file.
-    
-    Args:
-        evaluation_folder: Path to the evaluation folder
-        
-    Returns:
-        Dictionary containing all evaluation data
     """
     evaluation_path = Path(evaluation_folder)
     json_file = evaluation_path / "complete_evaluation.json"
@@ -69,12 +57,6 @@ def load_evaluation_data(evaluation_folder: str) -> Dict[str, Any]:
 def create_output_directory(output_dir: str = "evaluation_plots") -> str:
     """
     Create the output directory for plots if it doesn't exist.
-    
-    Args:
-        output_dir: Path to the output directory
-        
-    Returns:
-        Path to the created directory
     """
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)

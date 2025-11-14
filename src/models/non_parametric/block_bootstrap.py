@@ -1,36 +1,33 @@
 import torch
 import numpy as np
 
+
 class BlockBootstrap:
-    def __init__(self, block_size: int = 5, device: str = "cpu"):
+    def __init__(self, block_size: int, seed: int = 42):
         self.block_size = block_size
-        self.device = device
+        self.seed = seed
         self.log_returns = None
 
     def fit(self, log_returns: torch.Tensor):
-        if not torch.is_tensor(log_returns):
-            log_returns = torch.tensor(log_returns, dtype=torch.float32, device=self.device)
-        self.log_returns = log_returns.detach().to(self.device)
+        self.log_returns = log_returns
 
-    def generate(self, num_samples: int, seq_length: int = None, seed: int = 42):
-        torch.manual_seed(seed)
-        np.random.seed(seed)
+    def generate(self, num_samples: int, generation_length: int):
+        torch.manual_seed(self.seed)
+        np.random.seed(self.seed)
+        total_time_steps = self.log_returns.shape[0]
+        num_blocks = int(np.ceil(generation_length / self.block_size))
 
-        X = self.log_returns
-        T, N = X.shape
-        L = seq_length if seq_length is not None else T
-        bs = self.block_size
-        num_blocks = int(np.ceil(L / bs))
+        samples = torch.zeros((num_samples, generation_length))
 
-        samples = torch.zeros((num_samples, L, N), dtype=X.dtype, device=X.device)
+        for sample_idx in range(num_samples):
+            idxs = []
+            for _ in range(num_blocks):
+                start_idx = torch.randint(0, total_time_steps - self.block_size + 1, (1,)).item()
+                block_idxs = list(range(start_idx, start_idx + self.block_size))
+                idxs.extend(block_idxs)
+            idxs = idxs[:generation_length]
+            samples[sample_idx, :] = self.log_returns[idxs]
 
-        for r in range(num_samples):
-            for c in range(N):
-                idxs = []
-                for _ in range(num_blocks):
-                    start_idx = np.random.randint(0, T - bs + 1)
-                    block_idxs = list(range(start_idx, start_idx + bs))
-                    idxs.extend(block_idxs)
-                idxs = idxs[:L]
-                samples[r, :, c] = X[idxs, c]
         return samples
+
+

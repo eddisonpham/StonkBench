@@ -10,10 +10,10 @@ import time
 
 from src.taxonomies.diversity import calculate_icd
 from src.taxonomies.fidelity import (
-    calculate_mdd, calculate_md, calculate_sdd, calculate_sd, calculate_kd, calculate_acd, visualize_tsne, visualize_distribution
+    calculate_mdd, calculate_md, calculate_sdd, calculate_sd, calculate_kd, visualize_tsne, visualize_distribution
 )
 from src.taxonomies.stylized_facts import (
-    heavy_tails, autocorr_raw, volatility_clustering
+    excess_kurtosis, autocorr_returns, volatility_clustering, leverage_effect, long_memory_volatility
 )
 
 
@@ -36,7 +36,7 @@ class TaxonomyEvaluator(ABC):
 class DiversityEvaluator(TaxonomyEvaluator):
     def evaluate(self) -> Dict[str, np.ndarray]:
         metrics = ["euclidean", "dtw"]
-        self.results = {f"icd_{m}": calculate_icd(self.syn_data, metric=m).tolist() for m in metrics}
+        self.results = {f"icd_{m}": calculate_icd(self.syn_data, metric=m) for m in metrics}
         return self.results
 
 class FidelityEvaluator(TaxonomyEvaluator):
@@ -46,10 +46,9 @@ class FidelityEvaluator(TaxonomyEvaluator):
             "md": calculate_md,
             "sdd": calculate_sdd,
             "sd": calculate_sd,
-            "kd": calculate_kd,
-            "acd": calculate_acd
+            "kd": calculate_kd
         }
-        self.results = {name: fn(self.ori_data, self.syn_data).tolist() for name, fn in fidelity_metrics.items()}
+        self.results = {name: fn(self.ori_data, self.syn_data) for name, fn in fidelity_metrics.items()}
         return self.results
 
 class RuntimeEvaluator(TaxonomyEvaluator):
@@ -72,22 +71,23 @@ class RuntimeEvaluator(TaxonomyEvaluator):
 
 class StylizedFactsEvaluator(TaxonomyEvaluator):
     def evaluate(self) -> Dict[str, Any]:
-
         fact_functions = {
-            "heavy_tails": heavy_tails,
-            "autocorr_raw": autocorr_raw,
-            "volatility_clustering": volatility_clustering
+            "excess_kurtosis": excess_kurtosis,
+            "autocorr_returns": autocorr_returns,
+            "volatility_clustering": volatility_clustering,
+            "leverage_effect": leverage_effect,
+            "long_memory_volatility": long_memory_volatility
         }
-
         try:
             for name, fn in fact_functions.items():
                 real_val = fn(self.ori_data)
                 synth_val = fn(self.syn_data)
                 diff_val = np.abs(real_val - synth_val)
+                # Store results as scalars
                 self.results[name] = {
-                    "real": real_val.tolist(),
-                    "synth": synth_val.tolist(),
-                    "diff": diff_val.tolist()
+                    "real": float(real_val),
+                    "synth": float(synth_val),
+                    "diff": float(diff_val)
                 }
         except Exception as e:
             print(f"Warning: Stylized facts evaluation failed: {e}")

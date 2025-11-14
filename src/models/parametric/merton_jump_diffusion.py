@@ -5,78 +5,49 @@ from src.models.base.base_model import ParametricModel
 
 
 class MertonJumpDiffusion(ParametricModel):
-    def __init__(self, length: int, num_channels: int, delta_t=1.0):
-        super().__init__(length, num_channels)
-        self.delta_t = delta_t
+    def __init__(self):
+        super().__init__()
         self.mu = None
         self.sigma = None
         self.lam = None
         self.mu_j = None
         self.sigma_j = None
+        self.kappa = None
 
-    def fit(self, log_returns, jump_threshold=3.0):
-        log_returns = np.asarray(log_returns)
-        l, N = log_returns.shape
-        total_time = l * self.delta_t
+    def fit(self, log_returns: torch.Tensor) -> None:
+        log_returns_np = log_returns.detach().cpu().numpy()
+        self.sigma = np.std(log_returns_np)
+        
+        threshold = 3.0 * self.sigma
+        jumps = np.where(np.abs(log_returns_np) > threshold)
+        num_jumps = len(jumps[0])
+        total_obs = len(log_returns_np)
 
-        self.mu = np.zeros(N)
-        self.sigma = np.zeros(N)
-        self.lam = np.zeros(N)
-        self.mu_j = np.zeros(N)
-        self.sigma_j = np.zeros(N)
+        self.lam = num_jumps / total_obs
 
-        for i in range(N):
-            r = log_returns[:, i]
-            mean_r = np.mean(r)
-            var_r = np.var(r, ddof=1)
-            std_r = np.sqrt(var_r)
+        if num_jumps > 0:
+            jumps = log_returns_np[jumps]
+            self.mu_j = np.mean(jumps)
+            self.sigma_j = np.std(jumps)
+        else:
+            self.mu_j = 0.0
+            self.sigma_j = 0.0
 
-            if std_r == 0:
-                jumps = np.array([], dtype=float)
-            else:
-                jumps = r[np.abs(r - mean_r) > jump_threshold * std_r]
+        self.kappa = torch.exp(torch.tensor(self.mu_j + 0.5 * self.sigma_j**2))-1
+        self.mu = np.mean(log_returns_np) + 0.5 * self.sigma**2 + self.kappa * self.lam
+        print(f"mu: {self.mu}, sigma: {self.sigma}, kappa: {self.kappa}, lam: {self.lam}, mu_j: {self.mu_j}, sigma_j: {self.sigma_j}")
 
-            self.lam[i] = len(jumps) / total_time
-
-            if len(jumps) > 0:
-                self.mu_j[i] = np.mean(jumps)
-                self.sigma_j[i] = np.std(jumps, ddof=1) if len(jumps) > 1 else 0.0
-            else:
-                self.mu_j[i] = 0.0
-                self.sigma_j[i] = 0.0
-
-            jump_contribution_per_unit_time = self.lam[i] * (self.mu_j[i]**2 + self.sigma_j[i]**2)
-            diffusion_var = var_r / self.delta_t - jump_contribution_per_unit_time
-            diffusion_var = max(0.0, diffusion_var)
-            self.sigma[i] = np.sqrt(diffusion_var)
-
-            self.mu[i] = (mean_r / self.delta_t) - self.lam[i] * self.mu_j[i]
-
-    def generate(self, num_samples, seq_length, seed=42):
+    def generate(self, num_samples: int, generation_length: int, seed: int = 42) -> torch.Tensor:
         torch.manual_seed(seed)
         np.random.seed(seed)
-        N = self.mu.shape[0]
-        l = seq_length if seq_length is not None else self.length
-        R = np.zeros((num_samples, l, N))
-
-        for i in range(N):
-            mu = float(self.mu[i])
-            sigma = float(self.sigma[i])
-            lam = float(self.lam[i])
-            mu_j = float(self.mu_j[i])
-            sigma_j = float(self.sigma_j[i])
-            pois_lambda = lam * self.delta_t
-
-            for t in range(l):
-                Z = np.random.randn(num_samples)
-                drift = mu * self.delta_t
-                diffusion = sigma * np.sqrt(self.delta_t) * Z
-                N_jump = np.random.poisson(pois_lambda, size=num_samples)
-                jump_sum = np.zeros(num_samples)
-                idx_nonzero = np.nonzero(N_jump)[0]
-                if idx_nonzero.size > 0 and (sigma_j > 0.0 or mu_j != 0.0):
-                    for idx in idx_nonzero:
-                        n = N_jump[idx]
-                        jump_sum[idx] = np.sum(np.random.normal(mu_j, sigma_j, size=n))
-                R[:, t, i] = drift + diffusion + jump_sum
-        return R
+        log_returns = torch.zeros((num_samples, generation_length))
+        for t in range(generation_length):
+            epsilon = torch.randn(num_samples)
+            diffusion = (self.mu - 0.5 * self.sigma**2 - self.lam * self.kappa) + self.sigma * epsilon
+            N = torch.poisson(torch.full((num_samples,), self.lam))
+            jumps = torch.zeros(num_samples)
+            for i in range(num_samples):
+                if N[i] > 0:
+                    jumps[i] = torch.sum(self.mu_j + self.sigma_j * torch.randn(int(N[i].item())))
+            log_returns[:, t] = diffusion + jumps
+        return log_returns

@@ -3,101 +3,61 @@ import numpy as np
 from src.models.base.base_model import ParametricModel
 
 class DoubleExponentialJumpDiffusion(ParametricModel):
-    def __init__(self, length, num_channels, device='cpu'):
-        super().__init__(length, num_channels)
-        self.device = device
+    def __init__(self):
+        super().__init__()
         self.mu = None
         self.sigma = None
         self.lam = None
         self.p = None
         self.eta1 = None
         self.eta2 = None
+        self.kappa = None
 
-    def fit(self, log_returns):
-        """
-        Fit DEJD parameters to log_returns (assumes uniform time steps)
-        :param log_returns: (L x N) numpy array or torch tensor
-        """
-        log_returns = torch.tensor(log_returns, device=self.device)
-        L, N = log_returns.shape
+    def fit(self, log_returns: torch.Tensor) -> None:
+        log_returns = log_returns.flatten()
+        T = log_returns.shape[0]
+        jump_threshold = 3
 
-        self.mu = torch.zeros(N, device=self.device)
-        self.sigma = torch.zeros(N, device=self.device)
-        self.lam = torch.zeros(N, device=self.device)
-        self.p = torch.zeros(N, device=self.device)
-        self.eta1 = torch.zeros(N, device=self.device)
-        self.eta2 = torch.zeros(N, device=self.device)
+        abs_median = torch.median(torch.abs(log_returns))
+        small_mask = torch.abs(log_returns) < jump_threshold * abs_median
+        diffusion_returns = log_returns[small_mask]
+        self.sigma = torch.std(diffusion_returns, unbiased=True)
 
-        for i in range(N):
-            r = log_returns[:, i]
-            med = r.median()
-            mad = (r - med).abs().median()
-            threshold = 5 * mad
+        jump_mask = ~small_mask
+        jumps = log_returns[jump_mask]
+        self.lam = jumps.shape[0] / T
 
-            jumps = r[torch.abs(r - med) > threshold]
-            num_jumps = len(jumps)
-            self.lam[i] = num_jumps / L if L > 0 else 0.0
+        pos_jumps = jumps[jumps > 0]
+        neg_jumps = jumps[jumps < 0]
 
-            pos_jumps = jumps[jumps > 0]
-            neg_jumps = jumps[jumps < 0]
+        self.p = float(pos_jumps.shape[0] / max(jumps.shape[0], 1))
+        self.eta1 = float(1.0 / pos_jumps.mean()) if pos_jumps.shape[0] > 0 else 1.0
+        self.eta2 = float(-1.0 / neg_jumps.mean()) if neg_jumps.shape[0] > 0 else 1.0
+        
+        self.kappa = (self.p * self.eta1 / (self.eta1 - 1) if self.eta1 > 1 else 0.0) + \
+                        ((1 - self.p) * self.eta2 / (self.eta2 + 1)) 
+        mean_return = torch.mean(log_returns)
+        self.mu = float(mean_return + 0.5 * self.sigma**2 + self.kappa * self.lam)
+        print(f"mu: {self.mu}, sigma: {self.sigma}, lam: {self.lam}, p: {self.p}, eta1: {self.eta1}, eta2: {self.eta2}, kappa: {self.kappa}")
 
-            self.p[i] = len(pos_jumps) / num_jumps if num_jumps > 0 else 0.5
-            self.eta1[i] = 1.0 / (pos_jumps.mean() + 1e-8) if len(pos_jumps) > 0 else 1.0
-            self.eta2[i] = 1.0 / (-neg_jumps.mean() + 1e-8) if len(neg_jumps) > 0 else 1.0
-
-            # Expected jump moments
-            EY = self.p[i] / self.eta1[i] - (1.0 - self.p[i]) / self.eta2[i]
-            EY2 = 2.0 * (self.p[i] / self.eta1[i]**2 + (1.0 - self.p[i]) / self.eta2[i]**2)
-
-            mean_r = r.mean()
-            var_r = r.var(unbiased=True)
-            self.mu[i] = mean_r - self.lam[i] * EY
-            self.sigma[i] = torch.sqrt(torch.clamp(var_r - self.lam[i] * EY2, min=1e-8))
-
-    def generate(self, num_samples, seq_length=None, seed=42):
+    def generate(self, num_samples: int, generation_length: int, seed: int = 42) -> torch.Tensor:
         torch.manual_seed(seed)
         np.random.seed(seed)
+        log_returns = torch.zeros((num_samples, generation_length))
+        drift = (self.mu - 0.5 * self.sigma**2 - self.kappa * self.lam)
+        diffusion = self.sigma * torch.randn(num_samples, generation_length)
 
-        N = self.mu.shape[0]
-        L = seq_length if seq_length is not None else self.length
+        num_jumps = torch.poisson(torch.full((num_samples, generation_length), self.lam))
+        jumps = torch.zeros_like(diffusion)
 
-        # Broadcast mu, sigma, lam for vectorized operations
-        mu_vec = self.mu.unsqueeze(0)
-        sigma_vec = self.sigma.unsqueeze(0)
-        lam_vec = self.lam.unsqueeze(0)
+        for pos in [True, False]:
+            mask = torch.rand_like(jumps) < self.p if pos else torch.rand_like(jumps) >= self.p
+            rand_vals = torch.rand_like(jumps)
+            if pos:
+                jump_sizes = -torch.log(1 - rand_vals) / self.eta1
+            else:
+                jump_sizes = torch.log(rand_vals) / self.eta2
+            jumps += num_jumps * mask.float() * jump_sizes
 
-        log_returns = torch.zeros((num_samples, L, N), device=self.device)
-
-        for t in range(L):
-            eps = torch.randn((num_samples, N), device=self.device)
-            diffusion = eps * sigma_vec
-            drift = mu_vec
-
-            # Poisson jumps
-            num_jumps = torch.poisson(lam_vec.expand(num_samples, -1))
-            jumps = torch.zeros((num_samples, N), device=self.device)
-
-            for i in range(N):
-                nj = num_jumps[:, i].long()
-                mask = nj > 0
-                if mask.any():
-                    total_jumps = nj[mask].sum().item()
-                    # Asymmetric double exponential sampling
-                    u = torch.rand(total_jumps, device=self.device)
-                    v = torch.rand(total_jumps, device=self.device)
-                    jump_vals = torch.zeros(total_jumps, device=self.device)
-                    pos_mask = u <= self.p[i]
-                    jump_vals[pos_mask] = -torch.log(v[pos_mask] + 1e-12) / self.eta1[i]
-                    jump_vals[~pos_mask] = -(-torch.log(v[~pos_mask] + 1e-12) / self.eta2[i])
-
-                    # assign jumps per sample
-                    idx = 0
-                    for j in mask.nonzero(as_tuple=False).squeeze(1):
-                        count = nj[j].item()
-                        if count > 0:
-                            jumps[j, i] = jump_vals[idx:idx+count].sum()
-                            idx += count
-
-            log_returns[:, t, :] = drift + diffusion + jumps
-
-        return log_returns.cpu()
+        log_returns = drift + diffusion + jumps
+        return log_returns
