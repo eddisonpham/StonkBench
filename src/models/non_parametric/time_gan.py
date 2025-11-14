@@ -190,7 +190,7 @@ class TimeGAN(DeepLearningModel):
         )
 
     def _normalize_data(self, data: torch.Tensor) -> torch.Tensor:
-        """Normalize data to [0, 1] range."""
+        """Normalize data to [0, 1] range (min-max normalization)."""
         return (data - self.data_min) / (self.data_max - self.data_min + 1e-8)
 
     def _denormalize_data(self, data: torch.Tensor) -> torch.Tensor:
@@ -372,6 +372,22 @@ class TimeGAN(DeepLearningModel):
         adversarial_epochs = num_epochs * 2
 
         # Infer seq_len from first batch if not set
+        data_min_val = float('inf')
+        data_max_val = float('-inf')
+        data_loader_for_min_max = data_loader
+
+        # First sweep for min/max normalization over all batches
+        for batch in data_loader_for_min_max:
+            batch_tensor = batch if isinstance(batch, torch.Tensor) else torch.tensor(batch)
+            batch_min = batch_tensor.min().item()
+            batch_max = batch_tensor.max().item()
+            data_min_val = min(data_min_val, batch_min)
+            data_max_val = max(data_max_val, batch_max)
+        self.data_min = data_min_val
+        self.data_max = data_max_val
+        print(f"Data range (for normalization): [{self.data_min:.4f}, {self.data_max:.4f}]")
+
+        # Infer seq_len from first batch if not set
         if self.seq_len is None:
             first_batch = next(iter(data_loader))
             self.seq_len = first_batch.shape[-1] if first_batch.dim() >= 1 else len(first_batch)
@@ -381,19 +397,7 @@ class TimeGAN(DeepLearningModel):
         self._init_networks()
         self._init_optimizers()
 
-        # Compute data min/max for normalization
-        data_min_val = float('inf')
-        data_max_val = float('-inf')
-        for batch in data_loader:
-            batch_min = batch.min().item()
-            batch_max = batch.max().item()
-            data_min_val = min(data_min_val, batch_min)
-            data_max_val = max(data_max_val, batch_max)
-        self.data_min = data_min_val
-        self.data_max = data_max_val
-        print(f"Data range: [{self.data_min:.4f}, {self.data_max:.4f}]")
-
-        # TimeGAN uses 3-stage training, each stage with its own epoch count if specified
+        # === 3-stage TimeGAN training === #
         print("\n=== Stage 1: Training Autoencoder ===")
         self._train_autoencoder(data_loader, num_epochs)
 
