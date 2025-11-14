@@ -66,9 +66,10 @@ class TimeSeriesDataset(Dataset):
     - Optional shuffling (only recommended for training)
     - Seed support for reproducibility (for shuffling)
     - Optional transform on each sequence
+    - Optional initial values that are preserved with shuffling
     """
 
-    def __init__(self, data: np.ndarray, shuffle: bool = False, seed: int = 42, transform=None):
+    def __init__(self, data: np.ndarray, shuffle: bool = False, seed: int = 42, transform=None, initial_values=None):
         if isinstance(data, torch.Tensor):
             if data.ndim != 2:
                 raise ValueError(f"Data must be 2D with shape (R, l), got {data.shape}")
@@ -79,6 +80,14 @@ class TimeSeriesDataset(Dataset):
             self.data = torch.from_numpy(data).float()
         else:
             raise ValueError("Data must be a numpy array or a torch tensor")
+            
+        self.initial_values = None
+
+        if initial_values is not None:
+            initial_values = np.asarray(initial_values)
+            if len(initial_values) != len(self.data):
+                raise ValueError(f"initial_values length {len(initial_values)} must match data length {len(self.data)}")
+            self.initial_values = torch.from_numpy(initial_values).float()
 
         self.transform = transform
         self.shuffle = shuffle
@@ -102,6 +111,9 @@ class TimeSeriesDataset(Dataset):
         sample = self.data[actual_idx]
         if self.transform:
             sample = self.transform(sample)
+        
+        if self.initial_values is not None:
+            return sample, self.initial_values[actual_idx]
         return sample
 
     def set_seed(self, seed: int):
@@ -123,14 +135,28 @@ def create_dataloaders(
     valid_seed=None,
     test_seed=None,
     num_workers=0, 
-    pin_memory=False
+    pin_memory=False,
+    train_initial=None,
+    valid_initial=None,
+    test_initial=None
 ):
     """
     Create train/validation DataLoaders for time series data.
+    
+    Args:
+        train_data, valid_data, test_data: Data arrays of shape (R, l)
+        batch_size: Batch size for DataLoaders
+        train_seed, valid_seed, test_seed: Seeds for shuffling
+        num_workers, pin_memory: DataLoader options
+        train_initial, valid_initial, test_initial: Optional initial values arrays of shape (R,)
+    
+    Returns:
+        train_loader, valid_loader, test_loader: DataLoader objects
+        If initial values are provided, batches will be tuples (data, initial_values)
     """
-    train_dataset = TimeSeriesDataset(train_data, seed=train_seed, shuffle=True)
-    valid_dataset = TimeSeriesDataset(valid_data, seed=valid_seed, shuffle=False)
-    test_dataset = TimeSeriesDataset(test_data, seed=test_seed, shuffle=False)
+    train_dataset = TimeSeriesDataset(train_data, seed=train_seed, shuffle=True, initial_values=train_initial)
+    valid_dataset = TimeSeriesDataset(valid_data, seed=valid_seed, shuffle=False, initial_values=valid_initial)
+    test_dataset = TimeSeriesDataset(test_data, seed=test_seed, shuffle=False, initial_values=test_initial)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size,
                               num_workers=num_workers, pin_memory=pin_memory)
@@ -167,10 +193,19 @@ def sliding_window_view(data: np.ndarray, window_size: int, stride: int = 1) -> 
     new_shape = (num_windows, window_size)
     return np.lib.stride_tricks.as_strided(data, shape=new_shape, strides=new_strides)
 
-def preprocess_parametric(ori_data, valid_ratio=0.1, test_ratio=0.1):
+def preprocess_parametric(ori_data, initial_value, valid_ratio=0.1, test_ratio=0.1):
     """
     Preprocessing for parametric models: split full series into train/val/test.
     No transformation is applied here.
+    
+    Args:
+        ori_data: Log returns array of shape (L-1,)
+        initial_value: Initial price value (scalar)
+        valid_ratio: Validation ratio
+        test_ratio: Test ratio
+    
+    Returns:
+        train_data, valid_data, test_data, train_initial, valid_initial, test_initial
     """
     ori_data = torch.from_numpy(ori_data)
     L = ori_data.shape[0]
@@ -179,10 +214,21 @@ def preprocess_parametric(ori_data, valid_ratio=0.1, test_ratio=0.1):
     train_data = ori_data[:train_end]
     valid_data = ori_data[train_end:valid_end]
     test_data = ori_data[valid_end:]
-    return train_data, valid_data, test_data
+    
+    scaler = LogReturnTransformation()
+    
+    train_prices = scaler.inverse_transform(train_data.numpy(), initial_value)
+    train_initial = initial_value
+    valid_initial = train_prices[-1]
+    
+    valid_prices = scaler.inverse_transform(valid_data.numpy(), valid_initial)
+    test_initial = valid_prices[-1]
+    
+    return train_data, valid_data, test_data, train_initial, valid_initial, test_initial
 
 def preprocess_non_parametric(
     ori_data, 
+    original_prices,
     seq_length=None, 
     valid_ratio=0.1, 
     test_ratio=0.1, 
@@ -190,8 +236,21 @@ def preprocess_non_parametric(
 ):
     """
     Preprocessing for non-parametric models: transformation, window length selection, sliding windows, and train/val/test split.
+    
+    Args:
+        ori_data: Log returns array of shape (L-1,)
+        original_prices: Original price array of shape (L,) before log return transformation
+        seq_length: Window length
+        valid_ratio: Validation ratio
+        test_ratio: Test ratio
+        stride: Stride for sliding window
+    
+    Returns:
+        train_data, valid_data, test_data, train_initial, valid_initial, test_initial
+        where *_initial are arrays of initial prices for each window
     """
     data = np.asarray(ori_data)
+    original_prices = np.asarray(original_prices)
 
     if seq_length is None:
         seq_length = find_length(data)
@@ -203,12 +262,22 @@ def preprocess_non_parametric(
     train_data = windows[:train_end]
     valid_data = windows[train_end:valid_end]
     test_data = windows[valid_end:]
-    return train_data, valid_data, test_data
+    
+    train_indices = np.arange(0, train_end) * stride
+    valid_indices = np.arange(train_end, valid_end) * stride
+    test_indices = np.arange(valid_end, L) * stride
+    
+    train_initial = original_prices[train_indices]
+    valid_initial = original_prices[valid_indices]
+    test_initial = original_prices[test_indices]
+    
+    return train_data, valid_data, test_data, train_initial, valid_initial, test_initial
 
 def preprocess_data(cfg, supress_cfg_message=False):
     """
     Preprocess time series data for parametric or non-parametric models.
-    Returns: train, valid, test
+    Returns: train, valid, test, train_initial, valid_initial, test_initial
+    where *_initial are initial values for reconstructing prices from log returns.
     """
     if not supress_cfg_message:
         show_with_start_divider(f"Preprocessing data for {cfg.get('ticker')}")
@@ -224,17 +293,18 @@ def preprocess_data(cfg, supress_cfg_message=False):
         raise FileNotFoundError(f"File {ori_data_path} does not exist.")
 
     df = pd.read_csv(ori_data_path)
-    ori_data = df['Close'].values
+    original_prices = df['Close'].values  # Original prices before transformation
 
     scaler = LogReturnTransformation()
-    ori_data, _ = scaler.transform(ori_data)
+    log_returns, initial_value = scaler.transform(original_prices)
 
     if is_parametric:
-        return preprocess_parametric(ori_data, valid_ratio, test_ratio)
+        return preprocess_parametric(log_returns, initial_value, valid_ratio, test_ratio)
     return preprocess_non_parametric(
-            ori_data, 
-            seq_length=seq_length,
-            valid_ratio=valid_ratio, 
-            test_ratio=test_ratio,
-            stride=1,
-        )
+        log_returns, 
+        original_prices,
+        seq_length=seq_length,
+        valid_ratio=valid_ratio, 
+        test_ratio=test_ratio,
+        stride=1,
+    )

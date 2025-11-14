@@ -311,7 +311,12 @@ class TimeVAE(DeepLearningModel):
         # Infer length from first batch if not set
         if self.length is None:
             first_batch = next(iter(data_loader))
-            self.length = first_batch.shape[-1] if first_batch.dim() >= 1 else len(first_batch)
+            # If first_batch is a (data, initial_values) tuple, extract data
+            if isinstance(first_batch, (list, tuple)):
+                first_tensor = first_batch[0]
+            else:
+                first_tensor = first_batch
+            self.length = first_tensor.shape[-1] if hasattr(first_tensor, "shape") and first_tensor.ndim >= 1 else len(first_tensor)
             print(f"Inferred sequence length: {self.length}")
         
         # Build networks

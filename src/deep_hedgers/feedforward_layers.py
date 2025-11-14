@@ -67,14 +67,14 @@ class FeedforwardDeepHedger(BaseDeepHedger):
         # Input: prices[:, :-1] shape (batch_size, L-1)
         # Reshape to (batch_size * (L-1), 1)
         input_prices = prices[:, :-1].unsqueeze(-1)  # (batch_size, L-1, 1)
-        input_flat = input_prices.view(-1, 1)  # (batch_size * (L-1), 1)
+        input_flat = input_prices.reshape(-1, 1)  # (batch_size * (L-1), 1)
         
         # Forward through network: produces one delta per price
         # Output shape: (batch_size * (L-1), 1)
         output_flat = self.network(input_flat)
         
         # Reshape back to (batch_size, L-1)
-        deltas = output_flat.view(batch_size, self.seq_length - 1)
+        deltas = output_flat.reshape(batch_size, self.seq_length - 1)
         
         return deltas
 

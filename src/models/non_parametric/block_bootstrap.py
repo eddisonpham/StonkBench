@@ -3,17 +3,16 @@ import numpy as np
 
 
 class BlockBootstrap:
-    def __init__(self, block_size: int, seed: int = 42):
+    def __init__(self, block_size: int):
         self.block_size = block_size
-        self.seed = seed
         self.log_returns = None
 
     def fit(self, log_returns: torch.Tensor):
         self.log_returns = log_returns
 
-    def generate(self, num_samples: int, generation_length: int):
-        torch.manual_seed(self.seed)
-        np.random.seed(self.seed)
+    def generate(self, num_samples: int, generation_length: int, seed: int = 42):
+        torch.manual_seed(seed)
+        np.random.seed(seed)
         total_time_steps = self.log_returns.shape[0]
         num_blocks = int(np.ceil(generation_length / self.block_size))
 

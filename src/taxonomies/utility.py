@@ -9,7 +9,7 @@ The scores are based on X = Final Payoff - Terminal Value, where:
 - Final Payoff = max(S_T - K, 0) for a call option
 - Terminal Value = p + sum(Delta_t * (S_{t+1} - S_t))
 
-Metrics:
+Replication Error Metrics:
 - Marginal metrics: MSE over time of mean, 95th percentile (p95), 5th percentile (p05)
 - Temporal dependencies: MSE between quadratic variations (QVar)
 - Correlation structure: Time-averaged MSE between covariance matrices
@@ -26,200 +26,50 @@ from src.deep_hedgers.feedforward_layers import FeedforwardDeepHedger
 from src.deep_hedgers.feedforward_time import FeedforwardTimeDeepHedger
 from src.deep_hedgers.rnn_hedger import RNNDeepHedger
 from src.deep_hedgers.lstm_hedger import LSTMDeepHedger
+from src.utils.preprocessing_utils import LogReturnTransformation
 
 
 def log_returns_to_prices(
-    log_returns: np.ndarray, 
-    initial_prices: np.ndarray = None,
-    initial_price: float = None
-) -> np.ndarray:
+    log_returns,
+    initial_prices
+):
     """
-    Convert log returns to prices.
+    Convert log returns to prices using initial prices.
     
     Args:
-        log_returns: Array of shape (R, L, N) or (L, N) of log returns
-        initial_prices: Initial prices for each sample, shape (R, N) for 3D log_returns or (N,) for 2D
-                        If None, uses initial_price for all samples
-        initial_price: Single initial price value to use if initial_prices is None (default: 1.0)
+        log_returns: Tensor or array of shape (R, L) of log returns (univariate)
+        initial_prices: Tensor or array of initial prices, shape (R,)
     
     Returns:
-        prices: Array of same shape as log_returns but with prices
+        prices: Tensor of shape (R, L) with prices (same type as input)
     """
-    log_returns_np = np.asarray(log_returns)
+    is_tensor = isinstance(log_returns, torch.Tensor)
     
-    if initial_price is None:
-        initial_price = 1.0
-    
-    if log_returns_np.ndim == 2:
-        L, N = log_returns_np.shape
-        prices = np.zeros((L + 1, N))
-        
-        if initial_prices is not None:
-            initial_prices = np.asarray(initial_prices)
-            if initial_prices.shape == (N,):
-                prices[0] = initial_prices
-            else:
-                raise ValueError(f"initial_prices shape {initial_prices.shape} doesn't match expected (N,)")
-        else:
-            prices[0] = initial_price
-        
-        for t in range(L):
-            prices[t + 1] = prices[t] * np.exp(log_returns_np[t])
-        prices = prices[1:]
-        
-    elif log_returns_np.ndim == 3:
-        R, L, N = log_returns_np.shape
-        prices = np.zeros((R, L + 1, N))
-        
-        if initial_prices is not None:
-            initial_prices = np.asarray(initial_prices)
-            if initial_prices.shape == (R, N):
-                prices[:, 0] = initial_prices
-            elif initial_prices.shape == (N,):
-                # Broadcast single initial price to all samples
-                prices[:, 0] = initial_prices
-            else:
-                raise ValueError(f"initial_prices shape {initial_prices.shape} doesn't match expected (R, N) or (N,)")
-        else:
-            prices[:, 0] = initial_price
-        
-        for t in range(L):
-            prices[:, t + 1] = prices[:, t] * np.exp(log_returns_np[:, t])
-        prices = prices[:, 1:]
+    if is_tensor:
+        log_returns_np = log_returns.cpu().numpy()
+        initial_prices_np = initial_prices.cpu().numpy() if isinstance(initial_prices, torch.Tensor) else np.asarray(initial_prices)
     else:
-        raise ValueError(f"Expected 2D or 3D array, got {log_returns_np.ndim}D")
+        log_returns_np = np.asarray(log_returns)
+        initial_prices_np = np.asarray(initial_prices)
     
-    return prices
-
-
-def get_initial_prices_from_original_data(
-    original_data_path: str,
-    log_returns_windows: np.ndarray,
-    window_size: int,
-    channel_idx: int = 0
-) -> np.ndarray:
-    """
-    Extract initial prices for each window from original price data.
+    if log_returns_np.ndim != 2:
+        raise ValueError(f"Expected 2D array (R, L), got {log_returns_np.ndim}D")
     
-    The windows are created from log returns, which are computed as:
-    log_return[t] = log(price[t+1] / price[t])
+    R, L = log_returns_np.shape
     
-    So a window of log returns [r_0, r_1, ..., r_{L-1}] corresponds to
-    price transitions from price[0] to price[L], meaning the initial price
-    for this window is price[0].
+    if initial_prices_np.shape != (R,):
+        raise ValueError(f"initial_prices shape {initial_prices_np.shape} doesn't match expected (R,)")
     
-    Args:
-        original_data_path: Path to original CSV file with price data
-        log_returns_windows: Log returns windows of shape (R, L, N)
-        window_size: Size of each window (L) - number of log returns
-        channel_idx: Index of channel to extract (0 for Open)
-    
-    Returns:
-        Initial prices for each window, shape (R,)
-    """
-    import pandas as pd
-    
-    # Read original price data
-    df = pd.read_csv(original_data_path)
-    REQUIRED_COLUMNS = ['Open', 'High', 'Low', 'Close']
-    original_prices = df[REQUIRED_COLUMNS].values  # (T, N)
-    
-    # Extract the channel we need (Open channel)
-    prices_channel = original_prices[:, channel_idx]  # (T,)
-    
-    # Compute log returns from original prices to understand the mapping
-    # log_returns[i] = log(prices[i+1] / prices[i])
-    # So log_returns has length T-1
-    
-    # Windows are created with step=1 (overlapping windows)
-    # Window 0: log_returns[0:L] corresponds to prices[0:L+1], initial = prices[0]
-    # Window 1: log_returns[1:L+1] corresponds to prices[1:L+2], initial = prices[1]
-    # Window i: log_returns[i:i+L] corresponds to prices[i:i+L+1], initial = prices[i]
-    
-    R = log_returns_windows.shape[0]
-    initial_prices = np.zeros(R)
-    
-    # For each window i, the initial price is at index i in the original prices
-    # But we need to make sure we don't go out of bounds
-    max_start_idx = len(prices_channel) - window_size - 1
+    scaler = LogReturnTransformation()
+    prices_np = np.zeros((R, L))
     
     for i in range(R):
-        if i <= max_start_idx:
-            initial_prices[i] = prices_channel[i]
-        else:
-            # If we run out of data, use the last available initial price
-            # or repeat the last valid window's initial price
-            initial_prices[i] = prices_channel[min(i, max_start_idx)] if max_start_idx >= 0 else prices_channel[0]
+        prices_full = scaler.inverse_transform(log_returns_np[i], initial_prices_np[i])
+        prices_np[i] = prices_full[1:]  # Remove initial price to match log returns length
     
-    return initial_prices
-
-
-def log_returns_to_prices_with_initial(
-    log_returns: np.ndarray,
-    original_data_path: str = None,
-    initial_prices: np.ndarray = None,
-    channel_idx: int = 0,
-    use_mean_initial: bool = True
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Convert log returns to prices, using initial prices from original data if available.
-    
-    Args:
-        log_returns: Array of shape (R, L, N) of log returns
-        original_data_path: Path to original CSV with price data (optional)
-        initial_prices: Pre-computed initial prices, shape (R,) (optional)
-        channel_idx: Channel index to use for initial prices (0 for Open)
-        use_mean_initial: If True and initial_prices not provided, use mean of available initial prices
-    
-    Returns:
-        Tuple of (prices, initial_prices_used)
-    """
-    log_returns_np = np.asarray(log_returns)
-    
-    if log_returns_np.ndim != 3:
-        raise ValueError(f"Expected 3D array (R, L, N), got {log_returns_np.ndim}D")
-    
-    R, L, N = log_returns_np.shape
-    
-    # Get initial prices
-    if initial_prices is not None:
-        initial_prices_used = np.asarray(initial_prices)
-        if initial_prices_used.shape != (R,):
-            raise ValueError(f"initial_prices shape {initial_prices_used.shape} doesn't match expected (R,)")
-    elif original_data_path is not None:
-        initial_prices_used = get_initial_prices_from_original_data(
-            original_data_path, log_returns_np, L, channel_idx
-        )
-    else:
-        # Use mean initial price from a representative sample, or default to 1.0
-        if use_mean_initial:
-            # For synthetic data, we might want to use a representative initial price
-            # Use the mean of the first prices from real data, or default to 1.0
-            initial_prices_used = np.ones(R) * 1.0
-        else:
-            initial_prices_used = np.ones(R) * 1.0
-    
-    # Convert to prices using the initial prices
-    # For each sample r, use initial_prices_used[r] as the starting price
-    prices = np.zeros((R, L + 1, N))
-    
-    # Set initial prices for the open channel (channel 0)
-    prices[:, 0, channel_idx] = initial_prices_used
-    
-    # For other channels, we can use a relative scaling or same initial price
-    # For simplicity, use same initial price for all channels
-    for ch in range(N):
-        if ch != channel_idx:
-            prices[:, 0, ch] = initial_prices_used  # Or could use channel-specific initial prices
-    
-    # Convert log returns to prices
-    for t in range(L):
-        prices[:, t + 1] = prices[:, t] * np.exp(log_returns_np[:, t])
-    
-    # Remove the initial price row to match input shape
-    prices = prices[:, 1:]
-    
-    return prices, initial_prices_used
+    if is_tensor:
+        return torch.from_numpy(prices_np).float()
+    return prices_np
 
 
 def compute_X_values(hedger, prices: torch.Tensor, strike: float = 1.0) -> np.ndarray:
@@ -291,18 +141,23 @@ def compute_marginal_metrics(X_real: np.ndarray, X_synthetic: np.ndarray) -> Dic
     }
 
 
-def compute_quadratic_variation(prices: np.ndarray) -> np.ndarray:
+def compute_quadratic_variation(prices) -> np.ndarray:
     """
     Compute quadratic variation of price series.
     
     QVar = sum((S_{t+1} - S_t)^2) over time
     
     Args:
-        prices: Price sequences of shape (R, L) or (R, L, N)
+        prices: Price sequences of shape (R, L) or (R, L, N) (tensor or array)
     
     Returns:
-        Quadratic variation of shape (R,) or (R, N)
+        Quadratic variation of shape (R,) or (R, N) as numpy array
     """
+    if isinstance(prices, torch.Tensor):
+        prices = prices.cpu().numpy()
+    else:
+        prices = np.asarray(prices)
+    
     if prices.ndim == 2:
         # (R, L)
         price_diffs = np.diff(prices, axis=1)  # (R, L-1)
@@ -318,15 +173,15 @@ def compute_quadratic_variation(prices: np.ndarray) -> np.ndarray:
 
 
 def compute_temporal_metrics(
-    prices_real: np.ndarray, 
-    prices_synthetic: np.ndarray
+    prices_real, 
+    prices_synthetic
 ) -> Dict[str, float]:
     """
     Compute temporal dependency metrics: MSE between quadratic variations.
     
     Args:
-        prices_real: Real price sequences, shape (R, L) or (R, L, N)
-        prices_synthetic: Synthetic price sequences, shape (R, L) or (R, L, N)
+        prices_real: Real price sequences, shape (R, L) or (R, L, N) (tensor or array)
+        prices_synthetic: Synthetic price sequences, shape (R, L) or (R, L, N) (tensor or array)
     
     Returns:
         Dictionary with temporal metric scores
@@ -348,16 +203,21 @@ def compute_temporal_metrics(
     }
 
 
-def compute_covariance_matrix(prices: np.ndarray) -> np.ndarray:
+def compute_covariance_matrix(prices) -> np.ndarray:
     """
     Compute covariance matrix of price series.
     
     Args:
-        prices: Price sequences of shape (R, L) or (R, L, N)
+        prices: Price sequences of shape (R, L) or (R, L, N) (tensor or array)
     
     Returns:
-        Covariance matrix of shape (L, L) or (N, N) depending on input
+        Covariance matrix of shape (L, L) or (N, N) depending on input as numpy array
     """
+    if isinstance(prices, torch.Tensor):
+        prices = prices.cpu().numpy()
+    else:
+        prices = np.asarray(prices)
+    
     if prices.ndim == 2:
         # (R, L) - covariance across samples for each time step
         # Transpose to get (L, R) then compute covariance
@@ -374,15 +234,15 @@ def compute_covariance_matrix(prices: np.ndarray) -> np.ndarray:
 
 
 def compute_correlation_metrics(
-    prices_real: np.ndarray,
-    prices_synthetic: np.ndarray
+    prices_real,
+    prices_synthetic
 ) -> Dict[str, float]:
     """
     Compute correlation structure metrics: time-averaged MSE between covariance matrices.
     
     Args:
-        prices_real: Real price sequences, shape (R, L) or (R, L, N)
-        prices_synthetic: Synthetic price sequences, shape (R, L) or (R, L, N)
+        prices_real: Real price sequences, shape (R, L) or (R, L, N) (tensor or array)
+        prices_synthetic: Synthetic price sequences, shape (R, L) or (R, L, N) (tensor or array)
     
     Returns:
         Dictionary with correlation metric scores
@@ -407,11 +267,13 @@ class AugmentedTestingEvaluator:
     
     def __init__(
         self,
-        real_train_log_returns: np.ndarray,
-        real_val_log_returns: np.ndarray,
-        synthetic_train_log_returns: np.ndarray,
-        seq_length: int,
-        original_data_path: str = None,
+        real_train_log_returns,
+        real_val_log_returns,
+        synthetic_train_log_returns,
+        real_train_initial,
+        real_val_initial,
+        synthetic_train_initial = None,
+        seq_length: int = None,
         strike: float = None,
         hidden_size: int = 64,
         num_epochs: int = 50,
@@ -420,60 +282,72 @@ class AugmentedTestingEvaluator:
     ):
         """
         Args:
-            real_train_log_returns: Real training log returns, shape (R_real, L, N)
-            real_val_log_returns: Real validation log returns, shape (R_val, L, N)
-            synthetic_train_log_returns: Synthetic training log returns, shape (R_syn, L, N)
-            seq_length: Sequence length L
-            original_data_path: Path to original CSV file with price data (to get initial prices)
-            strike: Strike price for call option (if None, will use mean of initial prices)
+            real_train_log_returns: Real training log returns, shape (R_real, L) (tensor or array)
+            real_val_log_returns: Real validation log returns, shape (R_val, L) (tensor or array)
+            synthetic_train_log_returns: Synthetic training log returns, shape (R_syn, L) (tensor or array)
+            real_train_initial: Real training initial prices, shape (R_real,) (tensor or array)
+            real_val_initial: Real validation initial prices, shape (R_val,) (tensor or array)
+            synthetic_train_initial: Synthetic training initial prices, shape (R_syn,) (optional, uses mean of real if None)
+            seq_length: Sequence length L (inferred from data if None)
+            strike: Strike price for call option (if None, will use mean of real_train_initial)
             hidden_size: Hidden size for hedgers
             num_epochs: Number of training epochs
             batch_size: Batch size for training
             learning_rate: Learning rate for Adam optimizer
         """
-        self.real_train_log_returns = real_train_log_returns
-        self.real_val_log_returns = real_val_log_returns
-        self.synthetic_train_log_returns = synthetic_train_log_returns
-        self.seq_length = seq_length
-        self.original_data_path = original_data_path
+        print("[AugmentedTestingEvaluator] Initialization started...")
+        # Keep as tensors if they are tensors
+        if isinstance(real_train_log_returns, torch.Tensor):
+            self.real_train_log_returns = real_train_log_returns
+            self.real_val_log_returns = real_val_log_returns
+            self.synthetic_train_log_returns = synthetic_train_log_returns
+            self.real_train_initial = real_train_initial if isinstance(real_train_initial, torch.Tensor) else torch.from_numpy(np.asarray(real_train_initial)).float()
+            self.real_val_initial = real_val_initial if isinstance(real_val_initial, torch.Tensor) else torch.from_numpy(np.asarray(real_val_initial)).float()
+        else:
+            self.real_train_log_returns = torch.from_numpy(np.asarray(real_train_log_returns)).float()
+            self.real_val_log_returns = torch.from_numpy(np.asarray(real_val_log_returns)).float()
+            self.synthetic_train_log_returns = torch.from_numpy(np.asarray(synthetic_train_log_returns)).float()
+            self.real_train_initial = torch.from_numpy(np.asarray(real_train_initial)).float()
+            self.real_val_initial = torch.from_numpy(np.asarray(real_val_initial)).float()
+        
+        if seq_length is None:
+            self.seq_length = self.real_train_log_returns.shape[1]
+        else:
+            self.seq_length = seq_length
+            
         self.hidden_size = hidden_size
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         
-        # Convert log returns to prices
-        print("Converting log returns to prices for real training data...")
-        self.real_train_prices, real_train_initial = log_returns_to_prices_with_initial(
-            real_train_log_returns,
-            original_data_path=original_data_path,
-            channel_idx=0
-        )
-        self.real_train_prices = self.real_train_prices[:, :, 0]  # Extract open channel only
+        # Handle synthetic initial prices
+        if synthetic_train_initial is None:
+            mean_initial = float(self.real_train_initial.mean().item())
+            R_syn = self.synthetic_train_log_returns.shape[0]
+            self.synthetic_train_initial = torch.ones(R_syn) * mean_initial
+        else:
+            if isinstance(synthetic_train_initial, torch.Tensor):
+                self.synthetic_train_initial = synthetic_train_initial
+            else:
+                self.synthetic_train_initial = torch.from_numpy(np.asarray(synthetic_train_initial)).float()
         
-        print("Converting log returns to prices for real validation data...")
-        self.real_val_prices, real_val_initial = log_returns_to_prices_with_initial(
-            real_val_log_returns,
-            original_data_path=original_data_path,
-            channel_idx=0
-        )
-        self.real_val_prices = self.real_val_prices[:, :, 0]  # Extract open channel only
+        # Convert log returns to prices (returns torch tensors)
+        print("[AugmentedTestingEvaluator] Converting log returns to prices for real training data...")
+        self.real_train_prices = log_returns_to_prices(self.real_train_log_returns, self.real_train_initial)
         
-        print("Converting log returns to prices for synthetic training data...")
-        # For synthetic data, use mean of real initial prices
-        mean_initial = np.mean(real_train_initial)
-        self.synthetic_train_prices, _ = log_returns_to_prices_with_initial(
-            synthetic_train_log_returns,
-            initial_prices=np.ones(synthetic_train_log_returns.shape[0]) * mean_initial,
-            channel_idx=0
-        )
-        self.synthetic_train_prices = self.synthetic_train_prices[:, :, 0]  # Extract open channel only
+        print("[AugmentedTestingEvaluator] Converting log returns to prices for real validation data...")
+        self.real_val_prices = log_returns_to_prices(self.real_val_log_returns, self.real_val_initial)
+        
+        print("[AugmentedTestingEvaluator] Converting log returns to prices for synthetic training data...")
+        self.synthetic_train_prices = log_returns_to_prices(self.synthetic_train_log_returns, self.synthetic_train_initial)
         
         # Set strike price
         if strike is None:
-            self.strike = mean_initial  # At-the-money option
+            self.strike = float(self.real_train_initial.mean().item())  # At-the-money option
         else:
             self.strike = strike
-    
+        print("[AugmentedTestingEvaluator] Initialization complete.")
+
     def evaluate(self, hedger_class) -> Dict[str, Any]:
         """
         Evaluate augmented testing for a given hedger class.
@@ -484,61 +358,63 @@ class AugmentedTestingEvaluator:
         Returns:
             Dictionary with evaluation results
         """
+        print("[AugmentedTestingEvaluator] Starting evaluation procedure...")
         # Mix synthetic and real data (50/50)
         R_real = self.real_train_prices.shape[0]
         R_syn = self.synthetic_train_prices.shape[0]
         R_mixed = min(R_real, R_syn)
         
+        print(f"[AugmentedTestingEvaluator] Mixing {R_mixed} real and {R_mixed} synthetic training samples (50/50)...")
         # Sample equal amounts from real and synthetic
-        np.random.seed(42)
-        real_indices = np.random.choice(R_real, R_mixed, replace=False)
-        syn_indices = np.random.choice(R_syn, R_mixed, replace=False)
+        torch.manual_seed(42)
+        real_indices = torch.randperm(R_real)[:R_mixed]
+        syn_indices = torch.randperm(R_syn)[:R_mixed]
         
-        mixed_train_prices = np.vstack([
+        mixed_train_prices = torch.cat([
             self.real_train_prices[real_indices],
             self.synthetic_train_prices[syn_indices]
-        ])
-        np.random.shuffle(mixed_train_prices)
+        ], dim=0)
+        # Shuffle
+        shuffle_idx = torch.randperm(mixed_train_prices.shape[0])
+        mixed_train_prices = mixed_train_prices[shuffle_idx]
         
+        print("[AugmentedTestingEvaluator] Training hedger on mixed (synthetic + real) data...")
         # Train hedger on mixed data
         hedger_mixed = hedger_class(
             seq_length=self.seq_length,
             hidden_size=self.hidden_size,
             strike=self.strike
         )
-        # Ensure data is torch tensor
-        mixed_train_prices_tensor = torch.from_numpy(mixed_train_prices).float() if isinstance(mixed_train_prices, np.ndarray) else mixed_train_prices.float()
         hedger_mixed.fit(
-            mixed_train_prices_tensor,
+            mixed_train_prices,
             num_epochs=self.num_epochs,
             batch_size=self.batch_size,
             learning_rate=self.learning_rate,
-            verbose=False
+            verbose=True
         )
         
+        print("[AugmentedTestingEvaluator] Training hedger on real data only...")
         # Train hedger on real data only
         hedger_real = hedger_class(
             seq_length=self.seq_length,
             hidden_size=self.hidden_size,
             strike=self.strike
         )
-        # Ensure data is torch tensor
-        real_train_prices_tensor = torch.from_numpy(self.real_train_prices).float() if isinstance(self.real_train_prices, np.ndarray) else self.real_train_prices.float()
         hedger_real.fit(
-            real_train_prices_tensor,
+            self.real_train_prices,
             num_epochs=self.num_epochs,
             batch_size=self.batch_size,
             learning_rate=self.learning_rate,
-            verbose=False
+            verbose=True
         )
         
+        print("[AugmentedTestingEvaluator] Evaluating both hedgers on real validation set...")
         # Evaluate on real validation set
-        val_prices_tensor = torch.from_numpy(self.real_val_prices).float() if isinstance(self.real_val_prices, np.ndarray) else self.real_val_prices.float()
+        X_mixed = compute_X_values(hedger_mixed, self.real_val_prices, self.strike)
+        X_real_only = compute_X_values(hedger_real, self.real_val_prices, self.strike)
         
-        X_mixed = compute_X_values(hedger_mixed, val_prices_tensor, self.strike)
-        X_real_only = compute_X_values(hedger_real, val_prices_tensor, self.strike)
-        
-        # Compute metrics
+        print("[AugmentedTestingEvaluator] Computing metrics for mixed and real-only hedgers...")
+        # Compute metrics (convert to numpy only here)
         marginal_mixed = compute_marginal_metrics(X_real_only, X_mixed)
         temporal_mixed = compute_temporal_metrics(self.real_val_prices, self.real_val_prices)
         correlation_mixed = compute_correlation_metrics(self.real_val_prices, self.real_val_prices)
@@ -565,7 +441,7 @@ class AugmentedTestingEvaluator:
                 'mse_cov': correlation_mixed['mse_cov']
             }
         }
-        
+        print("[AugmentedTestingEvaluator] Evaluation complete.")
         return results
 
 
@@ -576,14 +452,19 @@ class AlgorithmComparisonEvaluator:
     
     def __init__(
         self,
-        real_train_log_returns: np.ndarray,
-        real_val_log_returns: np.ndarray,
-        real_test_log_returns: np.ndarray,
-        synthetic_train_log_returns: np.ndarray,
-        synthetic_val_log_returns: np.ndarray,
-        synthetic_test_log_returns: np.ndarray,
-        seq_length: int,
-        original_data_path: str = None,
+        real_train_log_returns,
+        real_val_log_returns,
+        real_test_log_returns,
+        synthetic_train_log_returns,
+        synthetic_val_log_returns,
+        synthetic_test_log_returns,
+        real_train_initial,
+        real_val_initial,
+        real_test_initial,
+        synthetic_train_initial = None,
+        synthetic_val_initial = None,
+        synthetic_test_initial = None,
+        seq_length: int = None,
         strike: float = None,
         hidden_size: int = 64,
         num_epochs: int = 50,
@@ -592,74 +473,90 @@ class AlgorithmComparisonEvaluator:
     ):
         """
         Args:
-            real_train_log_returns: Real training log returns, shape (R, L, N)
-            real_val_log_returns: Real validation log returns, shape (R, L, N)
-            real_test_log_returns: Real test log returns, shape (R, L, N)
-            synthetic_train_log_returns: Synthetic training log returns, shape (R, L, N)
-            synthetic_val_log_returns: Synthetic validation log returns, shape (R, L, N)
-            synthetic_test_log_returns: Synthetic test log returns, shape (R, L, N)
-            seq_length: Sequence length L
-            original_data_path: Path to original CSV file with price data (to get initial prices)
-            strike: Strike price for call option (if None, will use mean of initial prices)
+            real_train_log_returns: Real training log returns, shape (R, L) (tensor or array)
+            real_val_log_returns: Real validation log returns, shape (R, L) (tensor or array)
+            real_test_log_returns: Real test log returns, shape (R, L) (tensor or array)
+            synthetic_train_log_returns: Synthetic training log returns, shape (R, L) (tensor or array)
+            synthetic_val_log_returns: Synthetic validation log returns, shape (R, L) (tensor or array)
+            synthetic_test_log_returns: Synthetic test log returns, shape (R, L) (tensor or array)
+            real_train_initial: Real training initial prices, shape (R,) (tensor or array)
+            real_val_initial: Real validation initial prices, shape (R,) (tensor or array)
+            real_test_initial: Real test initial prices, shape (R,) (tensor or array)
+            synthetic_train_initial: Synthetic training initial prices, shape (R,) (optional, uses mean of real if None)
+            synthetic_val_initial: Synthetic validation initial prices, shape (R,) (optional, uses mean of real if None)
+            synthetic_test_initial: Synthetic test initial prices, shape (R,) (optional, uses mean of real if None)
+            seq_length: Sequence length L (inferred from data if None)
+            strike: Strike price for call option (if None, will use mean of real_train_initial)
             hidden_size: Hidden size for hedgers
             num_epochs: Number of training epochs
             batch_size: Batch size for training
             learning_rate: Learning rate for Adam optimizer
         """
-        self.seq_length = seq_length
-        self.original_data_path = original_data_path
+        print("[AlgorithmComparisonEvaluator] Initialization started...")
+        # Keep as tensors if they are tensors
+        if isinstance(real_train_log_returns, torch.Tensor):
+            self.real_train_log_returns = real_train_log_returns
+            self.real_val_log_returns = real_val_log_returns
+            self.real_test_log_returns = real_test_log_returns
+            self.real_train_initial = real_train_initial if isinstance(real_train_initial, torch.Tensor) else torch.from_numpy(np.asarray(real_train_initial)).float()
+            self.real_val_initial = real_val_initial if isinstance(real_val_initial, torch.Tensor) else torch.from_numpy(np.asarray(real_val_initial)).float()
+            self.real_test_initial = real_test_initial if isinstance(real_test_initial, torch.Tensor) else torch.from_numpy(np.asarray(real_test_initial)).float()
+        else:
+            self.real_train_log_returns = torch.from_numpy(np.asarray(real_train_log_returns)).float()
+            self.real_val_log_returns = torch.from_numpy(np.asarray(real_val_log_returns)).float()
+            self.real_test_log_returns = torch.from_numpy(np.asarray(real_test_log_returns)).float()
+            self.real_train_initial = torch.from_numpy(np.asarray(real_train_initial)).float()
+            self.real_val_initial = torch.from_numpy(np.asarray(real_val_initial)).float()
+            self.real_test_initial = torch.from_numpy(np.asarray(real_test_initial)).float()
+        
+        if seq_length is None:
+            self.seq_length = self.real_train_log_returns.shape[1]
+        else:
+            self.seq_length = seq_length
+            
         self.hidden_size = hidden_size
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         
-        # Convert log returns to prices
+        # Handle synthetic initial prices
+        mean_initial = float(self.real_train_initial.mean().item())
+        if synthetic_train_initial is None:
+            R_syn = synthetic_train_log_returns.shape[0] if isinstance(synthetic_train_log_returns, torch.Tensor) else len(synthetic_train_log_returns)
+            self.synthetic_train_initial = torch.ones(R_syn) * mean_initial
+        else:
+            self.synthetic_train_initial = synthetic_train_initial if isinstance(synthetic_train_initial, torch.Tensor) else torch.from_numpy(np.asarray(synthetic_train_initial)).float()
+            
+        if synthetic_val_initial is None:
+            R_syn = synthetic_val_log_returns.shape[0] if isinstance(synthetic_val_log_returns, torch.Tensor) else len(synthetic_val_log_returns)
+            self.synthetic_val_initial = torch.ones(R_syn) * mean_initial
+        else:
+            self.synthetic_val_initial = synthetic_val_initial if isinstance(synthetic_val_initial, torch.Tensor) else torch.from_numpy(np.asarray(synthetic_val_initial)).float()
+            
+        if synthetic_test_initial is None:
+            R_syn = synthetic_test_log_returns.shape[0] if isinstance(synthetic_test_log_returns, torch.Tensor) else len(synthetic_test_log_returns)
+            self.synthetic_test_initial = torch.ones(R_syn) * mean_initial
+        else:
+            self.synthetic_test_initial = synthetic_test_initial if isinstance(synthetic_test_initial, torch.Tensor) else torch.from_numpy(np.asarray(synthetic_test_initial)).float()
+        
+        # Convert synthetic log returns to tensors if needed
+        if not isinstance(synthetic_train_log_returns, torch.Tensor):
+            synthetic_train_log_returns = torch.from_numpy(np.asarray(synthetic_train_log_returns)).float()
+        if not isinstance(synthetic_val_log_returns, torch.Tensor):
+            synthetic_val_log_returns = torch.from_numpy(np.asarray(synthetic_val_log_returns)).float()
+        if not isinstance(synthetic_test_log_returns, torch.Tensor):
+            synthetic_test_log_returns = torch.from_numpy(np.asarray(synthetic_test_log_returns)).float()
+        
+        # Convert log returns to prices (returns torch tensors)
         print("Converting log returns to prices for real data...")
-        self.real_train_prices, real_train_initial = log_returns_to_prices_with_initial(
-            real_train_log_returns,
-            original_data_path=original_data_path,
-            channel_idx=0
-        )
-        self.real_train_prices = self.real_train_prices[:, :, 0]  # Extract open channel only
+        self.real_train_prices = log_returns_to_prices(self.real_train_log_returns, self.real_train_initial)
+        self.real_val_prices = log_returns_to_prices(self.real_val_log_returns, self.real_val_initial)
+        self.real_test_prices = log_returns_to_prices(self.real_test_log_returns, self.real_test_initial)
         
-        self.real_val_prices, _ = log_returns_to_prices_with_initial(
-            real_val_log_returns,
-            original_data_path=original_data_path,
-            channel_idx=0
-        )
-        self.real_val_prices = self.real_val_prices[:, :, 0]
-        
-        self.real_test_prices, _ = log_returns_to_prices_with_initial(
-            real_test_log_returns,
-            original_data_path=original_data_path,
-            channel_idx=0
-        )
-        self.real_test_prices = self.real_test_prices[:, :, 0]
-        
-        print("Converting log returns to prices for synthetic data...")
-        # For synthetic data, use mean of real initial prices
-        mean_initial = np.mean(real_train_initial)
-        
-        self.synthetic_train_prices, _ = log_returns_to_prices_with_initial(
-            synthetic_train_log_returns,
-            initial_prices=np.ones(synthetic_train_log_returns.shape[0]) * mean_initial,
-            channel_idx=0
-        )
-        self.synthetic_train_prices = self.synthetic_train_prices[:, :, 0]
-        
-        self.synthetic_val_prices, _ = log_returns_to_prices_with_initial(
-            synthetic_val_log_returns,
-            initial_prices=np.ones(synthetic_val_log_returns.shape[0]) * mean_initial,
-            channel_idx=0
-        )
-        self.synthetic_val_prices = self.synthetic_val_prices[:, :, 0]
-        
-        self.synthetic_test_prices, _ = log_returns_to_prices_with_initial(
-            synthetic_test_log_returns,
-            initial_prices=np.ones(synthetic_test_log_returns.shape[0]) * mean_initial,
-            channel_idx=0
-        )
-        self.synthetic_test_prices = self.synthetic_test_prices[:, :, 0]
+        print("[AlgorithmComparisonEvaluator] Converting log returns to prices for synthetic data...")
+        self.synthetic_train_prices = log_returns_to_prices(synthetic_train_log_returns, self.synthetic_train_initial)
+        self.synthetic_val_prices = log_returns_to_prices(synthetic_val_log_returns, self.synthetic_val_initial)
+        self.synthetic_test_prices = log_returns_to_prices(synthetic_test_log_returns, self.synthetic_test_initial)
         
         # Set strike price
         if strike is None:
@@ -674,6 +571,7 @@ class AlgorithmComparisonEvaluator:
             'RNN': RNNDeepHedger,
             'LSTM': LSTMDeepHedger
         }
+        print("[AlgorithmComparisonEvaluator] Initialization complete.")
     
     def evaluate(self) -> Dict[str, Any]:
         """
@@ -682,65 +580,65 @@ class AlgorithmComparisonEvaluator:
         Returns:
             Dictionary with evaluation results for each hedger
         """
+        print("[AlgorithmComparisonEvaluator] Starting evaluation procedure for all hedgers...")
         results = {}
         
         for hedger_name, hedger_class in self.hedger_classes.items():
-            print(f"Evaluating {hedger_name}...")
+            print(f"[AlgorithmComparisonEvaluator] --- Evaluating {hedger_name} ---")
             
+            print(f"[AlgorithmComparisonEvaluator] Training {hedger_name} on real data...")
             # Train on real data
             hedger_real = hedger_class(
                 seq_length=self.seq_length,
                 hidden_size=self.hidden_size,
                 strike=self.strike
             )
-            # Ensure data is torch tensor
-            real_train_prices_tensor = torch.from_numpy(self.real_train_prices).float() if isinstance(self.real_train_prices, np.ndarray) else self.real_train_prices.float()
             hedger_real.fit(
-                real_train_prices_tensor,
+                self.real_train_prices,
                 num_epochs=self.num_epochs,
                 batch_size=self.batch_size,
                 learning_rate=self.learning_rate,
-                verbose=False
+                verbose=True
             )
             
+            print(f"[AlgorithmComparisonEvaluator] Training {hedger_name} on synthetic data...")
             # Train on synthetic data
             hedger_syn = hedger_class(
                 seq_length=self.seq_length,
                 hidden_size=self.hidden_size,
                 strike=self.strike
             )
-            # Ensure data is torch tensor
-            synthetic_train_prices_tensor = torch.from_numpy(self.synthetic_train_prices).float() if isinstance(self.synthetic_train_prices, np.ndarray) else self.synthetic_train_prices.float()
             hedger_syn.fit(
-                synthetic_train_prices_tensor,
+                self.synthetic_train_prices,
                 num_epochs=self.num_epochs,
                 batch_size=self.batch_size,
                 learning_rate=self.learning_rate,
-                verbose=False
+                verbose=True
             )
             
+            print(f"[AlgorithmComparisonEvaluator] Evaluating {hedger_name} on real test set...")
             # Evaluate on real test set
-            real_test_prices_tensor = torch.from_numpy(self.real_test_prices).float() if isinstance(self.real_test_prices, np.ndarray) else self.real_test_prices.float()
             X_real_test = compute_X_values(
                 hedger_real,
-                real_test_prices_tensor,
+                self.real_test_prices,
                 self.strike
             )
             
+            print(f"[AlgorithmComparisonEvaluator] Evaluating {hedger_name} on synthetic test set...")
             # Evaluate on synthetic test set
-            synthetic_test_prices_tensor = torch.from_numpy(self.synthetic_test_prices).float() if isinstance(self.synthetic_test_prices, np.ndarray) else self.synthetic_test_prices.float()
             X_syn_test = compute_X_values(
                 hedger_syn,
-                synthetic_test_prices_tensor,
+                self.synthetic_test_prices,
                 self.strike
             )
             
-            # Compute metrics for real test set
+            print(f"[AlgorithmComparisonEvaluator] Computing metrics for {hedger_name} on real and synthetic test sets...")
+            # Compute metrics for real test set (convert to numpy only here)
             marginal_real = compute_marginal_metrics(X_real_test, X_real_test)  # Baseline
             temporal_real = compute_temporal_metrics(self.real_test_prices, self.real_test_prices)
             correlation_real = compute_correlation_metrics(self.real_test_prices, self.real_test_prices)
             
-            # Compute metrics for synthetic test set
+            # Compute metrics for synthetic test set (convert to numpy only here)
             marginal_syn = compute_marginal_metrics(X_syn_test, X_syn_test)  # Baseline
             temporal_syn = compute_temporal_metrics(self.synthetic_test_prices, self.synthetic_test_prices)
             correlation_syn = compute_correlation_metrics(self.synthetic_test_prices, self.synthetic_test_prices)
@@ -773,7 +671,9 @@ class AlgorithmComparisonEvaluator:
                 },
                 'score_vector': score_vector
             }
+            print(f"[AlgorithmComparisonEvaluator] --- Done with {hedger_name} ---\n")
         
+        print("[AlgorithmComparisonEvaluator] Evaluation of all hedgers complete.")
         return results
 
 
@@ -786,6 +686,7 @@ def save_utility_scores(results: Dict[str, Any], model_name: str, results_dir: P
         model_name: Name of the generative model
         results_dir: Directory to save results (default: results/utility_scores/)
     """
+    print("[save_utility_scores] Saving utility scores...")
     if results_dir is None:
         project_root = Path(__file__).resolve().parents[2]
         results_dir = project_root / "results" / "utility_scores"
@@ -803,6 +704,6 @@ def save_utility_scores(results: Dict[str, Any], model_name: str, results_dir: P
     with open(output_path, 'w') as f:
         json.dump(output, f, indent=2, default=str)
     
-    print(f"Utility scores saved to {output_path}")
+    print(f"[save_utility_scores] Utility scores saved to {output_path}")
     return output_path
 
