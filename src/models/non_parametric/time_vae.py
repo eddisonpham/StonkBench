@@ -1,16 +1,3 @@
-"""
-TimeVAE: Variational Autoencoder for Time Series
-
-Reference: Shreshth Tuli, Giuliano Casale, Nicholas R. Jennings,
-"TimeVAE: A Variational Auto-Encoder for Multivariate Time Series Generation,"
-arXiv:2111.08095, 2021.
-
-This implementation includes:
-- Encoder: Convolutional encoder with variational latent space
-- Decoder: Combines trend, seasonality, and residual components
-- Loss: Reconstruction loss + KL divergence
-"""
-
 from typing import Optional, List, Tuple
 
 import torch
@@ -113,10 +100,9 @@ class TimeVAE(DeepLearningModel):
         use_residual_conn: bool = True,
         reconstruction_wt: float = 3.0,
         lr: float = 1e-3,
-        seed: int = 42,
         device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     ):
-        super().__init__(seed=seed)
+        super().__init__()
         
         if hidden_layer_sizes is None:
             hidden_layer_sizes = [100, 200, 400]
@@ -367,7 +353,7 @@ class TimeVAE(DeepLearningModel):
         self.eval()
     
     @torch.no_grad()
-    def generate(self, num_samples: int, generation_length: int, *args, **kwargs) -> torch.Tensor:
+    def generate(self, num_samples: int, generation_length: int, seed: int = 42) -> torch.Tensor:
         """
         Generate synthetic time series samples.
         
@@ -382,7 +368,7 @@ class TimeVAE(DeepLearningModel):
             raise RuntimeError("Model must be trained before generating samples.")
         
         self.eval()
-        torch.manual_seed(self.seed)
+        torch.manual_seed(seed)
         z = torch.randn(num_samples, self.latent_dim, device=self.device)
         samples = self.decoder(z, generation_length)
         # Remove channel dimension if univariate

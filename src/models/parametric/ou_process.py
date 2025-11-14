@@ -5,8 +5,8 @@ from src.models.base.base_model import ParametricModel
 
 
 class OUProcess(ParametricModel):
-    def __init__(self, seed: int = 42):
-        super().__init__(seed)
+    def __init__(self):
+        super().__init__()
         self.mu = None
         self.theta = None
         self.sigma = None
@@ -27,9 +27,9 @@ class OUProcess(ParametricModel):
         self.sigma = sigma_e * torch.sqrt(2 * self.theta / denom)
         print(f"mu: {self.mu.item()}, theta: {self.theta.item()}, sigma: {self.sigma.item()}")
 
-    def generate(self, num_samples: int, generation_length: int):
-        torch.manual_seed(self.seed)
-        np.random.seed(self.seed)
+    def generate(self, num_samples: int, generation_length: int, seed: int = 42):
+        torch.manual_seed(seed)
+        np.random.seed(seed)
         log_returns = torch.zeros((num_samples, generation_length))
         phi = torch.exp(-self.theta)
         mu_term = self.mu * (1 - phi)

@@ -5,8 +5,8 @@ from src.models.base.base_model import ParametricModel
 
 
 class MertonJumpDiffusion(ParametricModel):
-    def __init__(self, seed: int = 42):
-        super().__init__(seed)
+    def __init__(self):
+        super().__init__()
         self.mu = None
         self.sigma = None
         self.lam = None
@@ -37,7 +37,9 @@ class MertonJumpDiffusion(ParametricModel):
         self.mu = np.mean(log_returns_np) + 0.5 * self.sigma**2 + self.kappa * self.lam
         print(f"mu: {self.mu}, sigma: {self.sigma}, kappa: {self.kappa}, lam: {self.lam}, mu_j: {self.mu_j}, sigma_j: {self.sigma_j}")
 
-    def generate(self, num_samples: int, generation_length: int) -> torch.Tensor:
+    def generate(self, num_samples: int, generation_length: int, seed: int = 42) -> torch.Tensor:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
         log_returns = torch.zeros((num_samples, generation_length))
         for t in range(generation_length):
             epsilon = torch.randn(num_samples)

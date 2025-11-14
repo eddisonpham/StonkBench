@@ -1,24 +1,9 @@
-"""
-TimeGAN: Time-series Generative Adversarial Networks
-
-Reference: Jinsung Yoon, Daniel Jarrett, Mihaela van der Schaar, 
-"Time-series Generative Adversarial Networks," NeurIPS 2019.
-
-This implementation follows the original architecture with:
-- Encoder (Embedder): Maps time series to latent space
-- Recovery: Maps latent space back to time series
-- Generator: Generates synthetic latent representations
-- Supervisor: Predicts next step in latent space
-- Discriminator: Distinguishes real vs synthetic latent representations
-"""
-
 import torch
 import torch.nn as nn
 import torch.nn.init as init
 import torch.optim as optim
 from pathlib import Path
 import sys
-
 # Add parent directory to path to import base model
 sys.path.append(str(Path(__file__).parent.parent))
 from base.base_model import DeepLearningModel
@@ -140,10 +125,9 @@ class TimeGAN(DeepLearningModel):
         num_layers: int = 3,
         gamma: float = 1.0,
         learning_rate: float = 1e-3,
-        seed: int = 42,
         device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     ):
-        super().__init__(seed=seed)
+        super().__init__()
 
         self.seq_len = seq_len  # Will be inferred from data if None
         self.hidden_dim = hidden_dim
@@ -376,11 +360,17 @@ class TimeGAN(DeepLearningModel):
     def fit(self, data_loader, num_epochs: int = 10, *args, **kwargs):
         """
         Train TimeGAN model.
-        
+
         Args:
             data_loader: DataLoader providing batches of shape (batch_size, seq_length)
             num_epochs: Number of training epochs (controls iterations per stage)
+            supervisor_epochs: Number of supervisor training epochs (default: num_epochs)
+            adversarial_epochs: Number of adversarial training epochs (default: num_epochs)
         """
+        # Extract extra epoch options for supervisor and adversarial training
+        supervisor_epochs = num_epochs // 2
+        adversarial_epochs = num_epochs * 2
+
         # Infer seq_len from first batch if not set
         if self.seq_len is None:
             first_batch = next(iter(data_loader))
@@ -403,30 +393,30 @@ class TimeGAN(DeepLearningModel):
         self.data_max = data_max_val
         print(f"Data range: [{self.data_min:.4f}, {self.data_max:.4f}]")
 
-        # TimeGAN uses 3-stage training
-        # Each stage uses num_epochs iterations
+        # TimeGAN uses 3-stage training, each stage with its own epoch count if specified
         print("\n=== Stage 1: Training Autoencoder ===")
         self._train_autoencoder(data_loader, num_epochs)
-        
+
         print("\n=== Stage 2: Training Supervisor ===")
-        self._train_supervisor(data_loader, num_epochs)
-        
+        self._train_supervisor(data_loader, supervisor_epochs)
+
         print("\n=== Stage 3: Adversarial Training ===")
-        self._train_adversarial(data_loader, num_epochs)
-        
+        self._train_adversarial(data_loader, adversarial_epochs)
+
         print("TimeGAN training complete!")
 
-    def generate(self, num_samples: int, generation_length: int, *args, **kwargs) -> torch.Tensor:
+    def generate(self, num_samples: int, generation_length: int, seed: int = 42) -> torch.Tensor:
         """
         Generate synthetic time series samples.
         
         Args:
             num_samples: Number of samples to generate
             generation_length: Length of each generated sequence
-            
+            seed: Random seed for generation
         Returns:
             Generated samples of shape (num_samples, generation_length)
         """
+        torch.manual_seed(seed)
         if self.generator is None:
             raise RuntimeError("Model must be trained before generating samples.")
         

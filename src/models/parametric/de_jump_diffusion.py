@@ -3,8 +3,8 @@ import numpy as np
 from src.models.base.base_model import ParametricModel
 
 class DoubleExponentialJumpDiffusion(ParametricModel):
-    def __init__(self, seed: int = 42):
-        super().__init__(seed)
+    def __init__(self):
+        super().__init__()
         self.mu = None
         self.sigma = None
         self.lam = None
@@ -40,9 +40,9 @@ class DoubleExponentialJumpDiffusion(ParametricModel):
         self.mu = float(mean_return + 0.5 * self.sigma**2 + self.kappa * self.lam)
         print(f"mu: {self.mu}, sigma: {self.sigma}, lam: {self.lam}, p: {self.p}, eta1: {self.eta1}, eta2: {self.eta2}, kappa: {self.kappa}")
 
-    def generate(self, num_samples: int, generation_length: int) -> torch.Tensor:
-        torch.manual_seed(self.seed)
-        np.random.seed(self.seed)
+    def generate(self, num_samples: int, generation_length: int, seed: int = 42) -> torch.Tensor:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
         log_returns = torch.zeros((num_samples, generation_length))
         drift = (self.mu - 0.5 * self.sigma**2 - self.kappa * self.lam)
         diffusion = self.sigma * torch.randn(num_samples, generation_length)

@@ -1,16 +1,15 @@
 """
 Takahashi Diffusion Model for Time Series Generation
 
-This model uses diffusion in the wavelet domain for time series generation.
-Reference: Diffusion models for time series generation.
+This implementation follows the specifications in takahashi.md:
+- Preprocessing: mirror expansion to power of 2, power transform, normalization, winsorization
+- Wavelet transform with coefficient-to-image mapping
+- Uses HuggingFace's DDPM (UNet2DModel + DDPMScheduler) as the diffusion base
 
-Architecture:
-- Wavelet transform to convert time series to 2D representation
-- U-Net for denoising in wavelet domain
-- Inverse wavelet transform to reconstruct time series
+For univariate time series (log returns), creates grayscale images from wavelet coefficients.
 """
 
-from typing import Optional
+from typing import Optional, Tuple
 import math
 
 import torch
@@ -18,195 +17,194 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-
-try:
-    import pywt
-    PYWAVELETS_AVAILABLE = True
-except ImportError:
-    PYWAVELETS_AVAILABLE = False
-    print("Warning: PyWavelets not available. Please install with: pip install PyWavelets")
+import pywt
+from diffusers import UNet2DModel, DDPMScheduler
 
 from src.models.base.base_model import DeepLearningModel
 
 
-class SinusoidalPositionalEmbeddings(nn.Module):
-    """Sinusoidal positional embeddings for timestep."""
-    def __init__(self, dim: int):
-        super().__init__()
-        self.dim = dim
-
-    def forward(self, time: torch.Tensor) -> torch.Tensor:
-        device = time.device
-        half_dim = self.dim // 2
-        if half_dim > 1:
-            emb = math.log(10000) / (half_dim - 1)
-        else:
-            emb = 1.0
-        emb = torch.exp(torch.arange(half_dim, device=device, dtype=time.dtype) * -emb)
-        emb = time.float()[:, None] * emb[None, :]
-        emb = torch.cat([emb.sin(), emb.cos()], dim=-1)
-        if emb.shape[-1] < self.dim:
-            emb = F.pad(emb, (0, self.dim - emb.shape[-1]))
-        return emb
-
-
-def _safe_group_norm_num_groups(num_channels: int, max_groups: int = 4) -> int:
-    """Select the largest number of groups <= max_groups that divides num_channels."""
-    max_groups = min(max_groups, num_channels)
-    for g in range(max_groups, 0, -1):
-        if (num_channels % g) == 0:
-            return g
-    return 1
-
-
-class _ResidualBlock(nn.Module):
-    """Residual block with time embedding."""
-    def __init__(self, in_channels: int, out_channels: int, time_emb_dim: int):
-        super().__init__()
-        self.time_mlp = nn.Linear(time_emb_dim, out_channels)
-        num_groups_in = _safe_group_norm_num_groups(in_channels, max_groups=4)
-        num_groups_out = _safe_group_norm_num_groups(out_channels, max_groups=4)
-        self.block1 = nn.Sequential(
-            nn.GroupNorm(num_groups_in, in_channels),
-            nn.SiLU(),
-            nn.Conv2d(in_channels, out_channels, 3, padding=1)
-        )
-        self.block2 = nn.Sequential(
-            nn.GroupNorm(num_groups_out, out_channels),
-            nn.SiLU(),
-            nn.Conv2d(out_channels, out_channels, 3, padding=1)
-        )
-        self.res_conv = nn.Conv2d(in_channels, out_channels, 1) if in_channels != out_channels else nn.Identity()
-
-    def forward(self, x: torch.Tensor, time_emb: torch.Tensor) -> torch.Tensor:
-        h = self.block1(x)
-        time_emb_proj = self.time_mlp(time_emb)
-        h = h + time_emb_proj[:, :, None, None]
-        h = self.block2(h)
-        return h + self.res_conv(x)
-
-
-class _UNet(nn.Module):
-    """U-Net for denoising in wavelet domain."""
-    def __init__(self, in_channels: int, time_emb_dim: int = 128):
-        super().__init__()
-        self.time_emb_dim = time_emb_dim
-        self.time_mlp = nn.Sequential(
-            SinusoidalPositionalEmbeddings(time_emb_dim),
-            nn.Linear(time_emb_dim, time_emb_dim),
-            nn.SiLU()
-        )
-        self.down1 = _ResidualBlock(in_channels, 64, time_emb_dim)
-        self.down2 = _ResidualBlock(64, 128, time_emb_dim)
-        self.bottleneck = _ResidualBlock(128, 256, time_emb_dim)
-        self.up1 = _ResidualBlock(256 + 128, 128, time_emb_dim)
-        self.up2 = _ResidualBlock(128 + 64, 64, time_emb_dim)
-        self.out = nn.Sequential(
-            nn.GroupNorm(_safe_group_norm_num_groups(64, max_groups=4), 64),
-            nn.SiLU(),
-            nn.Conv2d(64, in_channels, 3, padding=1)
-        )
-
-    def forward(self, x: torch.Tensor, timestep: torch.Tensor) -> torch.Tensor:
-        t = self.time_mlp(timestep)
-        d1 = self.down1(x, t)
-        h, w = d1.shape[2], d1.shape[3]
-        d2_size = (max(1, h // 2), max(1, w // 2))
-        d2_input = F.adaptive_avg_pool2d(d1, d2_size)
-        d2 = self.down2(d2_input, t)
-        h2, w2 = d2.shape[2], d2.shape[3]
-        b_size = (max(1, h2 // 2), max(1, w2 // 2))
-        b_input = F.adaptive_avg_pool2d(d2, b_size)
-        b = self.bottleneck(b_input, t)
-        u1 = self.up1(torch.cat([F.interpolate(b, size=d2.shape[-2:], mode='bilinear', align_corners=False), d2], dim=1), t)
-        u2 = self.up2(torch.cat([F.interpolate(u1, size=d1.shape[-2:], mode='bilinear', align_corners=False), d1], dim=1), t)
-        return self.out(u2)
-
-
-def wavelet_transform_forward(x: torch.Tensor, wavelet: str = 'haar') -> tuple:
+def mirror_expand_to_power_of_2(x: np.ndarray) -> Tuple[np.ndarray, int, int]:
     """
-    Transform time series to wavelet domain.
+    Expand time series to nearest power of 2 using mirror reflection.
     
     Args:
-        x: Input tensor of shape (batch_size, seq_length, num_channels)
-        wavelet: Wavelet type
+        x: Input time series of shape (L,)
         
     Returns:
-        wavelet_img: Wavelet coefficients of shape (batch_size, num_channels, 1, coef_length*2)
+        expanded: Expanded series of length 2^n
+        original_start: Start index of original data in expanded array
+        original_end: End index of original data in expanded array
+    """
+    L = len(x)
+    n = math.ceil(math.log2(L))
+    target_length = 2 ** n
+    
+    if L == target_length:
+        return x, 0, L
+    
+    # Calculate padding needed on each side
+    total_padding = target_length - L
+    left_pad = total_padding // 2
+    right_pad = total_padding - left_pad
+    
+    # Mirror reflection: reflect the edges
+    left_reflection = np.flip(x[:left_pad]) if left_pad > 0 else np.array([])
+    right_reflection = np.flip(x[-right_pad:]) if right_pad > 0 else np.array([])
+    
+    expanded = np.concatenate([left_reflection, x, right_reflection])
+    original_start = left_pad
+    original_end = left_pad + L
+    
+    return expanded, original_start, original_end
+
+
+def power_transform_and_normalize(x: np.ndarray, power: float = 1.0) -> Tuple[np.ndarray, float, float]:
+    """
+    Apply power transformation and normalization.
+    
+    Args:
+        x: Input time series
+        power: Power index p (default 1.0 for no transformation)
+        
+    Returns:
+        transformed: Transformed and normalized series
+        mean_val: Mean of original series (for inverse transform)
+        std_val: Std of original series (for inverse transform)
+    """
+    mean_val = np.mean(x)
+    std_val = np.std(x)
+    
+    if std_val < 1e-8:
+        return (x - mean_val), mean_val, std_val
+    
+    centered = x - mean_val
+    
+    if abs(power - 1.0) < 1e-6:
+        # No power transformation
+        transformed = centered / std_val
+    else:
+        # Apply power transformation: sign(x) * |x|^(1/p)
+        sign = np.sign(centered)
+        abs_val = np.abs(centered)
+        transformed = sign * (abs_val ** (1.0 / power)) / std_val
+    
+    return transformed, mean_val, std_val
+
+
+def winsorize(x: np.ndarray, threshold: float = 3.0) -> np.ndarray:
+    """
+    Winsorize outliers by clipping values beyond threshold.
+    
+    Args:
+        x: Input time series
+        threshold: Z-score threshold (default 3.0)
+        
+    Returns:
+        winsorized: Winsorized series
+    """
+    return np.clip(x, -threshold, threshold)
+
+
+def dwt_to_image_coefficients(x: np.ndarray, wavelet: str = 'haar') -> Tuple[np.ndarray, dict]:
+    """
+    Perform DWT and organize coefficients into image structure.
+    
+    For input length 2^n, DWT produces:
+    - 0th-order: 1 coefficient
+    - 1st-order: 1 coefficient  
+    - 2nd-order: 2 coefficients
+    - 3rd-order: 4 coefficients
+    - ... up to (n-1)th order
+    
+    Args:
+        x: Input time series of length 2^n
+        wavelet: Wavelet type (default 'haar')
+        
+    Returns:
+        image: Image array where row k contains coefficients of order k
         coeffs_info: Dictionary with coefficient information
     """
-    if not PYWAVELETS_AVAILABLE:
-        raise ImportError("PyWavelets is required. Install with: pip install PyWavelets")
-    B, L, N = x.shape
-    device = x.device
-    dtype = x.dtype
-    x_np = x.detach().cpu().numpy()
-    all_low = []
-    all_high = []
-    for b in range(B):
-        for n in range(N):
-            coeffs = pywt.dwt(x_np[b, :, n], wavelet, mode='zero')
-            cA, cD = coeffs
-            all_low.append(cA)
-            all_high.append(cD)
-    first_low = all_low[0]
-    first_high = all_high[0]
-    coef_length = len(first_low)
-    low_freq = np.array(all_low).reshape(B, N, coef_length)
-    high_freq = np.array(all_high).reshape(B, N, coef_length)
-    low_freq = torch.tensor(low_freq, device=device, dtype=dtype)
-    high_freq = torch.tensor(high_freq, device=device, dtype=dtype)
-    wavelet_img = torch.cat([low_freq, high_freq], dim=2)
-    wavelet_img = wavelet_img.unsqueeze(2)  # (B, N, 1, coef_length*2)
+    L = len(x)
+    n = int(math.log2(L))
+    
+    # Perform full DWT decomposition
+    coeffs = pywt.wavedec(x, wavelet, mode='zero', level=n-1)
+    
+    # coeffs[0] is approximation (lowest level), coeffs[1:] are details
+    # For Haar: coeffs[0] has 1 value, coeffs[1] has 1, coeffs[2] has 2, etc.
+    
+    # Build image: each row corresponds to a decomposition level
+    image_rows = []
+    row_length = L  # All rows have same length
+    
+    for i, coeff in enumerate(coeffs):
+        num_coeffs = len(coeff)
+        # Split row into num_coeffs segments, fill each uniformly
+        segment_length = row_length // num_coeffs
+        row = np.repeat(coeff, segment_length)
+        # Handle remainder if row_length not divisible by num_coeffs
+        if len(row) < row_length:
+            row = np.pad(row, (0, row_length - len(row)), mode='edge')
+        image_rows.append(row)
+    
+    # Stack rows to form image
+    image = np.stack(image_rows, axis=0)  # Shape: (n_levels, L)
+    
     coeffs_info = {
-        'low_shape': (N, coef_length),
-        'high_shape': (N, coef_length),
         'original_length': L,
-        'wavelet': wavelet
+        'n_levels': len(coeffs),
+        'coeff_lengths': [len(c) for c in coeffs],
+        'wavelet': wavelet,
+        'n': n
     }
-    return wavelet_img, coeffs_info
+    
+    return image, coeffs_info
 
 
-def wavelet_transform_inverse(wavelet_img: torch.Tensor, coeffs_info: dict, 
-                              wavelet: Optional[str] = None) -> torch.Tensor:
+def image_coefficients_to_dwt(image: np.ndarray, coeffs_info: dict, wavelet: str = 'haar') -> np.ndarray:
     """
-    Inverse wavelet transform from wavelet domain to time series.
+    Reconstruct time series from image coefficients using inverse DWT.
     
     Args:
-        wavelet_img: Wavelet coefficients of shape (batch_size, num_channels, 1, coef_length*2)
+        image: Image array of shape (n_levels, L)
         coeffs_info: Dictionary with coefficient information
         wavelet: Wavelet type
         
     Returns:
-        Reconstructed time series of shape (batch_size, seq_length, num_channels)
+        reconstructed: Reconstructed time series
     """
-    if not PYWAVELETS_AVAILABLE:
-        raise ImportError("PyWavelets is required. Install with: pip install PyWavelets")
-    if wavelet is None:
-        wavelet = coeffs_info.get('wavelet', 'haar')
-    B, N, H, W = wavelet_img.shape
-    device = wavelet_img.device
-    wavelet_img = wavelet_img.squeeze(2)
-    coef_length = coeffs_info['low_shape'][1]
-    low_freq = wavelet_img[:, :, :coef_length]
-    high_freq = wavelet_img[:, :, coef_length:coef_length*2]
-    low_np = low_freq.detach().cpu().numpy()
-    high_np = high_freq.detach().cpu().numpy()
-    reconstructed = []
-    for b in range(B):
-        batch_recon = []
-        for n in range(N):
-            recon = pywt.idwt(low_np[b, n], high_np[b, n], wavelet, mode='zero')
-            batch_recon.append(recon)
-        reconstructed.append(np.stack(batch_recon, axis=0))
-    result = torch.tensor(np.stack(reconstructed, axis=0), device=device, dtype=wavelet_img.dtype)
-    result = result.transpose(1, 2)  # (B, L, N)
-    return result
+    n_levels = coeffs_info['n_levels']
+    coeff_lengths = coeffs_info['coeff_lengths']
+    
+    # Extract coefficients from image rows
+    coeffs = []
+    for i in range(n_levels):
+        row = image[i]
+        num_coeffs = coeff_lengths[i]
+        segment_length = len(row) // num_coeffs
+        # Extract first value from each segment
+        coeff = row[::segment_length][:num_coeffs]
+        coeffs.append(coeff)
+    
+    # Reconstruct using inverse DWT
+    reconstructed = pywt.waverec(coeffs, wavelet, mode='zero')
+    
+    return reconstructed
 
 
 class TakahashiDiffusion(DeepLearningModel):
     """
     Takahashi Diffusion model for generating synthetic time series.
+    
+    Follows specifications in takahashi.md:
+    - Preprocessing: mirror expansion, power transform, normalization, winsorization
+    - Wavelet transform with coefficient-to-image mapping
+    - Uses HuggingFace's DDPM for diffusion
+    
+    NOTE: This implementation is for UNIVARIATE time series (log returns only).
+    It uses 1 channel (grayscale) images, NOT 3-channel RGB images.
+    The markdown mentions RGB for the general case (log returns, spreads, volume),
+    but this implementation only handles log returns (1 channel).
     
     Input: DataLoader providing batches of shape (batch_size, seq_length)
     Output: Generated samples of shape (num_samples, generation_length)
@@ -220,11 +218,12 @@ class TakahashiDiffusion(DeepLearningModel):
         beta_start: float = 0.0001,
         beta_end: float = 0.02,
         wavelet: str = 'haar',
+        power_transform: float = 1.0,
+        winsorize_threshold: float = 3.0,
         lr: float = 1e-4,
-        seed: int = 42,
         device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     ):
-        super().__init__(seed=seed)
+        super().__init__()
         
         self.length = length  # Will be inferred from data if None
         self.num_channels = int(num_channels)
@@ -232,70 +231,154 @@ class TakahashiDiffusion(DeepLearningModel):
         self.beta_start = float(beta_start)
         self.beta_end = float(beta_end)
         self.wavelet = str(wavelet)
+        self.power_transform = float(power_transform)
+        self.winsorize_threshold = float(winsorize_threshold)
+        self.lr = float(lr)
         self.device = torch.device(device)
         
-        # Diffusion schedule
-        betas = torch.linspace(self.beta_start, self.beta_end, self.num_steps)
-        self.betas = betas.to(self.device)
-        self.alphas = 1.0 - self.betas
-        self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
-        self.alphas_cumprod_prev = torch.cat([torch.tensor([1.0], device=self.device), self.alphas_cumprod[:-1]])
-        self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)
-        self.sqrt_one_minus_alphas_cumprod = torch.sqrt(1.0 - self.alphas_cumprod)
-        self.sqrt_alphas_cumprod_prev = torch.sqrt(self.alphas_cumprod_prev)
-        self.sqrt_alphas = torch.sqrt(self.alphas)
-        self.posterior_variance = self.betas * (1.0 - self.alphas_cumprod_prev) / (1.0 - self.alphas_cumprod)
-
-        # U-Net model (will be initialized in fit if length is None)
-        self.model = None
+        # UNet2DModel from HuggingFace
+        # For grayscale images (univariate), in_channels=1
+        self.unet = None
+        self.scheduler = None
         self.optimizer = None
-        self.coeffs_info_cache = None
         
-        # Optional: EMA of model parameters for better sampling
-        self.ema_decay = 0.9999
-        self.ema_params = None
+        # Preprocessing statistics (will be computed during fit)
+        self.data_mean = None
+        self.data_std = None
+        self.expansion_info = None  # (original_start, original_end)
+        self.coeffs_info_cache = None
 
-    def _init_model(self):
-        """Initialize U-Net model if not already initialized."""
-        if self.model is None:
-            self.model = _UNet(in_channels=self.num_channels, time_emb_dim=128).to(self.device)
-            self.optimizer = optim.Adam(self.model.parameters(), lr=1e-4)
-            self.ema_params = [p.clone().detach().to(self.device) for p in self.model.parameters()]
+    def _init_model(self, image_height: int, image_width: int):
+        """Initialize UNet2DModel and DDPMScheduler."""
+        if self.unet is None:
+            self.unet = UNet2DModel(
+                sample_size=(image_height, image_width),
+                in_channels=1,  # Grayscale for univariate
+                out_channels=1,
+                layers_per_block=2,
+                block_out_channels=(128, 256, 512, 512),
+                down_block_types=(
+                    "DownBlock2D",
+                    "DownBlock2D",
+                    "DownBlock2D",
+                    "AttnDownBlock2D",
+                ),
+                up_block_types=(
+                    "AttnUpBlock2D",
+                    "UpBlock2D",
+                    "UpBlock2D",
+                    "UpBlock2D",
+                ),
+            ).to(self.device)
+            
+            self.scheduler = DDPMScheduler(
+                num_train_timesteps=self.num_steps,
+                beta_start=self.beta_start,
+                beta_end=self.beta_end,
+                beta_schedule="linear",
+                prediction_type="epsilon",
+            )
+            
+            self.optimizer = optim.Adam(self.unet.parameters(), lr=self.lr)
 
-    def _extract(self, a: torch.Tensor, t: torch.Tensor, x_shape: torch.Size) -> torch.Tensor:
-        """Extract values from tensor a at indices t."""
-        t = t.to(a.device, dtype=torch.long)
-        out = a.gather(0, t)
-        return out.reshape(t.shape[0], *((1,) * (len(x_shape) - 1)))
+    def _preprocess_batch(self, batch: torch.Tensor) -> Tuple[torch.Tensor, dict]:
+        """
+        Preprocess batch according to takahashi.md specifications.
+        
+        Returns:
+            images: Preprocessed images ready for DDPM (batch_size, 1, H, W)
+            preprocess_info: Dictionary with preprocessing parameters for inverse
+        """
+        batch_np = batch.detach().cpu().numpy()
+        batch_size = batch_np.shape[0]
+        
+        processed_images = []
+        preprocess_infos = []
+        
+        for i in range(batch_size):
+            x = batch_np[i]  # (seq_length,)
+            
+            # 1. Mirror expansion to power of 2
+            expanded, orig_start, orig_end = mirror_expand_to_power_of_2(x)
+            
+            # 2. Power transformation + normalization
+            transformed, mean_val, std_val = power_transform_and_normalize(
+                expanded, self.power_transform
+            )
+            
+            # 3. Winsorization
+            winsorized = winsorize(transformed, self.winsorize_threshold)
+            
+            # 4. DWT to image coefficients
+            image, coeffs_info = dwt_to_image_coefficients(winsorized, self.wavelet)
+            
+            # Convert to torch tensor and add channel dimension
+            # Image shape: (n_levels, L) -> (1, n_levels, L) for grayscale
+            image_tensor = torch.from_numpy(image).float().unsqueeze(0)
+            
+            processed_images.append(image_tensor)
+            preprocess_infos.append({
+                'original_start': orig_start,
+                'original_end': orig_end,
+                'mean': mean_val,
+                'std': std_val,
+                'coeffs_info': coeffs_info
+            })
+        
+        # Stack into batch: (batch_size, 1, H, W)
+        images = torch.stack(processed_images, dim=0).to(self.device)
+        
+        # Store preprocessing info (use first sample's info as template)
+        if self.coeffs_info_cache is None:
+            self.coeffs_info_cache = preprocess_infos[0]['coeffs_info']
+            self.expansion_info = (preprocess_infos[0]['original_start'], preprocess_infos[0]['original_end'])
+            if self.data_mean is None:
+                self.data_mean = preprocess_infos[0]['mean']
+                self.data_std = preprocess_infos[0]['std']
+        
+        return images, preprocess_infos
 
-    def _q_sample(self, x_start: torch.Tensor, t: torch.Tensor, noise: Optional[torch.Tensor] = None) -> torch.Tensor:
-        """Forward diffusion process: add noise to x_start at timestep t."""
-        if noise is None:
-            noise = torch.randn_like(x_start)
-        sqrt_acp_t = self._extract(self.sqrt_alphas_cumprod, t, x_start.shape)
-        sqrt_om_acp_t = self._extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape)
-        return sqrt_acp_t * x_start + sqrt_om_acp_t * noise
-
-    def _p_sample(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        """Reverse diffusion process: denoise x at timestep t."""
-        predicted_noise = self.model(x, t)
-        sqrt_acp_t = self._extract(self.sqrt_alphas_cumprod, t, x.shape)
-        sqrt_om_acp_t = self._extract(self.sqrt_one_minus_alphas_cumprod, t, x.shape)
-        pred_x_start = (x - sqrt_om_acp_t * predicted_noise) / sqrt_acp_t
-
-        posterior_mean_coef1 = self._extract(
-            self.sqrt_alphas_cumprod_prev * self.betas / (1.0 - self.alphas_cumprod), t, x.shape
-        )
-        posterior_mean_coef2 = self._extract(
-            self.sqrt_alphas * (1.0 - self.alphas_cumprod_prev) / (1.0 - self.alphas_cumprod), t, x.shape
-        )
-        posterior_mean = posterior_mean_coef1 * pred_x_start + posterior_mean_coef2 * x
-
-        posterior_variance_t = self._extract(self.posterior_variance, t, x.shape)
-        noise = torch.randn_like(x)
-        nonzero_mask = (t != 0).float().reshape(x.shape[0], *((1,) * (x.dim() - 1)))
-
-        return posterior_mean + nonzero_mask * (torch.sqrt(posterior_variance_t) * noise)
+    def _postprocess_images(self, images: torch.Tensor, preprocess_info: dict) -> torch.Tensor:
+        """
+        Reverse preprocessing pipeline to recover time series.
+        
+        Args:
+            images: Generated images (batch_size, 1, H, W)
+            preprocess_info: Preprocessing information for inverse transform
+            
+        Returns:
+            time_series: Recovered time series (batch_size, original_length)
+        """
+        batch_size = images.shape[0]
+        recovered_series = []
+        
+        for i in range(batch_size):
+            image = images[i, 0].detach().cpu().numpy()  # (H, W)
+            info = preprocess_info[i] if isinstance(preprocess_info, list) else preprocess_info
+            
+            # 1. Inverse DWT
+            expanded = image_coefficients_to_dwt(image, info['coeffs_info'], self.wavelet)
+            
+            # 2. Reverse winsorization (already done, no inverse needed)
+            
+            # 3. Reverse normalization and power transform
+            # transformed = (x - mean) / std, so x = transformed * std + mean
+            # For power transform: if y = sign(x) * |x|^(1/p), then x = sign(y) * |y|^p
+            denormalized = expanded * info['std'] + info['mean']
+            
+            if abs(self.power_transform - 1.0) > 1e-6:
+                sign = np.sign(denormalized)
+                abs_val = np.abs(denormalized)
+                denormalized = sign * (abs_val ** self.power_transform)
+            
+            # 4. Remove mirror expansion
+            orig_start = info['original_start']
+            orig_end = info['original_end']
+            original = denormalized[orig_start:orig_end]
+            
+            recovered_series.append(torch.from_numpy(original).float())
+        
+        return torch.stack(recovered_series, dim=0)
 
     def _prepare_batch(self, batch: torch.Tensor) -> torch.Tensor:
         """Convert batch from (batch_size, seq_len) to (batch_size, seq_len, 1)."""
@@ -320,41 +403,47 @@ class TakahashiDiffusion(DeepLearningModel):
             self.length = first_batch.shape[-1] if first_batch.dim() >= 1 else len(first_batch)
             print(f"Inferred sequence length: {self.length}")
         
-        # Initialize model
-        self._init_model()
+        # Process first batch to get image dimensions
+        first_batch = next(iter(data_loader))
+        images, _ = self._preprocess_batch(first_batch)
+        _, _, img_h, img_w = images.shape
+        print(f"Image dimensions: {img_h} x {img_w}")
         
-        self.model.train()
-        mse = nn.MSELoss()
+        # Initialize model
+        self._init_model(img_h, img_w)
+        
+        self.unet.train()
         
         for epoch in range(num_epochs):
             total_loss = 0.0
             batch_count = 0
             
-            for real_batch in data_loader:
-                real = self._prepare_batch(real_batch)
+            for batch in data_loader:
+                # Preprocess to images
+                images, _ = self._preprocess_batch(batch)
                 
-                try:
-                    wavelet_img, coeffs_info = wavelet_transform_forward(real, self.wavelet)
-                    self.coeffs_info_cache = coeffs_info
-                except Exception as e:
-                    print(f"Warning: Wavelet transform failed: {e}. Skipping batch.")
-                    continue
-
-                batch_size = wavelet_img.shape[0]
-                t = torch.randint(0, self.num_steps, (batch_size,), device=self.device).long()
-                noise = torch.randn_like(wavelet_img)
-                x_t = self._q_sample(wavelet_img, t, noise)
-                predicted_noise = self.model(x_t, t)
-                loss = mse(noise, predicted_noise)
-
-                self.optimizer.zero_grad(set_to_none=True)
+                # Sample noise
+                noise = torch.randn_like(images)
+                
+                # Sample random timesteps
+                timesteps = torch.randint(
+                    0, self.scheduler.config.num_train_timesteps,
+                    (images.shape[0],), device=self.device
+                ).long()
+                
+                # Add noise to images
+                noisy_images = self.scheduler.add_noise(images, noise, timesteps)
+                
+                # Predict noise
+                noise_pred = self.unet(noisy_images, timesteps, return_dict=False)[0]
+                
+                # Compute loss
+                loss = F.mse_loss(noise_pred, noise)
+                
+                # Backward pass
+                self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-
-                # Update EMA params
-                with torch.no_grad():
-                    for ema_p, p in zip(self.ema_params, self.model.parameters()):
-                        ema_p.mul_(self.ema_decay).add_(p.data, alpha=1.0 - self.ema_decay)
 
                 total_loss += loss.item()
                 batch_count += 1
@@ -363,67 +452,67 @@ class TakahashiDiffusion(DeepLearningModel):
                 avg_loss = total_loss / batch_count
                 print(f"TakahashiDiffusion epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.6f}")
 
-        self.model.eval()
+        self.unet.eval()
 
     @torch.no_grad()
-    def generate(self, num_samples: int, generation_length: int, *args, **kwargs) -> torch.Tensor:
+    def generate(self, num_samples: int, generation_length: int, seed: int = 42) -> torch.Tensor:
         """
         Generate synthetic time series samples.
         
         Args:
             num_samples: Number of samples to generate
             generation_length: Length of each generated sequence
+            seed: Random seed for generation
             
         Returns:
             Generated samples of shape (num_samples, generation_length)
         """
-        if self.model is None:
+        if self.unet is None:
             raise RuntimeError("Model must be trained before generating samples.")
         
-        if self.coeffs_info_cache is None:
-            # Create dummy data to get coeffs_info
-            dummy = torch.zeros(1, generation_length, self.num_channels, device=self.device)
-            try:
-                _, coeffs_info = wavelet_transform_forward(dummy, self.wavelet)
-                self.coeffs_info_cache = coeffs_info
-            except Exception as e:
-                raise RuntimeError(f"Cannot generate: wavelet transform failed. {e}")
+        torch.manual_seed(seed)
+        np.random.seed(seed)
         
-        coeffs_info = self.coeffs_info_cache
-        N = self.num_channels
-        coef_length = coeffs_info['low_shape'][1]
-        shape = (1, N, 1, coef_length * 2)  # generate 1 sample at a time
-        generated_list = []
-
-        for i_sample in range(num_samples):
-            torch.manual_seed(self.seed + i_sample)
-            x = torch.randn(shape, device=self.device)
-
-            for i in reversed(range(0, self.num_steps)):
-                t = torch.full((1,), i, device=self.device, dtype=torch.long)
-                x = self._p_sample(x, t)
-
-            try:
-                generated = wavelet_transform_inverse(x, coeffs_info, self.wavelet)
-            except Exception as e:
-                raise RuntimeError(f"Inverse wavelet transform failed: {e}")
-
-            # Adjust length if needed
-            if generated.shape[1] != generation_length:
-                if generated.shape[1] > generation_length:
-                    generated = generated[:, :generation_length, :]
-                else:
-                    pad_length = generation_length - generated.shape[1]
-                    padding = torch.zeros(1, pad_length, self.num_channels, device=self.device)
-                    generated = torch.cat([generated, padding], dim=1)
-
-            generated_list.append(generated)
-
-        # Concatenate all generated samples
-        result = torch.cat(generated_list, dim=0)  # (num_samples, generation_length, num_channels)
+        # Create dummy batch to get image dimensions and preprocessing info
+        dummy_batch = torch.zeros(1, generation_length)
+        dummy_images, dummy_info = self._preprocess_batch(dummy_batch)
+        _, _, img_h, img_w = dummy_images.shape
         
-        # Remove channel dimension if univariate
-        if result.shape[-1] == 1:
-            result = result.squeeze(-1)
+        # Generate images using DDPM
+        generated_images = []
+        preprocess_infos = []
         
-        return result.detach().cpu()
+        for i in range(num_samples):
+            torch.manual_seed(seed + i)
+            
+            # Start with random noise
+            image = torch.randn((1, 1, img_h, img_w), device=self.device)
+            
+            # Denoising loop
+            self.scheduler.set_timesteps(self.num_steps)
+            for t in self.scheduler.timesteps:
+                # Predict noise
+                noise_pred = self.unet(image, t, return_dict=False)[0]
+                
+                # Update image
+                image = self.scheduler.step(noise_pred, t, image, return_dict=False)[0]
+            
+            generated_images.append(image)
+            preprocess_infos.append(dummy_info[0])  # Use same preprocessing info
+        
+        # Stack images
+        images_batch = torch.cat(generated_images, dim=0)  # (num_samples, 1, H, W)
+        
+        # Postprocess to recover time series
+        time_series = self._postprocess_images(images_batch, preprocess_infos)
+        
+        # Adjust length if needed
+        if time_series.shape[1] != generation_length:
+            if time_series.shape[1] > generation_length:
+                time_series = time_series[:, :generation_length]
+            else:
+                pad_length = generation_length - time_series.shape[1]
+                padding = torch.zeros(num_samples, pad_length, device=self.device)
+                time_series = torch.cat([time_series, padding], dim=1)
+        
+        return time_series.cpu()

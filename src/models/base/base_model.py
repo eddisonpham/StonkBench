@@ -25,10 +25,8 @@ class ParametricModel(ABC):
     - Outputs generated samples of shape (R, l) where R is the number of simulated realizations.
     """
 
-    def __init__(self, seed: int = 42):
-        self.seed = seed
-        torch.manual_seed(self.seed)
-        np.random.seed(self.seed)
+    def __init__(self):
+        pass
 
     @abstractmethod
     def fit(self, data: torch.Tensor, *args, **kwargs) -> None:
@@ -42,12 +40,14 @@ class ParametricModel(ABC):
         pass
 
     @abstractmethod
-    def generate(self, num_samples: int, generation_length: int, *args, **kwargs) -> torch.Tensor:
+    def generate(self, num_samples: int, generation_length: int, seed: int = 42, *args, **kwargs) -> torch.Tensor:
         """
         Generates synthetic time series realizations.
 
         Args:
             num_samples (int): Number of simulated samples (R).
+            generation_length (int): Length of each generated sample.
+            seed (int, optional): Random seed for generation. If not given, falls back to the instance seed.
             *args, **kwargs: Extra keyword arguments.
 
         Returns:
@@ -63,11 +63,8 @@ class DeepLearningModel(torch.nn.Module, ABC):
     - Outputs generated samples of shape (R, l).
     """
 
-    def __init__(self, seed: int = 42):
+    def __init__(self):
         torch.nn.Module.__init__(self)
-        self.seed = seed
-        torch.manual_seed(self.seed)
-        np.random.seed(self.seed)
 
     @abstractmethod
     def fit(self, data_loader: torch.utils.data.DataLoader, num_epochs: int = 10, *args, **kwargs) -> None:
@@ -81,7 +78,7 @@ class DeepLearningModel(torch.nn.Module, ABC):
         pass
 
     @abstractmethod
-    def generate(self, num_samples: int, generation_length: int, *args, **kwargs) -> torch.Tensor:
+    def generate(self, num_samples: int, generation_length: int, seed: int = 42, *args, **kwargs) -> torch.Tensor:
         """
         Generates synthetic samples after training.
 

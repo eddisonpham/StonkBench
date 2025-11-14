@@ -1,11 +1,3 @@
-"""
-PyTorch implementation of QuantGAN.
-
-This module defines a QuantGAN model that inherits from DeepLearningModel
-and follows the formatting/style used by parametric models. It handles
-log returns without normalization and suppresses print outputs.
-"""
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -120,9 +112,8 @@ class QuantGAN(DeepLearningModel):
         lr: float = 2e-4,
         beta1: float = 0.5,
         beta2: float = 0.9,
-        seed: int = 42,
     ):
-        super().__init__(seed=seed)
+        super().__init__()
         self.num_channels = int(num_channels)
         self.embedding_dim = int(embedding_dim)
         self.hidden_dim = int(hidden_dim)
@@ -215,9 +206,9 @@ class QuantGAN(DeepLearningModel):
         self,
         num_samples: int,
         generation_length: int,
-        *args,
-        **kwargs
+        seed: int = 42,
     ) -> torch.Tensor:
+        torch.manual_seed(seed)
         z = self._sample_noise(num_samples, generation_length)
         fake = self.generator(z)
         return fake.detach().cpu().squeeze(-1)

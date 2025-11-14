@@ -6,11 +6,11 @@ from src.models.base.base_model import ParametricModel
 
 
 class GARCH11(ParametricModel):
-    def __init__(self, seed: int = 42):
-        super().__init__(seed)
+    def __init__(self):
+        super().__init__()
         self.mu = None
         self.omega = None
-        self.alpha = None
+        self.alpha = None 
         self.beta = None
 
     def fit(self, log_returns: torch.Tensor) -> None:
@@ -31,9 +31,9 @@ class GARCH11(ParametricModel):
         self.beta = model_fit.params['beta[1]']
         print(f"mu: {self.mu}, omega: {self.omega}, alpha: {self.alpha}, beta: {self.beta}")
 
-    def generate(self, num_samples: int, generation_length: int) -> torch.Tensor:
-        torch.manual_seed(self.seed)
-        np.random.seed(self.seed)
+    def generate(self, num_samples: int, generation_length: int, seed: int = 42) -> torch.Tensor:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
         log_returns = torch.zeros((num_samples, generation_length))
         sigma2 = torch.zeros((num_samples, generation_length))
         epsilon = torch.zeros((num_samples, generation_length))
