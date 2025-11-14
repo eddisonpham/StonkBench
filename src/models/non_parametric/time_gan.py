@@ -1,3 +1,17 @@
+"""
+TimeGAN: Time-series Generative Adversarial Networks
+
+Reference: Jinsung Yoon, Daniel Jarrett, Mihaela van der Schaar, 
+"Time-series Generative Adversarial Networks," NeurIPS 2019.
+
+This implementation follows the original architecture with:
+- Encoder (Embedder): Maps time series to latent space
+- Recovery: Maps latent space back to time series
+- Generator: Generates synthetic latent representations
+- Supervisor: Predicts next step in latent space
+- Discriminator: Distinguishes real vs synthetic latent representations
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.init as init
@@ -34,6 +48,7 @@ def _weights_init(m):
 
 
 class Encoder(nn.Module):
+    """Encoder (Embedder) maps time series to latent space."""
     def __init__(self, input_dim: int, hidden_dim: int, num_layers: int):
         super().__init__()
         self.rnn = nn.GRU(input_dim, hidden_dim, num_layers, batch_first=True)
@@ -41,12 +56,14 @@ class Encoder(nn.Module):
         self.apply(_weights_init)
 
     def forward(self, x):
+        # x: (batch_size, seq_len, input_dim)
         rnn_out, _ = self.rnn(x)
-        h = self.fc(rnn_out)
+        h = self.fc(rnn_out)  # (batch_size, seq_len, hidden_dim)
         return h
 
 
 class Recovery(nn.Module):
+    """Recovery maps latent space back to time series."""
     def __init__(self, hidden_dim: int, output_dim: int, num_layers: int):
         super().__init__()
         self.rnn = nn.GRU(hidden_dim, hidden_dim, num_layers, batch_first=True)
@@ -54,14 +71,16 @@ class Recovery(nn.Module):
         self.apply(_weights_init)
 
     def forward(self, h, apply_sigmoid=True):
+        # h: (batch_size, seq_len, hidden_dim)
         rnn_out, _ = self.rnn(h)
-        x_tilde = self.fc(rnn_out)
+        x_tilde = self.fc(rnn_out)  # (batch_size, seq_len, output_dim)
         if apply_sigmoid:
             x_tilde = torch.sigmoid(x_tilde)
         return x_tilde
 
 
 class Generator(nn.Module):
+    """Generator generates synthetic latent representations."""
     def __init__(self, input_dim: int, hidden_dim: int, num_layers: int):
         super().__init__()
         self.rnn = nn.GRU(input_dim, hidden_dim, num_layers, batch_first=True)
@@ -69,12 +88,14 @@ class Generator(nn.Module):
         self.apply(_weights_init)
 
     def forward(self, z):
+        # z: (batch_size, seq_len, input_dim)
         rnn_out, _ = self.rnn(z)
-        e = self.fc(rnn_out)
-        return e  # No sigmoid in latent space
+        e = self.fc(rnn_out)  # (batch_size, seq_len, hidden_dim)
+        return e
 
 
 class Supervisor(nn.Module):
+    """Supervisor predicts next step in latent space."""
     def __init__(self, hidden_dim: int, num_layers: int):
         super().__init__()
         self.rnn = nn.GRU(hidden_dim, hidden_dim, num_layers, batch_first=True)
@@ -82,12 +103,14 @@ class Supervisor(nn.Module):
         self.apply(_weights_init)
 
     def forward(self, h):
+        # h: (batch_size, seq_len, hidden_dim)
         rnn_out, _ = self.rnn(h)
-        h_supervise = self.fc(rnn_out)
-        return h_supervise  # No sigmoid in latent space
+        h_supervise = self.fc(rnn_out)  # (batch_size, seq_len, hidden_dim)
+        return h_supervise
 
 
 class Discriminator(nn.Module):
+    """Discriminator distinguishes real vs synthetic latent representations."""
     def __init__(self, hidden_dim: int, num_layers: int):
         super().__init__()
         self.rnn = nn.GRU(hidden_dim, hidden_dim, num_layers, batch_first=True)
@@ -95,16 +118,24 @@ class Discriminator(nn.Module):
         self.apply(_weights_init)
 
     def forward(self, h):
+        # h: (batch_size, seq_len, hidden_dim)
         rnn_out, _ = self.rnn(h)
-        y_hat = self.fc(rnn_out)
+        y_hat = self.fc(rnn_out)  # (batch_size, seq_len, 1)
         y_hat = torch.sigmoid(y_hat)
         return y_hat
 
 
 class TimeGAN(DeepLearningModel):
+    """
+    TimeGAN model for generating synthetic time series.
+    
+    Input: DataLoader providing batches of shape (batch_size, seq_length)
+    Output: Generated samples of shape (num_samples, generation_length)
+    """
+    
     def __init__(
         self,
-        seq_len: int,
+        seq_len: int = None,
         hidden_dim: int = 24,
         num_layers: int = 3,
         gamma: float = 1.0,
@@ -114,7 +145,7 @@ class TimeGAN(DeepLearningModel):
     ):
         super().__init__(seed=seed)
 
-        self.seq_len = seq_len
+        self.seq_len = seq_len  # Will be inferred from data if None
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.gamma = gamma
@@ -125,12 +156,12 @@ class TimeGAN(DeepLearningModel):
         self.input_dim = 1
         self.output_dim = 1
 
-        # Networks
-        self.encoder = Encoder(self.input_dim, hidden_dim, num_layers).to(self.device)
-        self.recovery = Recovery(hidden_dim, self.output_dim, num_layers).to(self.device)
-        self.generator = Generator(self.input_dim, hidden_dim, num_layers).to(self.device)
-        self.supervisor = Supervisor(hidden_dim, num_layers).to(self.device)
-        self.discriminator = Discriminator(hidden_dim, num_layers).to(self.device)
+        # Networks (will be initialized in fit if seq_len is None)
+        self.encoder = None
+        self.recovery = None
+        self.generator = None
+        self.supervisor = None
+        self.discriminator = None
 
         # Losses
         self.mse_loss = nn.MSELoss()
@@ -142,11 +173,21 @@ class TimeGAN(DeepLearningModel):
         self.optimizer_generator = None
         self.optimizer_discriminator = None
 
-        # Data statistics
+        # Data statistics for normalization
         self.data_min = 0.0
         self.data_max = 1.0
 
+    def _init_networks(self):
+        """Initialize networks if not already initialized."""
+        if self.encoder is None:
+            self.encoder = Encoder(self.input_dim, self.hidden_dim, self.num_layers).to(self.device)
+            self.recovery = Recovery(self.hidden_dim, self.output_dim, self.num_layers).to(self.device)
+            self.generator = Generator(self.input_dim, self.hidden_dim, self.num_layers).to(self.device)
+            self.supervisor = Supervisor(self.hidden_dim, self.num_layers).to(self.device)
+            self.discriminator = Discriminator(self.hidden_dim, self.num_layers).to(self.device)
+
     def _init_optimizers(self):
+        """Initialize optimizers."""
         self.optimizer_autoencoder = optim.Adam(
             list(self.encoder.parameters()) + list(self.recovery.parameters()),
             lr=self.learning_rate
@@ -165,13 +206,24 @@ class TimeGAN(DeepLearningModel):
         )
 
     def _normalize_data(self, data: torch.Tensor) -> torch.Tensor:
+        """Normalize data to [0, 1] range."""
         return (data - self.data_min) / (self.data_max - self.data_min + 1e-8)
 
     def _denormalize_data(self, data: torch.Tensor) -> torch.Tensor:
+        """Denormalize data from [0, 1] range back to original scale."""
         return data * (self.data_max - self.data_min + 1e-8) + self.data_min
 
+    def _prepare_batch(self, batch: torch.Tensor) -> torch.Tensor:
+        """Convert batch from (batch_size, seq_len) to (batch_size, seq_len, 1)."""
+        if batch.dim() == 1:
+            batch = batch.unsqueeze(0)
+        x = batch.to(self.device)
+        if x.dim() == 2:
+            x = x.unsqueeze(-1)  # (batch_size, seq_len, 1)
+        return x
+
     def _train_autoencoder(self, data_loader, num_iterations: int):
-        print("\n=== Stage 1: Training Autoencoder ===")
+        """Stage 1: Train autoencoder (encoder + recovery)."""
         self.encoder.train()
         self.recovery.train()
 
@@ -179,13 +231,9 @@ class TimeGAN(DeepLearningModel):
             epoch_loss = 0.0
             num_batches = 0
             for batch in data_loader:
-                if batch.dim() == 1:
-                    batch = batch.unsqueeze(0)
-                x = batch.to(self.device)
-                if x.dim() == 2:
-                    x = x.unsqueeze(-1)
-
+                x = self._prepare_batch(batch)
                 x_norm = self._normalize_data(x)
+                
                 h = self.encoder(x_norm)
                 x_tilde = self.recovery(h)
                 loss = self.mse_loss(x_tilde, x_norm)
@@ -197,11 +245,11 @@ class TimeGAN(DeepLearningModel):
                 epoch_loss += loss.item()
                 num_batches += 1
 
-            if (iteration + 1) % 100 == 0:
-                print(f"Epoch {iteration+1}/{num_iterations}, Loss: {epoch_loss/num_batches:.6f}")
+            if (iteration + 1) % max(1, num_iterations // 10) == 0:
+                print(f"  Autoencoder iteration {iteration+1}/{num_iterations}, Loss: {epoch_loss/num_batches:.6f}")
 
     def _train_supervisor(self, data_loader, num_iterations: int):
-        print("\n=== Stage 2: Training Supervisor ===")
+        """Stage 2: Train supervisor."""
         self.supervisor.train()
         self.encoder.eval()
 
@@ -209,13 +257,9 @@ class TimeGAN(DeepLearningModel):
             epoch_loss = 0.0
             num_batches = 0
             for batch in data_loader:
-                if batch.dim() == 1:
-                    batch = batch.unsqueeze(0)
-                x = batch.to(self.device)
-                if x.dim() == 2:
-                    x = x.unsqueeze(-1)
-
+                x = self._prepare_batch(batch)
                 x_norm = self._normalize_data(x)
+                
                 with torch.no_grad():
                     h = self.encoder(x_norm)
 
@@ -223,6 +267,7 @@ class TimeGAN(DeepLearningModel):
                     continue
 
                 h_supervise = self.supervisor(h)
+                # Supervised loss: predict next step
                 loss = self.mse_loss(h_supervise[:, :-1, :], h[:, 1:, :])
 
                 self.optimizer_supervisor.zero_grad()
@@ -232,11 +277,11 @@ class TimeGAN(DeepLearningModel):
                 epoch_loss += loss.item()
                 num_batches += 1
 
-            if (iteration + 1) % 100 == 0:
-                print(f"Epoch {iteration+1}/{num_iterations}, Loss: {epoch_loss/num_batches:.6f}")
+            if (iteration + 1) % max(1, num_iterations // 10) == 0:
+                print(f"  Supervisor iteration {iteration+1}/{num_iterations}, Loss: {epoch_loss/num_batches:.6f}")
 
     def _train_adversarial(self, data_loader, num_iterations: int):
-        print("\n=== Stage 3: Adversarial Training ===")
+        """Stage 3: Adversarial training (generator + discriminator)."""
         self.encoder.eval()
         self.recovery.eval()
 
@@ -246,20 +291,17 @@ class TimeGAN(DeepLearningModel):
             num_batches = 0
 
             for batch in data_loader:
-                if batch.dim() == 1:
-                    batch = batch.unsqueeze(0)
-                x = batch.to(self.device)
-                if x.dim() == 2:
-                    x = x.unsqueeze(-1)
-
+                x = self._prepare_batch(batch)
                 batch_size = x.size(0)
                 x_norm = self._normalize_data(x)
 
                 # ------------------
-                # Generator + Supervisor
+                # Train Generator + Supervisor
                 # ------------------
                 self.generator.train()
                 self.supervisor.train()
+                
+                # Generate synthetic data
                 z = torch.randn(batch_size, self.seq_len, self.input_dim).to(self.device)
                 e_hat = self.generator(z)
                 h_hat = self.supervisor(e_hat)
@@ -269,7 +311,7 @@ class TimeGAN(DeepLearningModel):
                     h = self.encoder(x_norm)
                     x_recon = self.recovery(h)
 
-                # Generator adversarial loss
+                # Generator losses
                 y_fake = self.discriminator(h_hat)
                 y_fake_e = self.discriminator(e_hat)
                 g_loss_u = self.bce_loss(y_fake, torch.ones_like(y_fake))
@@ -281,7 +323,7 @@ class TimeGAN(DeepLearningModel):
                 else:
                     g_loss_s = 0.0
 
-                # Moment matching
+                # Moment matching loss
                 g_loss_v1 = torch.mean(torch.abs(x_hat.var(dim=0) - x_norm.var(dim=0)))
                 g_loss_v2 = torch.mean(torch.abs(x_hat.mean(dim=0) - x_norm.mean(dim=0)))
 
@@ -301,7 +343,7 @@ class TimeGAN(DeepLearningModel):
                 g_loss_total += g_loss.item()
 
                 # ------------------
-                # Discriminator
+                # Train Discriminator
                 # ------------------
                 self.discriminator.train()
                 with torch.no_grad():
@@ -326,21 +368,33 @@ class TimeGAN(DeepLearningModel):
 
                 num_batches += 1
 
-            if (iteration + 1) % 100 == 0:
-                print(f"Epoch {iteration+1}/{num_iterations}, "
+            if (iteration + 1) % max(1, num_iterations // 10) == 0:
+                print(f"  Adversarial iteration {iteration+1}/{num_iterations}, "
                       f"G Loss: {g_loss_total/num_batches:.6f}, "
                       f"D Loss: {d_loss_total/num_batches:.6f}")
 
-    def fit(self, data_loader, autoencoder_iterations=1000, supervisor_iterations=1000, adversarial_iterations=1000):
-        print("Starting TimeGAN Training...")
+    def fit(self, data_loader, num_epochs: int = 10, *args, **kwargs):
+        """
+        Train TimeGAN model.
+        
+        Args:
+            data_loader: DataLoader providing batches of shape (batch_size, seq_length)
+            num_epochs: Number of training epochs (controls iterations per stage)
+        """
+        # Infer seq_len from first batch if not set
+        if self.seq_len is None:
+            first_batch = next(iter(data_loader))
+            self.seq_len = first_batch.shape[-1] if first_batch.dim() >= 1 else len(first_batch)
+            print(f"Inferred sequence length: {self.seq_len}")
+
+        # Initialize networks
+        self._init_networks()
         self._init_optimizers()
 
-        # Compute data min/max
+        # Compute data min/max for normalization
         data_min_val = float('inf')
         data_max_val = float('-inf')
         for batch in data_loader:
-            if batch.dim() == 1:
-                batch = batch.unsqueeze(0)
             batch_min = batch.min().item()
             batch_max = batch.max().item()
             data_min_val = min(data_min_val, batch_min)
@@ -349,18 +403,37 @@ class TimeGAN(DeepLearningModel):
         self.data_max = data_max_val
         print(f"Data range: [{self.data_min:.4f}, {self.data_max:.4f}]")
 
-        # Stage 1
-        self._train_autoencoder(data_loader, autoencoder_iterations)
-        # Stage 2
-        self._train_supervisor(data_loader, supervisor_iterations)
-        # Stage 3
-        self._train_adversarial(data_loader, adversarial_iterations)
-        print("Training complete!")
+        # TimeGAN uses 3-stage training
+        # Each stage uses num_epochs iterations
+        print("\n=== Stage 1: Training Autoencoder ===")
+        self._train_autoencoder(data_loader, num_epochs)
+        
+        print("\n=== Stage 2: Training Supervisor ===")
+        self._train_supervisor(data_loader, num_epochs)
+        
+        print("\n=== Stage 3: Adversarial Training ===")
+        self._train_adversarial(data_loader, num_epochs)
+        
+        print("TimeGAN training complete!")
 
-    def generate(self, num_samples: int, generation_length: int):
+    def generate(self, num_samples: int, generation_length: int, *args, **kwargs) -> torch.Tensor:
+        """
+        Generate synthetic time series samples.
+        
+        Args:
+            num_samples: Number of samples to generate
+            generation_length: Length of each generated sequence
+            
+        Returns:
+            Generated samples of shape (num_samples, generation_length)
+        """
+        if self.generator is None:
+            raise RuntimeError("Model must be trained before generating samples.")
+        
         self.generator.eval()
         self.supervisor.eval()
         self.recovery.eval()
+        
         with torch.no_grad():
             z = torch.randn(num_samples, generation_length, self.input_dim).to(self.device)
             e_hat = self.generator(z)
@@ -368,4 +441,4 @@ class TimeGAN(DeepLearningModel):
             x_hat = self.recovery(h_hat)
             x_hat = torch.clamp(x_hat, 0.0, 1.0)
             x_hat = self._denormalize_data(x_hat)
-            return x_hat.squeeze(-1).cpu()
+            return x_hat.squeeze(-1).cpu()  # (num_samples, generation_length)

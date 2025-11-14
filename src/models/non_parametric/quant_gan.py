@@ -132,8 +132,8 @@ class QuantGAN(DeepLearningModel):
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.generator = Generator(self.embedding_dim, self.num_channels, self.hidden_dim)
-        self.discriminator = Discriminator(self.num_channels, 1, self.hidden_dim)
+        self.generator = Generator(self.embedding_dim, self.num_channels, self.hidden_dim).to(self.device)
+        self.discriminator = Discriminator(self.num_channels, 1, self.hidden_dim).to(self.device)
 
         self.opt_G = optim.Adam(
             self.generator.parameters(), lr=self.lr, betas=(self.beta1, self.beta2)
@@ -142,8 +142,6 @@ class QuantGAN(DeepLearningModel):
             self.discriminator.parameters(), lr=self.lr, betas=(self.beta1, self.beta2)
         )
         self.adv_loss = nn.BCEWithLogitsLoss()
-
-        self.to(self.device)
 
     def _ensure_sequence_shape(self, x: torch.Tensor) -> torch.Tensor:
         if x.dim() == 2:
@@ -166,6 +164,8 @@ class QuantGAN(DeepLearningModel):
         self,
         data_loader,
         num_epochs: int = 10,
+        *args,
+        **kwargs
     ):
         self.train()
         self.generator.train()
@@ -173,9 +173,6 @@ class QuantGAN(DeepLearningModel):
 
         for epoch in range(num_epochs):
             for i, real_batch in enumerate(data_loader):
-                if isinstance(real_batch, (list, tuple)):
-                    real_batch = real_batch[0]
-
                 real = real_batch.float().to(self.device)
                 real = self._ensure_sequence_shape(real)
 
@@ -206,7 +203,8 @@ class QuantGAN(DeepLearningModel):
                 loss_G.backward()
                 self.opt_G.step()
 
-            print(f"QuantGAN epoch {epoch + 1}/{num_epochs} | LossD: {loss_D.item():.4f} | LossG: {loss_G.item():.4f}")
+            if (epoch + 1) % max(1, num_epochs // 10) == 0:
+                print(f"QuantGAN epoch {epoch + 1}/{num_epochs} | LossD: {loss_D.item():.4f} | LossG: {loss_G.item():.4f}")
 
         self.eval()
         self.generator.eval()
@@ -217,6 +215,8 @@ class QuantGAN(DeepLearningModel):
         self,
         num_samples: int,
         generation_length: int,
+        *args,
+        **kwargs
     ) -> torch.Tensor:
         z = self._sample_noise(num_samples, generation_length)
         fake = self.generator(z)

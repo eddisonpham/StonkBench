@@ -1,3 +1,15 @@
+"""
+Takahashi Diffusion Model for Time Series Generation
+
+This model uses diffusion in the wavelet domain for time series generation.
+Reference: Diffusion models for time series generation.
+
+Architecture:
+- Wavelet transform to convert time series to 2D representation
+- U-Net for denoising in wavelet domain
+- Inverse wavelet transform to reconstruct time series
+"""
+
 from typing import Optional
 import math
 
@@ -18,6 +30,7 @@ from src.models.base.base_model import DeepLearningModel
 
 
 class SinusoidalPositionalEmbeddings(nn.Module):
+    """Sinusoidal positional embeddings for timestep."""
     def __init__(self, dim: int):
         super().__init__()
         self.dim = dim
@@ -38,7 +51,7 @@ class SinusoidalPositionalEmbeddings(nn.Module):
 
 
 def _safe_group_norm_num_groups(num_channels: int, max_groups: int = 4) -> int:
-    """Select the largest number of groups <= max_groups that divides num_channels. FIX"""
+    """Select the largest number of groups <= max_groups that divides num_channels."""
     max_groups = min(max_groups, num_channels)
     for g in range(max_groups, 0, -1):
         if (num_channels % g) == 0:
@@ -47,11 +60,12 @@ def _safe_group_norm_num_groups(num_channels: int, max_groups: int = 4) -> int:
 
 
 class _ResidualBlock(nn.Module):
+    """Residual block with time embedding."""
     def __init__(self, in_channels: int, out_channels: int, time_emb_dim: int):
         super().__init__()
         self.time_mlp = nn.Linear(time_emb_dim, out_channels)
-        num_groups_in = _safe_group_norm_num_groups(in_channels, max_groups=4)  # FIX
-        num_groups_out = _safe_group_norm_num_groups(out_channels, max_groups=4)  # FIX
+        num_groups_in = _safe_group_norm_num_groups(in_channels, max_groups=4)
+        num_groups_out = _safe_group_norm_num_groups(out_channels, max_groups=4)
         self.block1 = nn.Sequential(
             nn.GroupNorm(num_groups_in, in_channels),
             nn.SiLU(),
@@ -73,6 +87,7 @@ class _ResidualBlock(nn.Module):
 
 
 class _UNet(nn.Module):
+    """U-Net for denoising in wavelet domain."""
     def __init__(self, in_channels: int, time_emb_dim: int = 128):
         super().__init__()
         self.time_emb_dim = time_emb_dim
@@ -87,7 +102,7 @@ class _UNet(nn.Module):
         self.up1 = _ResidualBlock(256 + 128, 128, time_emb_dim)
         self.up2 = _ResidualBlock(128 + 64, 64, time_emb_dim)
         self.out = nn.Sequential(
-            nn.GroupNorm(_safe_group_norm_num_groups(64, max_groups=4), 64),  # FIX 
+            nn.GroupNorm(_safe_group_norm_num_groups(64, max_groups=4), 64),
             nn.SiLU(),
             nn.Conv2d(64, in_channels, 3, padding=1)
         )
@@ -109,6 +124,17 @@ class _UNet(nn.Module):
 
 
 def wavelet_transform_forward(x: torch.Tensor, wavelet: str = 'haar') -> tuple:
+    """
+    Transform time series to wavelet domain.
+    
+    Args:
+        x: Input tensor of shape (batch_size, seq_length, num_channels)
+        wavelet: Wavelet type
+        
+    Returns:
+        wavelet_img: Wavelet coefficients of shape (batch_size, num_channels, 1, coef_length*2)
+        coeffs_info: Dictionary with coefficient information
+    """
     if not PYWAVELETS_AVAILABLE:
         raise ImportError("PyWavelets is required. Install with: pip install PyWavelets")
     B, L, N = x.shape
@@ -131,7 +157,7 @@ def wavelet_transform_forward(x: torch.Tensor, wavelet: str = 'haar') -> tuple:
     low_freq = torch.tensor(low_freq, device=device, dtype=dtype)
     high_freq = torch.tensor(high_freq, device=device, dtype=dtype)
     wavelet_img = torch.cat([low_freq, high_freq], dim=2)
-    wavelet_img = wavelet_img.unsqueeze(2)
+    wavelet_img = wavelet_img.unsqueeze(2)  # (B, N, 1, coef_length*2)
     coeffs_info = {
         'low_shape': (N, coef_length),
         'high_shape': (N, coef_length),
@@ -141,7 +167,19 @@ def wavelet_transform_forward(x: torch.Tensor, wavelet: str = 'haar') -> tuple:
     return wavelet_img, coeffs_info
 
 
-def wavelet_transform_inverse(wavelet_img: torch.Tensor, coeffs_info: dict, wavelet: Optional[str] = None) -> torch.Tensor:
+def wavelet_transform_inverse(wavelet_img: torch.Tensor, coeffs_info: dict, 
+                              wavelet: Optional[str] = None) -> torch.Tensor:
+    """
+    Inverse wavelet transform from wavelet domain to time series.
+    
+    Args:
+        wavelet_img: Wavelet coefficients of shape (batch_size, num_channels, 1, coef_length*2)
+        coeffs_info: Dictionary with coefficient information
+        wavelet: Wavelet type
+        
+    Returns:
+        Reconstructed time series of shape (batch_size, seq_length, num_channels)
+    """
     if not PYWAVELETS_AVAILABLE:
         raise ImportError("PyWavelets is required. Install with: pip install PyWavelets")
     if wavelet is None:
@@ -162,30 +200,43 @@ def wavelet_transform_inverse(wavelet_img: torch.Tensor, coeffs_info: dict, wave
             batch_recon.append(recon)
         reconstructed.append(np.stack(batch_recon, axis=0))
     result = torch.tensor(np.stack(reconstructed, axis=0), device=device, dtype=wavelet_img.dtype)
-    result = result.transpose(1, 2)
+    result = result.transpose(1, 2)  # (B, L, N)
     return result
 
 
 class TakahashiDiffusion(DeepLearningModel):
+    """
+    Takahashi Diffusion model for generating synthetic time series.
+    
+    Input: DataLoader providing batches of shape (batch_size, seq_length)
+    Output: Generated samples of shape (num_samples, generation_length)
+    """
+    
     def __init__(
         self,
-        length: int,
-        num_channels: int,
+        length: int = None,
+        num_channels: int = 1,
         num_steps: int = 1000,
         beta_start: float = 0.0001,
         beta_end: float = 0.02,
         wavelet: str = 'haar',
         lr: float = 1e-4,
+        seed: int = 42,
+        device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     ):
-        super().__init__(length=length, num_channels=num_channels)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # FIX if base class doesn't set it
+        super().__init__(seed=seed)
+        
+        self.length = length  # Will be inferred from data if None
+        self.num_channels = int(num_channels)
         self.num_steps = int(num_steps)
         self.beta_start = float(beta_start)
         self.beta_end = float(beta_end)
         self.wavelet = str(wavelet)
-        # Create betas on CPU then move to device AFTER model and device defined
+        self.device = torch.device(device)
+        
+        # Diffusion schedule
         betas = torch.linspace(self.beta_start, self.beta_end, self.num_steps)
-        self.betas = betas.to(self.device)  # FIX
+        self.betas = betas.to(self.device)
         self.alphas = 1.0 - self.betas
         self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
         self.alphas_cumprod_prev = torch.cat([torch.tensor([1.0], device=self.device), self.alphas_cumprod[:-1]])
@@ -195,22 +246,30 @@ class TakahashiDiffusion(DeepLearningModel):
         self.sqrt_alphas = torch.sqrt(self.alphas)
         self.posterior_variance = self.betas * (1.0 - self.alphas_cumprod_prev) / (1.0 - self.alphas_cumprod)
 
-        self.model = _UNet(in_channels=num_channels, time_emb_dim=128).to(self.device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
-        self.to(self.device)  # ensure everything is on correct device
-
+        # U-Net model (will be initialized in fit if length is None)
+        self.model = None
+        self.optimizer = None
         self.coeffs_info_cache = None
+        
         # Optional: EMA of model parameters for better sampling
         self.ema_decay = 0.9999
-        self.ema_params = [p.clone().detach().to(self.device) for p in self.model.parameters()]
+        self.ema_params = None
+
+    def _init_model(self):
+        """Initialize U-Net model if not already initialized."""
+        if self.model is None:
+            self.model = _UNet(in_channels=self.num_channels, time_emb_dim=128).to(self.device)
+            self.optimizer = optim.Adam(self.model.parameters(), lr=1e-4)
+            self.ema_params = [p.clone().detach().to(self.device) for p in self.model.parameters()]
 
     def _extract(self, a: torch.Tensor, t: torch.Tensor, x_shape: torch.Size) -> torch.Tensor:
-        # FIX: ensure t is on same device and dtype correct
+        """Extract values from tensor a at indices t."""
         t = t.to(a.device, dtype=torch.long)
         out = a.gather(0, t)
         return out.reshape(t.shape[0], *((1,) * (len(x_shape) - 1)))
 
     def _q_sample(self, x_start: torch.Tensor, t: torch.Tensor, noise: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Forward diffusion process: add noise to x_start at timestep t."""
         if noise is None:
             noise = torch.randn_like(x_start)
         sqrt_acp_t = self._extract(self.sqrt_alphas_cumprod, t, x_start.shape)
@@ -218,6 +277,7 @@ class TakahashiDiffusion(DeepLearningModel):
         return sqrt_acp_t * x_start + sqrt_om_acp_t * noise
 
     def _p_sample(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Reverse diffusion process: denoise x at timestep t."""
         predicted_noise = self.model(x, t)
         sqrt_acp_t = self._extract(self.sqrt_alphas_cumprod, t, x.shape)
         sqrt_om_acp_t = self._extract(self.sqrt_one_minus_alphas_cumprod, t, x.shape)
@@ -233,24 +293,46 @@ class TakahashiDiffusion(DeepLearningModel):
 
         posterior_variance_t = self._extract(self.posterior_variance, t, x.shape)
         noise = torch.randn_like(x)
-        nonzero_mask = (t != 0).float().reshape(x.shape[0], *((1,) * (x.dim() - 1)))  # FIX
+        nonzero_mask = (t != 0).float().reshape(x.shape[0], *((1,) * (x.dim() - 1)))
 
         return posterior_mean + nonzero_mask * (torch.sqrt(posterior_variance_t) * noise)
 
-    def fit(
-        self,
-        data_loader,
-        num_epochs: int = 100,
-    ):
+    def _prepare_batch(self, batch: torch.Tensor) -> torch.Tensor:
+        """Convert batch from (batch_size, seq_len) to (batch_size, seq_len, 1)."""
+        if batch.dim() == 1:
+            batch = batch.unsqueeze(0)
+        x = batch.to(self.device)
+        if x.dim() == 2:
+            x = x.unsqueeze(-1)  # (batch_size, seq_len, 1)
+        return x
+
+    def fit(self, data_loader, num_epochs: int = 100, *args, **kwargs):
+        """
+        Train Takahashi Diffusion model.
+        
+        Args:
+            data_loader: DataLoader providing batches of shape (batch_size, seq_length)
+            num_epochs: Number of training epochs
+        """
+        # Infer length from first batch if not set
+        if self.length is None:
+            first_batch = next(iter(data_loader))
+            self.length = first_batch.shape[-1] if first_batch.dim() >= 1 else len(first_batch)
+            print(f"Inferred sequence length: {self.length}")
+        
+        # Initialize model
+        self._init_model()
+        
         self.model.train()
         mse = nn.MSELoss()
+        
         for epoch in range(num_epochs):
             total_loss = 0.0
             batch_count = 0
-            for batch_idx, real_batch in enumerate(data_loader):
-                if isinstance(real_batch, (list, tuple)):
-                    real_batch = real_batch[0]
-                real = real_batch.to(self.device)
+            
+            for real_batch in data_loader:
+                real = self._prepare_batch(real_batch)
+                
                 try:
                     wavelet_img, coeffs_info = wavelet_transform_forward(real, self.wavelet)
                     self.coeffs_info_cache = coeffs_info
@@ -269,7 +351,7 @@ class TakahashiDiffusion(DeepLearningModel):
                 loss.backward()
                 self.optimizer.step()
 
-                # FIX: update EMA params
+                # Update EMA params
                 with torch.no_grad():
                     for ema_p, p in zip(self.ema_params, self.model.parameters()):
                         ema_p.mul_(self.ema_decay).add_(p.data, alpha=1.0 - self.ema_decay)
@@ -277,45 +359,44 @@ class TakahashiDiffusion(DeepLearningModel):
                 total_loss += loss.item()
                 batch_count += 1
 
-            if batch_count > 0:
+            if batch_count > 0 and (epoch + 1) % max(1, num_epochs // 10) == 0:
                 avg_loss = total_loss / batch_count
                 print(f"TakahashiDiffusion epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.6f}")
 
         self.model.eval()
 
     @torch.no_grad()
-    def generate(
-        self,
-        num_samples: int,
-        seq_length: Optional[int] = None,
-        seed: int = 42,
-        use_ema: bool = True  # option to use EMA weights
-    ) -> torch.Tensor:
-        if seq_length is None:
-            seq_length = self.length
-
+    def generate(self, num_samples: int, generation_length: int, *args, **kwargs) -> torch.Tensor:
+        """
+        Generate synthetic time series samples.
+        
+        Args:
+            num_samples: Number of samples to generate
+            generation_length: Length of each generated sequence
+            
+        Returns:
+            Generated samples of shape (num_samples, generation_length)
+        """
+        if self.model is None:
+            raise RuntimeError("Model must be trained before generating samples.")
+        
         if self.coeffs_info_cache is None:
-            dummy = torch.zeros(1, seq_length, self.num_channels, device=self.device)
+            # Create dummy data to get coeffs_info
+            dummy = torch.zeros(1, generation_length, self.num_channels, device=self.device)
             try:
                 _, coeffs_info = wavelet_transform_forward(dummy, self.wavelet)
                 self.coeffs_info_cache = coeffs_info
             except Exception as e:
                 raise RuntimeError(f"Cannot generate: wavelet transform failed. {e}")
+        
         coeffs_info = self.coeffs_info_cache
-
         N = self.num_channels
         coef_length = coeffs_info['low_shape'][1]
         shape = (1, N, 1, coef_length * 2)  # generate 1 sample at a time
         generated_list = []
 
-        # option: temporarily load EMA weights
-        if use_ema:
-            saved = {n: p.clone() for n, p in self.model.named_parameters()}
-            for (n, p), ema_p in zip(self.model.named_parameters(), self.ema_params):
-                p.data.copy_(ema_p)
-
         for i_sample in range(num_samples):
-            torch.manual_seed(seed + i_sample)  # increment seed for each sample
+            torch.manual_seed(self.seed + i_sample)
             x = torch.randn(shape, device=self.device)
 
             for i in reversed(range(0, self.num_steps)):
@@ -327,20 +408,22 @@ class TakahashiDiffusion(DeepLearningModel):
             except Exception as e:
                 raise RuntimeError(f"Inverse wavelet transform failed: {e}")
 
-            if generated.shape[1] != seq_length:
-                if generated.shape[1] > seq_length:
-                    generated = generated[:, :seq_length, :]
+            # Adjust length if needed
+            if generated.shape[1] != generation_length:
+                if generated.shape[1] > generation_length:
+                    generated = generated[:, :generation_length, :]
                 else:
-                    pad_length = seq_length - generated.shape[1]
+                    pad_length = generation_length - generated.shape[1]
                     padding = torch.zeros(1, pad_length, self.num_channels, device=self.device)
                     generated = torch.cat([generated, padding], dim=1)
 
             generated_list.append(generated)
 
-        # restore original weights if EMA was used
-        if use_ema:
-            for n, p in self.model.named_parameters():
-                p.data.copy_(saved[n])
-
-        # concatenate all generated samples
-        return torch.cat(generated_list, dim=0).detach().cpu()
+        # Concatenate all generated samples
+        result = torch.cat(generated_list, dim=0)  # (num_samples, generation_length, num_channels)
+        
+        # Remove channel dimension if univariate
+        if result.shape[-1] == 1:
+            result = result.squeeze(-1)
+        
+        return result.detach().cpu()
