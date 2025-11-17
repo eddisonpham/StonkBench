@@ -163,8 +163,8 @@ class QuantGAN(DeepLearningModel):
         self.discriminator.train()
 
         for epoch in range(num_epochs):
-            for i, real_batch in enumerate(data_loader):
-                real = real_batch.float().to(self.device)
+            for batch, _ in data_loader:
+                real = batch.float().to(self.device)
                 real = self._ensure_sequence_shape(real)
 
                 batch_size, seq_len, _ = real.shape
@@ -194,8 +194,7 @@ class QuantGAN(DeepLearningModel):
                 loss_G.backward()
                 self.opt_G.step()
 
-            if (epoch + 1) % max(1, num_epochs // 10) == 0:
-                print(f"QuantGAN epoch {epoch + 1}/{num_epochs} | LossD: {loss_D.item():.4f} | LossG: {loss_G.item():.4f}")
+            print(f"QuantGAN epoch {epoch + 1}/{num_epochs} | LossD: {loss_D.item():.4f} | LossG: {loss_G.item():.4f}")
 
         self.eval()
         self.generator.eval()

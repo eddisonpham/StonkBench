@@ -329,7 +329,7 @@ class TimeVAE(DeepLearningModel):
             total_kl_loss = 0.0
             num_batches = 0
             
-            for batch in data_loader:
+            for batch, _ in data_loader:
                 x = self._prepare_batch(batch)
                 
                 x_recons, z_mean, z_log_var = self.forward(x)
@@ -346,14 +346,13 @@ class TimeVAE(DeepLearningModel):
                 total_kl_loss += kl_loss.item()
                 num_batches += 1
             
-            if (epoch + 1) % max(1, num_epochs // 10) == 0:
-                avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
-                avg_recon_loss = total_reconst_loss / num_batches if num_batches > 0 else 0.0
-                avg_kl_loss = total_kl_loss / num_batches if num_batches > 0 else 0.0
-                print(f"TimeVAE Epoch {epoch + 1}/{num_epochs} - "
-                      f"Loss: {avg_loss:.4f} | "
-                      f"Recon Loss: {avg_recon_loss:.4f} | "
-                      f"KL Loss: {avg_kl_loss:.4f}")
+            avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
+            avg_recon_loss = total_reconst_loss / num_batches if num_batches > 0 else 0.0
+            avg_kl_loss = total_kl_loss / num_batches if num_batches > 0 else 0.0
+            print(f"TimeVAE Epoch {epoch + 1}/{num_epochs} - "
+                    f"Loss: {avg_loss:.4f} | "
+                    f"Recon Loss: {avg_recon_loss:.4f} | "
+                    f"KL Loss: {avg_kl_loss:.4f}")
         
         self.eval()
     

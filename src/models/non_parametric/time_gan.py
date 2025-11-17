@@ -214,7 +214,7 @@ class TimeGAN(DeepLearningModel):
         for iteration in range(num_iterations):
             epoch_loss = 0.0
             num_batches = 0
-            for batch in data_loader:
+            for batch, _ in data_loader:
                 x = self._prepare_batch(batch)
                 x_norm = self._normalize_data(x)
                 
@@ -240,7 +240,7 @@ class TimeGAN(DeepLearningModel):
         for iteration in range(num_iterations):
             epoch_loss = 0.0
             num_batches = 0
-            for batch in data_loader:
+            for batch, _ in data_loader:
                 x = self._prepare_batch(batch)
                 x_norm = self._normalize_data(x)
                 
@@ -274,7 +274,7 @@ class TimeGAN(DeepLearningModel):
             d_loss_total = 0.0
             num_batches = 0
 
-            for batch in data_loader:
+            for batch, _ in data_loader:
                 x = self._prepare_batch(batch)
                 batch_size = x.size(0)
                 x_norm = self._normalize_data(x)
@@ -377,10 +377,9 @@ class TimeGAN(DeepLearningModel):
         data_loader_for_min_max = data_loader
 
         # First sweep for min/max normalization over all batches
-        for batch in data_loader_for_min_max:
-            batch_tensor = batch if isinstance(batch, torch.Tensor) else torch.tensor(batch)
-            batch_min = batch_tensor.min().item()
-            batch_max = batch_tensor.max().item()
+        for batch, _ in data_loader_for_min_max:
+            batch_min = batch.min().item()
+            batch_max = batch.max().item()
             data_min_val = min(data_min_val, batch_min)
             data_max_val = max(data_max_val, batch_max)
         self.data_min = data_min_val
@@ -389,7 +388,7 @@ class TimeGAN(DeepLearningModel):
 
         # Infer seq_len from first batch if not set
         if self.seq_len is None:
-            first_batch = next(iter(data_loader))
+            first_batch, _ = next(iter(data_loader))
             self.seq_len = first_batch.shape[-1] if first_batch.dim() >= 1 else len(first_batch)
             print(f"Inferred sequence length: {self.seq_len}")
 

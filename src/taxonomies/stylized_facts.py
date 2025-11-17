@@ -57,48 +57,28 @@ def volatility_clustering(data, lag=1):
         acfs.append(numerator / denominator)
     return np.mean(acfs)
 
-def leverage_effect(data, lag=1):
-    """
-    Average correlation between return and next squared return across samples.
-    """
-    n_samples, n_len = data.shape
-    cors = []
-    for sample in data:
-        r_t = sample[:-lag]
-        r_next2 = sample[lag:]**2
-        r_t_mean = r_t.mean()
-        r_next2_mean = r_next2.mean()
-        numerator = np.sum((r_t - r_t_mean)*(r_next2 - r_next2_mean))
-        denominator = np.sqrt(np.sum((r_t - r_t_mean)**2) * np.sum((r_next2 - r_next2_mean)**2))
-        cors.append(numerator / denominator)
-    return np.mean(cors)
-
 def long_memory_volatility(data, max_lag=100):
     """
-    Estimate decay exponent beta for autocorrelation of absolute returns.
-    Fits rho(tau) ~ tau^-beta.
-    Returns average beta across samples.
+    Estimate the long memory of volatility by fitting the power-law decay of the autocorrelation of absolute returns.
+    The decay exponent (beta) is estimated for each sample, and the mean is returned.
     """
-    def power_law(x, c, beta):
-        return c * x**(-beta)
-
     n_samples, n_len = data.shape
     betas = []
     for sample in data:
         abs_r = np.abs(sample)
+        mean = abs_r.mean()
+        var = np.sum((abs_r - mean)**2) / n_len
+        lags = np.arange(1, min(max_lag, n_len // 4))
         acf_vals = []
-        lags = np.arange(1, min(max_lag, n_len//2))
-        abs_r_mean = abs_r.mean()
-        var_r = np.sum((abs_r - abs_r_mean)**2)
         for lag in lags:
-            cov = np.sum((abs_r[:-lag] - abs_r_mean)*(abs_r[lag:] - abs_r_mean))
-            acf_vals.append(cov / var_r)
+            cov = np.sum((abs_r[:-lag] - mean) * (abs_r[lag:] - mean)) / (n_len - lag)
+            acf_vals.append(cov / var)
         acf_vals = np.array(acf_vals)
-        try:
-            popt, _ = curve_fit(power_law, lags, acf_vals, p0=(acf_vals[0], 0.5))
-            betas.append(popt[1])
-        except:
+        mask = acf_vals > 0
+        if np.sum(mask) < 2:
             continue
+        lags = lags[mask]
+        acf_vals = acf_vals[mask]
+        beta = -np.polyfit(np.log(lags), np.log(acf_vals), 1)[0]
+        betas.append(beta)
     return np.mean(betas)
-
-

@@ -5,15 +5,13 @@ Base class for deep hedging models.
 import torch
 import torch.nn as nn
 from abc import ABC, abstractmethod
-import numpy as np
-from typing import Dict, Any
 
 
-class BaseDeepHedger(nn.Module, ABC):
+class BaseHedgingModel(nn.Module, ABC):
     """
-    Base class for deep hedging models.
+    Base class for hedging models.
     
-    All deep hedgers learn:
+    All hedging models learn:
     - Premium p (scalar): Initial premium paid for the option
     - Hedging strategy Delta (L-1,): Hedging positions at each time step
     
@@ -24,18 +22,11 @@ class BaseDeepHedger(nn.Module, ABC):
     """
     
     def __init__(self, seq_length: int, hidden_size: int = 64, strike: float = 1.0):
-        """
-        Args:
-            seq_length: Length of the time series (L)
-            hidden_size: Size of hidden layers
-            strike: Strike price for the call option payoff
-        """
         super().__init__()
         self.seq_length = seq_length
         self.hidden_size = hidden_size
         self.strike = strike
         
-        # Premium is a learnable parameter
         self.premium = nn.Parameter(torch.zeros(1))
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -44,14 +35,8 @@ class BaseDeepHedger(nn.Module, ABC):
     def compute_payoff(self, final_prices: torch.Tensor) -> torch.Tensor:
         """
         Compute the payoff at maturity (call option).
-        
-        Args:
-            final_prices: Final prices of shape (batch_size,) or (batch_size, 1)
-            
-        Returns:
-            Payoff of shape (batch_size,)
         """
-        return torch.clamp(final_prices.squeeze() - self.strike, min=0.0)
+        return torch.clamp(final_prices.squeeze() - self.strike, min=0.0) # European call option payoff
     
     def compute_terminal_value(
         self, 
@@ -62,13 +47,6 @@ class BaseDeepHedger(nn.Module, ABC):
         Compute the terminal value of the hedged portfolio.
         
         Terminal Value = p + sum_{t=0}^{L-2} Delta_t * (S_{t+1} - S_t)
-        
-        Args:
-            prices: Price sequence of shape (batch_size, L)
-            deltas: Hedging deltas of shape (batch_size, L-1)
-            
-        Returns:
-            Terminal values of shape (batch_size,)
         """
         batch_size = prices.shape[0]
         
@@ -89,36 +67,18 @@ class BaseDeepHedger(nn.Module, ABC):
         Compute the hedging loss.
         
         Loss = MSE(X) where X = Payoff - Terminal Value
-        
-        Args:
-            prices: Price sequence of shape (batch_size, L)
-            deltas: Hedging deltas of shape (batch_size, L-1)
-            
-        Returns:
-            Loss scalar
         """
         final_prices = prices[:, -1]  # (batch_size,)
         payoff = self.compute_payoff(final_prices)  # (batch_size,)
-        terminal_value = self.compute_terminal_value(prices, deltas)  # (batch_size,)
-        
-        # X = Payoff - Terminal Value
+        terminal_value = self.compute_terminal_va
         X = payoff - terminal_value
-        
-        # Mean Squared Error
         loss = torch.mean(X ** 2)
-        
         return loss
     
     @abstractmethod
     def forward(self, prices: torch.Tensor) -> torch.Tensor:
         """
         Forward pass to compute hedging deltas.
-        
-        Args:
-            prices: Price sequence of shape (batch_size, L)
-            
-        Returns:
-            Deltas of shape (batch_size, L-1)
         """
         pass
     
@@ -132,14 +92,6 @@ class BaseDeepHedger(nn.Module, ABC):
     ):
         """
         Train the deep hedging model.
-        
-        Args:
-            data: Training data of shape (R, L, N) or (R, L) - must be torch.Tensor
-                  We use only the open channel (N=0) if 3D
-            num_epochs: Number of training epochs
-            batch_size: Batch size for training
-            learning_rate: Learning rate for Adam optimizer
-            verbose: Whether to print training progress
         """
         # Ensure data is a torch tensor
         if not isinstance(data, torch.Tensor):
@@ -194,23 +146,13 @@ class BaseDeepHedger(nn.Module, ABC):
     def evaluate(self, prices: torch.Tensor) -> dict:
         """
         Evaluate the hedging strategy on given prices.
-        
-        Args:
-            prices: Price sequence of shape (R, L) or (R, L, N) - must be torch.Tensor
-            
-        Returns:
-            Dictionary with evaluation metrics
         """
         self.eval()
         
-        # Ensure prices is a torch tensor
         if not isinstance(prices, torch.Tensor):
             raise TypeError(f"prices must be torch.Tensor, got {type(prices)}")
-        
-        # Extract open channel if needed
         if prices.dim() == 3:
             prices = prices[:, :, 0]
-        
         prices = prices.to(self.device).float()
         
         with torch.no_grad():

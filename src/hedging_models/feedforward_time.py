@@ -4,36 +4,14 @@ Feedforward Neural Network with time step as input for deep hedging.
 
 import torch
 import torch.nn as nn
-from src.deep_hedgers.base_hedger import BaseDeepHedger
+from src.hedging_models.base_hedger import BaseHedgingModel
 
 
-class FeedforwardTimeDeepHedger(BaseDeepHedger):
-    """
-    Feedforward Neural Network with a single hidden layer that takes time step as input.
-    
-    Architecture:
-    - Input at time t: (S_t, t) where S_t is open price and t is time step
-    - Single hidden layer
-    - Output: Delta_t for each time step
-    
-    Variables learned:
-    - Premium p (scalar)
-    - Delta_t for t = 0, ..., L-2 (L-1 values)
-    
-    Loss function: MSE(X) where X = Final Payoff - Terminal Value
-    Terminal Value = p + sum(Delta_t * (S_{t+1} - S_t))
-    """
-    
+class FeedforwardTime(BaseHedgingModel):
+
     def __init__(self, seq_length: int, hidden_size: int = 64, strike: float = 1.0):
-        """
-        Args:
-            seq_length: Length of the time series (L)
-            hidden_size: Size of hidden layer
-            strike: Strike price for the call option payoff
-        """
         super().__init__(seq_length, hidden_size, strike)
         
-        # Single hidden layer network
         # Input: (price, time_step) = 2 features
         # Output: 1 delta value
         self.hidden = nn.Linear(2, hidden_size)
@@ -43,12 +21,6 @@ class FeedforwardTimeDeepHedger(BaseDeepHedger):
     def forward(self, prices: torch.Tensor) -> torch.Tensor:
         """
         Forward pass: process (S_t, t) pairs through the network.
-        
-        Args:
-            prices: Price sequence of shape (batch_size, L)
-            
-        Returns:
-            Deltas of shape (batch_size, L-1)
         """
         batch_size = prices.shape[0]
         num_deltas = self.seq_length - 1
