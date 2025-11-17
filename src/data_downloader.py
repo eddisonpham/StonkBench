@@ -6,6 +6,7 @@ from pathlib import Path
 import argparse
 import pandas as pd
 import yfinance as yf
+import histdata as hd
 
 
 def download_stock_history(ticker: str, interval: str = "1d", period: str = "max") -> Path | None:
