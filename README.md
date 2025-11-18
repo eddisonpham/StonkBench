@@ -1,6 +1,6 @@
 # Unified Benchmark for Synthetic Data Generation in Financial Time Series (SDGFTS)
 
-> A unified, reproducible benchmark for evaluating synthetic time series generators in finance. All results, metrics, and experiment outputs are automatically tracked and organized using [MLFlow](https://mlflow.org/).
+> A unified, reproducible benchmark for evaluating synthetic time series generators in finance. All results, metrics, and experiment outputs are automatically saved and organized.
 
 ---
 
@@ -38,29 +38,13 @@ Execute the full benchmark and get all evaluation metrics, synthetic data, and l
 - Results are:
   -  Printed in the console.
   - Saved to a detailed JSON file in the results directory.
-  - Tracked as an experiment in **MLFlow** with all parameters, scores, and output artifacts.
 
 #### Customizing runs:
 - `configs/dataset_cfgs.yaml`: Modify the preprocessing of the dataset for *parametric/non-parametric*.
 
 ### 4. 📊 Viewing Results
 
-#### Option A: MLFlow UI
-After you run the benchmark, use MLFlow's UI to explore and compare your experiments:
-
-1. Start the MLFlow tracking UI (in your project root):
-   ```bash
-   mlflow ui
-   ```
-2. Visit [http://localhost:5000](http://localhost:5000) in your browser.
-3. For each experiment/model, you'll see:
-   - Parameters/configurations
-   - Training time, generation time (for 500 samples)
-   - All computed metrics (Fidelity, Diversity, Efficiency, Stylized Facts)
-   - Downloadable output artifacts (e.g., metrics JSON, visualization plots)
-4. Use MLFlow to compare models across any metric, check plots, and download results.
-
-#### Option B: Publication-Ready Plots
+#### Publication-Ready Plots
 Generate comprehensive, publication-ready plots for all evaluation metrics:
 
 ```bash
@@ -168,7 +152,7 @@ Refer to `src/taxonomies/` for implementation details and to `src/utils/` for ut
 
 1. Implement your model in `src/models/` and ensure you inherit from the appropriate base class (`ParametricModel` or `DeepLearningModel`).
 2. Register your model in `notebooks/pipeline_validation.py` by specifying it under `run_complete_evaluation`.
-3. Rerun the pipeline and review your new runs in MLFlow!
+3. Rerun the pipeline and review your results in the `results/` directory!
 
 ---
 
@@ -176,8 +160,7 @@ Refer to `src/taxonomies/` for implementation details and to `src/utils/` for ut
 
 All results are available in:
 - The console (summary tables per model)
-- `results/` directory (will be created with JSON results)
-- **MLFlow UI** (`mlruns/` directory, browsable at [http://localhost:5000](http://localhost:5000)) — all metrics, parameters, and artifacts are logged automatically.
+- `results/` directory (will be created with JSON results containing all metrics, parameters, and evaluation outputs)
 
 ---
 
