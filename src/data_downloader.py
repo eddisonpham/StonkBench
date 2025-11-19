@@ -4,81 +4,64 @@ Utility script to download and save OHLC stock data using yfinance, for given ti
 
 from pathlib import Path
 import argparse
+import zipfile
 import pandas as pd
-import yfinance as yf
-import histdata as hd
+
+from histdata import download_hist_data as dl
+from histdata.api import Platform as P, TimeFrame as TF
 
 
-def download_stock_history(ticker: str, interval: str = "1d", period: str = "max") -> Path | None:
+def unzip_and_save_csv(zip_file_path, output_dir):
     """
-    Download OHLC history for a single ticker.
-    interval: '1d', '1m', '5m', etc.
-    period: 'max', '7d', '60d', etc. (for 1m interval, max 7d)
+    Unzips a downloaded file and saves the CSV data to a folder based on the zip filename.
     """
-    output_dir = Path("data/raw") / ticker.upper()
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_csv = output_dir / f"{ticker.upper()}_{interval}.csv"
-
-    if output_csv.exists():
-        print(f"[SKIP] {ticker}: already exists at {output_csv}")
-        return output_csv
-
-    print(f"[DOWNLOADING] {ticker} (interval={interval}, period={period}) ...", flush=True)
+    zip_file_path = Path(zip_file_path)
+    output_dir = Path(output_dir)
+    
+    # Extract pair name from zip filename (e.g., "DAT_ASCII_SPXUSD_T_201906.zip" -> "SPXUSD")
+    zip_name = zip_file_path.stem  # Remove .zip extension
+    parts = zip_name.split('_')
+    pair_name = parts[2] if len(parts) > 2 else 'data'
+    
+    pair_dir = output_dir / pair_name
+    pair_dir.mkdir(parents=True, exist_ok=True)
+    
     try:
-        df = yf.download(ticker, period=period, interval=interval, auto_adjust=False, progress=False)
+        with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+            # Extract all files to pair-specific folder
+            zip_ref.extractall(pair_dir)
+        
+        # Find and report the first CSV file
+        csv_files = list(pair_dir.glob('*.csv'))
+        if csv_files:
+            print(f"Successfully extracted CSV file: {csv_files[0]}")
+        else:
+            print("No CSV files found in the extracted content")
+        
+        # Delete the zip file after extraction
+        zip_file_path.unlink()
+        print(f"Deleted zip file: {zip_file_path}")
+        
+        return csv_files[0] if csv_files else None
     except Exception as e:
-        print(f"[ERROR] {ticker}: {e}")
+        print(f"Error unzipping file: {e}")
         return None
-
-    if df is None or df.empty:
-        print(f"[WARNING] No data returned for {ticker}. Skipping.")
-        return None
-
-    # Flatten MultiIndex columns if any
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = [col[0].title() for col in df.columns]
-    else:
-        df.columns = [c.title() for c in df.columns]
-
-    ohlc_cols = ['Open', 'High', 'Low', 'Close']
-    df_ohlc = df.loc[:, df.columns.intersection(ohlc_cols)].copy()
-
-    if df_ohlc.empty:
-        print(f"[WARNING] {ticker}: OHLC columns missing. Skipping.")
-        return None
-
-    df_ohlc.to_csv(output_csv, index=True, header=True)
-    print(f"[SAVED] {ticker}: {len(df_ohlc)} rows → {output_csv}")
-    return output_csv
 
 def main():
-    parser = argparse.ArgumentParser(description="Download OHLC data via Yahoo Finance (yfinance).")
-    parser.add_argument(
-        "--tickers",
-        nargs="+",
-        required=True,
-        help="List of stock tickers to download (e.g. AAPL MSFT GOOG)."
-    )
-    parser.add_argument(
-        "--interval",
-        default="1d",
-        choices=["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1d", "5d", "1wk", "1mo", "3mo"],
-        help="Data interval (default 1d)"
-    )
-    parser.add_argument(
-        "--period",
-        default="max",
-        help="Data period: e.g. 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max"
-    )
-    args = parser.parse_args()
-
-    # For 1-minute interval, restrict period to <=7d
-    if args.interval == "1m" and args.period not in ["1d", "5d", "7d"]:
-        print("[INFO] 1-minute interval only supports period <= 7d. Using period='7d'.")
-        args.period = "7d"
-
-    for ticker in args.tickers:
-        download_stock_history(ticker, interval=args.interval, period=args.period)
+    data_dir = Path(__file__).parent.parent / "data" / "raw"
+    project_root = Path(__file__).parent.parent
+    
+    # Download the file
+    dl(year='2023', month=None, pair='spxusd', platform=P.META_STOCK, time_frame=TF.ONE_MINUTE)
+    
+    # Find the downloaded zip file in project root directory
+    zip_files = sorted(project_root.glob('*.zip'), key=lambda p: p.stat().st_mtime, reverse=True)
+    if zip_files:
+        zip_file = zip_files[0]  # Get the most recently downloaded zip
+        print(f"Found zip file: {zip_file}")
+        unzip_and_save_csv(zip_file, data_dir)
+    else:
+        print("No zip file found in project root directory")
 
 
 if __name__ == "__main__":
