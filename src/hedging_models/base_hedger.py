@@ -70,7 +70,7 @@ class BaseHedgingModel(nn.Module, ABC):
         """
         final_prices = prices[:, -1]  # (batch_size,)
         payoff = self.compute_payoff(final_prices)  # (batch_size,)
-        terminal_value = self.compute_terminal_va
+        terminal_value = self.compute_terminal_value(prices, deltas)
         X = payoff - terminal_value
         loss = torch.mean(X ** 2)
         return loss

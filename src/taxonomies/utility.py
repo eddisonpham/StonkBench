@@ -17,7 +17,7 @@ Replication Error Metrics:
 
 import torch
 import numpy as np
-from typing import Dict, Any, Tuple, List, Optional
+from typing import Dict, Any
 from pathlib import Path
 import json
 from datetime import datetime
@@ -26,14 +26,12 @@ from src.hedging_models.feedforward_layers import FeedforwardLayers
 from src.hedging_models.feedforward_time import FeedforwardTime
 from src.hedging_models.rnn_hedger import RNN
 from src.hedging_models.lstm_hedger import LSTM
-from src.hedging_models.non_deep_hedgers import (
-    BlackScholes,
-    DeltaGamma,
-    RandomForest,
-    LinearRegression,
-    XGBoost,
-    LightGBM
-)
+from src.hedging_models.black_scholes import BlackScholes
+from src.hedging_models.delta_gamma import DeltaGamma
+from src.hedging_models.random_forest import RandomForest
+from src.hedging_models.linear_regression import LinearRegression
+from src.hedging_models.xgboost import XGBoost
+from src.hedging_models.lightgbm import LightGBM
 
 from src.utils.preprocessing_utils import LogReturnTransformation
 
@@ -46,13 +44,13 @@ def log_returns_to_prices(
     Convert log returns to prices using initial prices.
     Assumes both inputs are torch tensors.
     """
-    assert isinstance(log_returns, torch.Tensor), "log_returns must be a torch.Tensor"
-    assert isinstance(initial_prices, torch.Tensor), "initial_prices must be a torch.Tensor"
-    assert log_returns.ndim == 2, f"Expected 2D tensor (R, L), got {log_returns.ndim}D"
+    if log_returns.ndim != 2:
+        raise ValueError(f"Expected 2D tensor (R, L), got {log_returns.ndim}D")
     
     R, L = log_returns.shape
     
-    assert initial_prices.shape == (R,), f"initial_prices shape {initial_prices.shape} doesn't match expected (R,)"
+    if initial_prices.shape != (R,):
+        raise ValueError(f"initial_prices shape {initial_prices.shape} doesn't match expected (R,)")
     
     scaler = LogReturnTransformation()
     prices_np = np.zeros((R, L))
@@ -73,8 +71,6 @@ def compute_replication_errors(hedger, prices: torch.Tensor, strike: float = 1.0
     Compute Replication Errors: R = Final Payoff - Terminal Value for each sample.
     Assumes prices is a torch tensor, returns torch tensor.
     """
-    assert isinstance(prices, torch.Tensor), "prices must be a torch.Tensor"
-    
     hedger.eval()
     
     prices = prices.to(hedger.device).float()
@@ -94,9 +90,6 @@ def compute_marginal_metrics(X_real: torch.Tensor, X_synthetic: torch.Tensor) ->
     Compute marginal distribution metrics: MSE over time of mean, p95, p05.
     Assumes both inputs are torch tensors.
     """
-    assert isinstance(X_real, torch.Tensor), "X_real must be a torch.Tensor"
-    assert isinstance(X_synthetic, torch.Tensor), "X_synthetic must be a torch.Tensor"
-    
     # Compute statistics
     mean_real = X_real.mean().item()
     mean_syn = X_synthetic.mean().item()
@@ -134,8 +127,6 @@ def compute_quadratic_variation(prices: torch.Tensor) -> torch.Tensor:
     Compute quadratic variation of price series.
     Assumes input is a torch tensor.
     """
-    assert isinstance(prices, torch.Tensor), "prices must be a torch.Tensor"
-    
     if prices.ndim == 2:
         # (R, L)
         price_diffs = torch.diff(prices, dim=1)  # (R, L-1)
@@ -158,9 +149,6 @@ def compute_temporal_metrics(
     Compute temporal dependency metrics: MSE between quadratic variations.
     Assumes both inputs are torch tensors.
     """
-    assert isinstance(prices_real, torch.Tensor), "prices_real must be a torch.Tensor"
-    assert isinstance(prices_synthetic, torch.Tensor), "prices_synthetic must be a torch.Tensor"
-    
     qvar_real = compute_quadratic_variation(prices_real)
     qvar_syn = compute_quadratic_variation(prices_synthetic)
     
@@ -179,8 +167,6 @@ def compute_covariance_matrix(prices: torch.Tensor) -> torch.Tensor:
     Compute covariance matrix of price series.
     Assumes input is a torch tensor.
     """
-    assert isinstance(prices, torch.Tensor), "prices must be a torch.Tensor"
-    
     if prices.ndim == 2:
         # (R, L) - covariance across samples for each time step
         # Convert to numpy for np.cov, then back to tensor
@@ -208,9 +194,6 @@ def compute_correlation_metrics(
     Compute correlation structure metrics: time-averaged MSE between covariance matrices.
     Assumes both inputs are torch tensors.
     """
-    assert isinstance(prices_real, torch.Tensor), "prices_real must be a torch.Tensor"
-    assert isinstance(prices_synthetic, torch.Tensor), "prices_synthetic must be a torch.Tensor"
-    
     cov_real = compute_covariance_matrix(prices_real)
     cov_syn = compute_covariance_matrix(prices_synthetic)
     
@@ -241,12 +224,6 @@ class AugmentedTestingEvaluator:
         learning_rate: float = 0.001
     ):
         print("[AugmentedTestingEvaluator] Initialization started...")
-        # Assume all inputs are torch tensors
-        assert isinstance(real_train_log_returns, torch.Tensor), "real_train_log_returns must be a torch.Tensor"
-        assert isinstance(real_val_log_returns, torch.Tensor), "real_val_log_returns must be a torch.Tensor"
-        assert isinstance(synthetic_train_log_returns, torch.Tensor), "synthetic_train_log_returns must be a torch.Tensor"
-        assert isinstance(real_train_initial, torch.Tensor), "real_train_initial must be a torch.Tensor"
-        assert isinstance(real_val_initial, torch.Tensor), "real_val_initial must be a torch.Tensor"
         
         self.real_train_log_returns = real_train_log_returns.float()
         self.real_val_log_returns = real_val_log_returns.float()
@@ -269,7 +246,6 @@ class AugmentedTestingEvaluator:
             mean_initial = float(self.real_train_initial.mean().item())
             self.synthetic_train_initial = torch.ones(R_syn) * mean_initial
         else:
-            assert isinstance(synthetic_train_initial, torch.Tensor), "synthetic_train_initial must be a torch.Tensor"
             self.synthetic_train_initial = synthetic_train_initial.float()
         
         # Convert log returns to prices (returns torch tensors)
@@ -405,16 +381,6 @@ class AlgorithmComparisonEvaluator:
         learning_rate: float = 0.001
     ):
         print("[AlgorithmComparisonEvaluator] Initialization started...")
-        # Assume all inputs are torch tensors
-        assert isinstance(real_train_log_returns, torch.Tensor), "real_train_log_returns must be a torch.Tensor"
-        assert isinstance(real_val_log_returns, torch.Tensor), "real_val_log_returns must be a torch.Tensor"
-        assert isinstance(real_test_log_returns, torch.Tensor), "real_test_log_returns must be a torch.Tensor"
-        assert isinstance(synthetic_train_log_returns, torch.Tensor), "synthetic_train_log_returns must be a torch.Tensor"
-        assert isinstance(synthetic_val_log_returns, torch.Tensor), "synthetic_val_log_returns must be a torch.Tensor"
-        assert isinstance(synthetic_test_log_returns, torch.Tensor), "synthetic_test_log_returns must be a torch.Tensor"
-        assert isinstance(real_train_initial, torch.Tensor), "real_train_initial must be a torch.Tensor"
-        assert isinstance(real_val_initial, torch.Tensor), "real_val_initial must be a torch.Tensor"
-        assert isinstance(real_test_initial, torch.Tensor), "real_test_initial must be a torch.Tensor"
         
         self.real_train_log_returns = real_train_log_returns.float()
         self.real_val_log_returns = real_val_log_returns.float()
@@ -439,21 +405,18 @@ class AlgorithmComparisonEvaluator:
             R_syn = synthetic_train_log_returns.shape[0]
             self.synthetic_train_initial = torch.ones(R_syn) * mean_initial
         else:
-            assert isinstance(synthetic_train_initial, torch.Tensor), "synthetic_train_initial must be a torch.Tensor"
             self.synthetic_train_initial = synthetic_train_initial.float()
             
         if synthetic_val_initial is None:
             R_syn = synthetic_val_log_returns.shape[0]
             self.synthetic_val_initial = torch.ones(R_syn) * mean_initial
         else:
-            assert isinstance(synthetic_val_initial, torch.Tensor), "synthetic_val_initial must be a torch.Tensor"
             self.synthetic_val_initial = synthetic_val_initial.float()
             
         if synthetic_test_initial is None:
             R_syn = synthetic_test_log_returns.shape[0]
             self.synthetic_test_initial = torch.ones(R_syn) * mean_initial
         else:
-            assert isinstance(synthetic_test_initial, torch.Tensor), "synthetic_test_initial must be a torch.Tensor"
             self.synthetic_test_initial = synthetic_test_initial.float()
         
         # All synthetic log returns are already tensors
