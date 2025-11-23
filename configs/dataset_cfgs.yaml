@@ -2,8 +2,7 @@ nonparametric_dataset_cfg:
   ticker: "SPXUSD"
   platform: "MS"
   timeframe: "M1"
-  year: "2023"
-  original_data_path: "data/raw/${ticker}/DAT_${platform}_${ticker}_${timeframe}__${year}.csv"
+  original_data_path: "data/raw/${ticker}/DAT_${platform}_${ticker}_${timeframe}.csv"
   valid_ratio: 0.10
   test_ratio: 0.10
 
@@ -11,8 +10,7 @@ parametric_dataset_cfg:
   ticker: "SPXUSD"
   platform: "MS"
   timeframe: "M1"
-  year: "2023"
-  original_data_path: "data/raw/${ticker}/DAT_${platform}_${ticker}_${timeframe}__${year}.csv"
+  original_data_path: "data/raw/${ticker}/DAT_${platform}_${ticker}_${timeframe}.csv"
   valid_ratio: 0.10
   test_ratio: 0.10
   is_parametric: true
