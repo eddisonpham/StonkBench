@@ -1,437 +1,635 @@
-import torch
 import torch.nn as nn
-import torch.nn.init as init
-import torch.optim as optim
-from pathlib import Path
-import sys
-# Add parent directory to path to import base model
-sys.path.append(str(Path(__file__).parent.parent))
-from base.base_model import DeepLearningModel
+import torch
+import numpy as np
+from torch.utils.data import Dataset
+
+from src.models.base.base_model import DeepLearningModel
+
+def get_rnn_cell(module_name):
+    """Basic RNN Cell.
+      Args:
+        - module_name: gru, lstm
+      Returns:
+        - rnn_cell: RNN Cell
+    """
+    assert module_name in ['gru', 'lstm']
+    rnn_cell = None
+    # GRU
+    if module_name == 'gru':
+        rnn_cell = nn.GRU
+    # LSTM
+    elif module_name == 'lstm':
+        rnn_cell = nn.LSTM
+    return rnn_cell
 
 
-def _weights_init(m):
-    """Initialize network weights using Xavier/Orthogonal initialization."""
-    classname = m.__class__.__name__
-    if isinstance(m, nn.Linear):
-        init.xavier_uniform_(m.weight)
-        if m.bias is not None:
-            m.bias.data.fill_(0)
-    elif 'Conv' in classname:
-        init.normal_(m.weight, 0.0, 0.02)
-    elif 'Norm' in classname:
-        init.normal_(m.weight, 1.0, 0.02)
-        if m.bias is not None:
-            m.bias.data.fill_(0)
-    elif 'GRU' in classname:
-        for name, param in m.named_parameters():
-            if 'weight_ih' in name:
-                init.xavier_uniform_(param.data)
-            elif 'weight_hh' in name:
-                init.orthogonal_(param.data)
-            elif 'bias' in name:
-                param.data.fill_(0)
+class Embedder(nn.Module):
+    """Embedding network between original feature space to latent space.
+        Args:
+          - input: input time-series features. Size:(Num, Len, Dim) = (3661, 24, 6)
+        Returns:
+          - H: embedding features size: (Num, Len, Dim) = (3661, 24, 6)
+        """
 
+    def __init__(self, para):
+        super(Embedder, self).__init__()
+        rnn_cell = get_rnn_cell(para['module'])
+        self.rnn = rnn_cell(input_size=para['input_dim'], hidden_size=para['hidden_dim'], num_layers=para['num_layer'],
+                            batch_first=True)
+        self.fc = nn.Linear(para['hidden_dim'], para['hidden_dim'])
+        self.sigmoid = nn.Sigmoid()
 
-class Encoder(nn.Module):
-    """Encoder (Embedder) maps time series to latent space."""
-    def __init__(self, input_dim: int, hidden_dim: int, num_layers: int):
-        super().__init__()
-        self.rnn = nn.GRU(input_dim, hidden_dim, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_dim, hidden_dim)
-        self.apply(_weights_init)
-
-    def forward(self, x):
-        # x: (batch_size, seq_len, input_dim)
-        rnn_out, _ = self.rnn(x)
-        h = self.fc(rnn_out)  # (batch_size, seq_len, hidden_dim)
-        return h
+    def forward(self, X):
+        e_outputs, _ = self.rnn(X)
+        H = self.fc(e_outputs)
+        H = self.sigmoid(H)
+        return H
 
 
 class Recovery(nn.Module):
-    """Recovery maps latent space back to time series."""
-    def __init__(self, hidden_dim: int, output_dim: int, num_layers: int):
-        super().__init__()
-        self.rnn = nn.GRU(hidden_dim, hidden_dim, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_dim, output_dim)
-        self.apply(_weights_init)
+    """Recovery network from latent space to original space.
+    Args:
+      - H: latent representation
+      - T: input time information
+    Returns:
+      - X_tilde: recovered data
+    """
 
-    def forward(self, h, apply_sigmoid=True):
-        # h: (batch_size, seq_len, hidden_dim)
-        rnn_out, _ = self.rnn(h)
-        x_tilde = self.fc(rnn_out)  # (batch_size, seq_len, output_dim)
-        if apply_sigmoid:
-            x_tilde = torch.sigmoid(x_tilde)
-        return x_tilde
+    def __init__(self, para):
+        super(Recovery, self).__init__()
+        rnn_cell = get_rnn_cell(para['module'])
+        self.rnn = rnn_cell(input_size=para['hidden_dim'], hidden_size=para['input_dim'], num_layers=para['num_layer'],
+                            batch_first=True)
+        self.fc = nn.Linear(para['input_dim'], para['input_dim'])
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, H):
+        r_outputs, _ = self.rnn(H)
+        X_tilde = self.fc(r_outputs)
+        X_tilde = self.sigmoid(X_tilde)
+        return X_tilde
 
 
 class Generator(nn.Module):
-    """Generator generates synthetic latent representations."""
-    def __init__(self, input_dim: int, hidden_dim: int, num_layers: int):
-        super().__init__()
-        self.rnn = nn.GRU(input_dim, hidden_dim, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_dim, hidden_dim)
-        self.apply(_weights_init)
+    """Generator function: Generate time-series data in latent space.
+    Args:
+      - Z: random variables
+    Returns:
+      - E: generated embedding
+    """
 
-    def forward(self, z):
-        # z: (batch_size, seq_len, input_dim)
-        rnn_out, _ = self.rnn(z)
-        e = self.fc(rnn_out)  # (batch_size, seq_len, hidden_dim)
-        return e
+    def __init__(self, para):
+        super(Generator, self).__init__()
+        rnn_cell = get_rnn_cell(para['module'])
+        self.rnn = rnn_cell(input_size=para['input_dim'], hidden_size=para['hidden_dim'], num_layers=para['num_layer'],
+                            batch_first=True)
+        self.fc = nn.Linear(para['hidden_dim'], para['hidden_dim'])
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, Z):
+        g_outputs, _ = self.rnn(Z)
+        E = self.fc(g_outputs)
+        E = self.sigmoid(E)
+        return E
 
 
 class Supervisor(nn.Module):
-    """Supervisor predicts next step in latent space."""
-    def __init__(self, hidden_dim: int, num_layers: int):
-        super().__init__()
-        self.rnn = nn.GRU(hidden_dim, hidden_dim, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_dim, hidden_dim)
-        self.apply(_weights_init)
+    """Generate next sequence using the previous sequence.
+    Args:
+      - H: latent representation
+      - T: input time information
+    Returns:
+      - S: generated sequence based on the latent representations generated by the generator
+    """
 
-    def forward(self, h):
-        # h: (batch_size, seq_len, hidden_dim)
-        rnn_out, _ = self.rnn(h)
-        h_supervise = self.fc(rnn_out)  # (batch_size, seq_len, hidden_dim)
-        return h_supervise
+    def __init__(self, para):
+        super(Supervisor, self).__init__()
+        rnn_cell = get_rnn_cell(para['module'])
+        self.rnn = rnn_cell(input_size=para['hidden_dim'], hidden_size=para['hidden_dim'], num_layers=para['num_layer'] - 1,
+                            batch_first=True)
+        self.fc = nn.Linear(para['hidden_dim'], para['hidden_dim'])
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, H):
+        s_outputs, _ = self.rnn(H)
+        S = self.fc(s_outputs)
+        S = self.sigmoid(S)
+        return S
 
 
 class Discriminator(nn.Module):
-    """Discriminator distinguishes real vs synthetic latent representations."""
-    def __init__(self, hidden_dim: int, num_layers: int):
-        super().__init__()
-        self.rnn = nn.GRU(hidden_dim, hidden_dim, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_dim, 1)
-        self.apply(_weights_init)
+    """Discriminate the original and synthetic time-series data.
+    Args:
+      - H: latent representation
+      - T: input time information
+    Returns:
+      - Y_hat: classification results between original and synthetic time-series
+    """
 
-    def forward(self, h):
-        # h: (batch_size, seq_len, hidden_dim)
-        rnn_out, _ = self.rnn(h)
-        y_hat = self.fc(rnn_out)  # (batch_size, seq_len, 1)
-        y_hat = torch.sigmoid(y_hat)
-        return y_hat
+    def __init__(self, para):
+        super(Discriminator, self).__init__()
+        rnn_cell = get_rnn_cell(para['module'])
+        self.rnn = rnn_cell(input_size=para['hidden_dim'], hidden_size=para['hidden_dim'], num_layers=para['num_layer'],
+                            batch_first=True)
+        self.fc = nn.Linear(para['hidden_dim'], 1)
+        self.sigmoid = nn.Sigmoid()
 
+    def forward(self, H):
+        d_outputs, _ = self.rnn(H)
+        Y = self.fc(d_outputs)
+        Y = self.sigmoid(Y)
+        return Y
+
+class MinMaxScaler:
+    """Min-Max Normalizer."""
+    
+    def __init__(self):
+        self.min_val = None
+        self.max_val = None
+        self.fitted = False
+    
+    def fit_transform(self, data):
+        """Fit and transform data. Expects shape (N, seq_len) and returns (N, seq_len, 1)."""
+        data = np.array(data)
+        original_shape = data.shape
+        
+        # Reshape to (N, seq_len, 1) if needed
+        if data.ndim == 1:
+            data = data.reshape(1, -1, 1)
+        elif data.ndim == 2:
+            data = data.reshape(data.shape[0], data.shape[1], 1)
+        
+        # Flatten for min/max computation: (N*seq_len, 1)
+        data_flat = data.reshape(-1, 1)
+        self.min_val = np.min(data_flat, axis=0)
+        data_flat = data_flat - self.min_val
+        self.max_val = np.max(data_flat, axis=0)
+        norm_data_flat = data_flat / (self.max_val + 1e-7)
+        
+        # Reshape back to (N, seq_len, 1)
+        norm_data = norm_data_flat.reshape(data.shape)
+        self.fitted = True
+        return norm_data
+    
+    def transform(self, data):
+        """Transform data. Expects shape (N, seq_len) or (N, seq_len, 1)."""
+        if not self.fitted:
+            raise ValueError("MinMaxScaler must be fitted before transform")
+        data = np.array(data)
+        original_shape = data.shape
+        
+        # Reshape to (N, seq_len, 1) if needed
+        if data.ndim == 1:
+            data = data.reshape(1, -1, 1)
+        elif data.ndim == 2:
+            data = data.reshape(data.shape[0], data.shape[1], 1)
+        
+        # Flatten for transformation
+        data_flat = data.reshape(-1, 1)
+        data_flat = data_flat - self.min_val
+        norm_data_flat = data_flat / (self.max_val + 1e-7)
+        
+        # Reshape back
+        norm_data = norm_data_flat.reshape(data.shape)
+        return norm_data
+    
+    def inverse_transform(self, data):
+        """Inverse transform data. Expects shape (N, seq_len, 1) or (N, seq_len)."""
+        if not self.fitted:
+            raise ValueError("MinMaxScaler must be fitted before inverse_transform")
+        data = np.array(data)
+        original_shape = data.shape
+        
+        # Reshape to (N, seq_len, 1) if needed
+        if data.ndim == 1:
+            data = data.reshape(1, -1, 1)
+        elif data.ndim == 2:
+            data = data.reshape(data.shape[0], data.shape[1], 1)
+        
+        # Flatten for inverse transformation
+        data_flat = data.reshape(-1, 1)
+        data_flat = data_flat * (self.max_val + 1e-7) + self.min_val
+        
+        # Reshape back to original shape
+        denorm_data = data_flat.reshape(data.shape)
+        
+        # Return in original shape format
+        if len(original_shape) == 1:
+            return denorm_data.squeeze()
+        elif len(original_shape) == 2:
+            return denorm_data.squeeze(-1)
+        return denorm_data
+
+
+def extract_time(data):
+    """Returns Maximum sequence length and each sequence length.
+    Args:
+      - data: original data (numpy array or list)
+    Returns:
+      - time: extracted time information
+      - max_seq_len: maximum sequence length
+    """
+    time = list()
+    max_seq_len = 0
+    if isinstance(data, np.ndarray):
+        # If data is numpy array with shape (N, seq_len) or (N, seq_len, 1)
+        if data.ndim == 2:
+            max_seq_len = data.shape[1]
+            time = [data.shape[1]] * data.shape[0]
+        elif data.ndim == 3:
+            max_seq_len = data.shape[1]
+            time = [data.shape[1]] * data.shape[0]
+    else:
+        # If data is list of arrays
+        for i in range(len(data)):
+            seq_len = data[i].shape[0] if isinstance(data[i], np.ndarray) else len(data[i])
+            max_seq_len = max(max_seq_len, seq_len)
+            time.append(seq_len)
+    return time, max_seq_len
+
+
+def random_generator(batch_size, z_dim, max_seq_len, *T):
+    """Random vector generation.
+    Args:
+      - batch_size: size of the random vector
+      - z_dim: dimension of random vector
+      - T_mb: time information for the random vector
+      - max_seq_len: maximum sequence length
+    Returns:
+      - Z_mb: generated random vector
+    """
+    Z_mb = list()
+    for i in range(batch_size):
+        if not T:
+            temp = np.random.uniform(0., 1, [max_seq_len, z_dim])
+        else:
+            T_mb = T[0]
+            temp = np.random.uniform(0., 1, [T_mb[i], z_dim])
+        Z_mb.append(temp)
+    return Z_mb
+
+
+def batch_generator(data, time, batch_size):
+    """Mini-batch generator.
+    Args:
+      - data: time-series data
+      - time: time information
+      - batch_size: the number of samples in each batch
+    Returns:
+      - X_mb: time-series data in each batch
+      - T_mb: time information in each batch
+    """
+    no = len(data)
+    idx = np.random.permutation(no)
+    train_idx = idx[:batch_size]
+
+    X_mb = list(data[i] for i in train_idx)
+    T_mb = list(time[i] for i in train_idx)
+
+    return X_mb, T_mb
 
 class TimeGAN(DeepLearningModel):
     """
     TimeGAN model for generating synthetic time series.
     
-    Input: DataLoader providing batches of shape (batch_size, seq_length)
-    Output: Generated samples of shape (num_samples, generation_length)
+    Input: DataLoader providing batches of shape (batch_size, seq_length) - assumes data is already log returns
+    Output: Generated samples of shape (num_samples, generation_length) - outputs log returns
     """
     
     def __init__(
         self,
         seq_len: int = None,
+        module: str = 'gru',
         hidden_dim: int = 24,
-        num_layers: int = 3,
+        num_layer: int = 3,
+        batch_size: int = 128,
+        print_times: int = 10,
         gamma: float = 1.0,
-        learning_rate: float = 1e-3,
+        learning_rate: float = 1e-4,
         device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     ):
         super().__init__()
-
+        
         self.seq_len = seq_len  # Will be inferred from data if None
+        self.module = module
         self.hidden_dim = hidden_dim
-        self.num_layers = num_layers
+        self.num_layer = num_layer
+        self.batch_size = batch_size
+        self.print_times = print_times
         self.gamma = gamma
         self.learning_rate = learning_rate
         self.device = torch.device(device)
-
-        # For univariate time series
-        self.input_dim = 1
-        self.output_dim = 1
-
+        
         # Networks (will be initialized in fit if seq_len is None)
-        self.encoder = None
+        self.embedder = None
         self.recovery = None
         self.generator = None
-        self.supervisor = None
         self.discriminator = None
-
-        # Losses
-        self.mse_loss = nn.MSELoss()
-        self.bce_loss = nn.BCELoss()
-
+        self.supervisor = None
+        
         # Optimizers
-        self.optimizer_autoencoder = None
-        self.optimizer_supervisor = None
-        self.optimizer_generator = None
-        self.optimizer_discriminator = None
-
-        # Data statistics for normalization
-        self.data_min = 0.0
-        self.data_max = 1.0
+        self.optim_embedder = None
+        self.optim_recovery = None
+        self.optim_generator = None
+        self.optim_discriminator = None
+        self.optim_supervisor = None
+        
+        # Preprocessing scaler
+        self.scaler = MinMaxScaler()
+        self.scaler_fitted = False
+        
+        # Training data storage
+        self.ori_data = None
+        self.ori_time = None
+        self.max_seq_len = None
+        self.input_dim = 1  # Univariate time series
+        
+        # Loss functions
+        self.MSELoss = torch.nn.MSELoss()
+        self.BCELoss = torch.nn.BCELoss()
 
     def _init_networks(self):
         """Initialize networks if not already initialized."""
-        if self.encoder is None:
-            self.encoder = Encoder(self.input_dim, self.hidden_dim, self.num_layers).to(self.device)
-            self.recovery = Recovery(self.hidden_dim, self.output_dim, self.num_layers).to(self.device)
-            self.generator = Generator(self.input_dim, self.hidden_dim, self.num_layers).to(self.device)
-            self.supervisor = Supervisor(self.hidden_dim, self.num_layers).to(self.device)
-            self.discriminator = Discriminator(self.hidden_dim, self.num_layers).to(self.device)
-
+        if self.embedder is None:
+            para = {
+                'module': self.module,
+                'input_dim': self.input_dim,
+                'hidden_dim': self.hidden_dim,
+                'num_layer': self.num_layer
+            }
+            self.embedder = Embedder(para).to(self.device)
+            self.recovery = Recovery(para).to(self.device)
+            self.generator = Generator(para).to(self.device)
+            self.discriminator = Discriminator(para).to(self.device)
+            self.supervisor = Supervisor(para).to(self.device)
+    
     def _init_optimizers(self):
         """Initialize optimizers."""
-        self.optimizer_autoencoder = optim.Adam(
-            list(self.encoder.parameters()) + list(self.recovery.parameters()),
-            lr=self.learning_rate
-        )
-        self.optimizer_supervisor = optim.Adam(
-            self.supervisor.parameters(),
-            lr=self.learning_rate
-        )
-        self.optimizer_generator = optim.Adam(
-            list(self.generator.parameters()) + list(self.supervisor.parameters()),
-            lr=self.learning_rate
-        )
-        self.optimizer_discriminator = optim.Adam(
-            self.discriminator.parameters(),
-            lr=self.learning_rate
-        )
-
-    def _normalize_data(self, data: torch.Tensor) -> torch.Tensor:
-        """Normalize data to [0, 1] range (min-max normalization)."""
-        return (data - self.data_min) / (self.data_max - self.data_min + 1e-8)
-
-    def _denormalize_data(self, data: torch.Tensor) -> torch.Tensor:
-        """Denormalize data from [0, 1] range back to original scale."""
-        return data * (self.data_max - self.data_min + 1e-8) + self.data_min
-
+        self.optim_embedder = torch.optim.Adam(self.embedder.parameters(), lr=self.learning_rate)
+        self.optim_recovery = torch.optim.Adam(self.recovery.parameters(), lr=self.learning_rate)
+        self.optim_generator = torch.optim.Adam(self.generator.parameters(), lr=self.learning_rate)
+        self.optim_discriminator = torch.optim.Adam(self.discriminator.parameters(), lr=self.learning_rate)
+        self.optim_supervisor = torch.optim.Adam(self.supervisor.parameters(), lr=self.learning_rate)
+    
     def _prepare_batch(self, batch: torch.Tensor) -> torch.Tensor:
-        """Convert batch from (batch_size, seq_len) to (batch_size, seq_len, 1)."""
+        """Convert batch from (batch_size, seq_len) to (batch_size, seq_len, 1) for RNN."""
         if batch.dim() == 1:
             batch = batch.unsqueeze(0)
         x = batch.to(self.device)
         if x.dim() == 2:
-            x = x.unsqueeze(-1)  # (batch_size, seq_len, 1)
+            x = x.unsqueeze(-1)  # (batch_size, seq_len, 1) for RNN
         return x
+    
+    def _gen_batch(self):
+        """Generate training batch from stored data."""
+        self.X, self.T = batch_generator(self.ori_data, self.ori_time, self.batch_size)
+        self.X = torch.tensor(np.array(self.X), dtype=torch.float32).to(self.device)
+        # Random vector generation
+        self.Z = random_generator(self.batch_size, self.input_dim, self.max_seq_len, self.T)
+        self.Z = torch.tensor(np.array(self.Z), dtype=torch.float32).to(self.device)
 
-    def _train_autoencoder(self, data_loader, num_iterations: int):
-        """Stage 1: Train autoencoder (encoder + recovery)."""
-        self.encoder.train()
+    def _batch_forward(self):
+        """Forward pass through all networks."""
+        self.H = self.embedder(self.X)
+        self.X_tilde = self.recovery(self.H)
+        self.H_hat_supervise = self.supervisor(self.H)
+
+        self.E_hat = self.generator(self.Z)
+        self.H_hat = self.supervisor(self.E_hat)
+        self.X_hat = self.recovery(self.H_hat)
+
+        self.Y_real = self.discriminator(self.H)
+        self.Y_fake = self.discriminator(self.H_hat)
+        self.Y_fake_e = self.discriminator(self.E_hat)
+
+    def _train_embedder(self, join_train=False):
+        """Train embedder and recovery networks."""
+        self.embedder.train()
         self.recovery.train()
+        self.optim_embedder.zero_grad()
+        self.optim_recovery.zero_grad()
+        self.E_loss_T0 = self.MSELoss(self.X, self.X_tilde)
+        self.E_loss0 = 10 * torch.sqrt(self.E_loss_T0)
+        if not join_train:
+            # E0_solver
+            self.E_loss0.backward()
+        else:
+            # E_solver
+            self.G_loss_S = self.MSELoss(self.H[:, 1:, :], self.H_hat_supervise[:, :-1, :])
+            self.E_loss = self.E_loss0 + 0.1 * self.G_loss_S
+            self.E_loss.backward()
+        self.optim_embedder.step()
+        self.optim_recovery.step()
 
-        for iteration in range(num_iterations):
-            epoch_loss = 0.0
-            num_batches = 0
-            for batch, _ in data_loader:
-                x = self._prepare_batch(batch)
-                x_norm = self._normalize_data(x)
-                
-                h = self.encoder(x_norm)
-                x_tilde = self.recovery(h)
-                loss = self.mse_loss(x_tilde, x_norm)
-
-                self.optimizer_autoencoder.zero_grad()
-                loss.backward()
-                self.optimizer_autoencoder.step()
-
-                epoch_loss += loss.item()
-                num_batches += 1
-
-            if (iteration + 1) % max(1, num_iterations // 10) == 0:
-                print(f"  Autoencoder iteration {iteration+1}/{num_iterations}, Loss: {epoch_loss/num_batches:.6f}")
-
-    def _train_supervisor(self, data_loader, num_iterations: int):
-        """Stage 2: Train supervisor."""
+    def _train_supervisor(self):
+        """Train generator and supervisor networks with supervised loss only."""
+        self.generator.train()
         self.supervisor.train()
-        self.encoder.eval()
+        self.optim_generator.zero_grad()
+        self.optim_supervisor.zero_grad()
+        self.G_loss_S = self.MSELoss(self.H[:, 1:, :], self.H_hat_supervise[:, :-1, :])
+        self.G_loss_S.backward()
+        self.optim_generator.step()
+        self.optim_supervisor.step()
 
-        for iteration in range(num_iterations):
-            epoch_loss = 0.0
-            num_batches = 0
-            for batch, _ in data_loader:
-                x = self._prepare_batch(batch)
-                x_norm = self._normalize_data(x)
-                
-                with torch.no_grad():
-                    h = self.encoder(x_norm)
+    def _train_generator(self, join_train=False):
+        """Train generator and supervisor networks."""
+        self.optim_generator.zero_grad()
+        self.optim_supervisor.zero_grad()
+        self.G_loss_U = self.BCELoss(self.Y_fake, torch.ones_like(self.Y_fake))
+        self.G_loss_U_e = self.BCELoss(self.Y_fake_e, torch.ones_like(self.Y_fake_e))
+        self.G_loss_V1 = torch.mean(torch.abs(torch.sqrt(torch.std(self.X_hat, dim=0)[1] + 1e-6) - torch.sqrt(
+            torch.std(self.X, dim=0)[1] + 1e-6)))
+        self.G_loss_V2 = torch.mean(torch.abs((torch.mean(self.X_hat, dim=0)) - (torch.mean(self.X, dim=0))))
+        self.G_loss_V = self.G_loss_V1 + self.G_loss_V2
+        self.G_loss_S = self.MSELoss(self.H_hat_supervise[:, :-1, :], self.H[:, 1:, :])
+        self.G_loss = self.G_loss_U + \
+                      self.gamma * self.G_loss_U_e + \
+                      torch.sqrt(self.G_loss_S) * 100 + \
+                      self.G_loss_V * 100
+        if not join_train:
+            self.G_loss.backward()
+        else:
+            self.G_loss.backward(retain_graph=True)
 
-                if h.size(1) < 2:
-                    continue
+        self.optim_generator.step()
+        self.optim_supervisor.step()
 
-                h_supervise = self.supervisor(h)
-                # Supervised loss: predict next step
-                loss = self.mse_loss(h_supervise[:, :-1, :], h[:, 1:, :])
-
-                self.optimizer_supervisor.zero_grad()
-                loss.backward()
-                self.optimizer_supervisor.step()
-
-                epoch_loss += loss.item()
-                num_batches += 1
-
-            if (iteration + 1) % max(1, num_iterations // 10) == 0:
-                print(f"  Supervisor iteration {iteration+1}/{num_iterations}, Loss: {epoch_loss/num_batches:.6f}")
-
-    def _train_adversarial(self, data_loader, num_iterations: int):
-        """Stage 3: Adversarial training (generator + discriminator)."""
-        self.encoder.eval()
-        self.recovery.eval()
-
-        for iteration in range(num_iterations):
-            g_loss_total = 0.0
-            d_loss_total = 0.0
-            num_batches = 0
-
-            for batch, _ in data_loader:
-                x = self._prepare_batch(batch)
-                batch_size = x.size(0)
-                x_norm = self._normalize_data(x)
-
-                # ------------------
-                # Train Generator + Supervisor
-                # ------------------
-                self.generator.train()
-                self.supervisor.train()
-                
-                # Generate synthetic data
-                z = torch.randn(batch_size, self.seq_len, self.input_dim).to(self.device)
-                e_hat = self.generator(z)
-                h_hat = self.supervisor(e_hat)
-                x_hat = self.recovery(h_hat)
-
-                with torch.no_grad():
-                    h = self.encoder(x_norm)
-                    x_recon = self.recovery(h)
-
-                # Generator losses
-                y_fake = self.discriminator(h_hat)
-                y_fake_e = self.discriminator(e_hat)
-                g_loss_u = self.bce_loss(y_fake, torch.ones_like(y_fake))
-                g_loss_u_e = self.bce_loss(y_fake_e, torch.ones_like(y_fake_e))
-
-                # Supervised loss
-                if h_hat.size(1) > 1:
-                    g_loss_s = self.mse_loss(h_hat[:, :-1, :], e_hat[:, 1:, :])
-                else:
-                    g_loss_s = 0.0
-
-                # Moment matching loss
-                g_loss_v1 = torch.mean(torch.abs(x_hat.var(dim=0) - x_norm.var(dim=0)))
-                g_loss_v2 = torch.mean(torch.abs(x_hat.mean(dim=0) - x_norm.mean(dim=0)))
-
-                # Reconstruction loss
-                g_loss_recon = self.mse_loss(x_recon, x_norm)
-
-                g_loss = (g_loss_u + self.gamma * g_loss_u_e +
-                          10 * g_loss_s +
-                          5 * g_loss_v1 + 5 * g_loss_v2 +
-                          10 * g_loss_recon)
-
-                self.optimizer_generator.zero_grad()
-                g_loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.generator.parameters(), 5)
-                torch.nn.utils.clip_grad_norm_(self.supervisor.parameters(), 5)
-                self.optimizer_generator.step()
-                g_loss_total += g_loss.item()
-
-                # ------------------
-                # Train Discriminator
-                # ------------------
-                self.discriminator.train()
-                with torch.no_grad():
-                    e_hat = self.generator(z)
-                    h_hat = self.supervisor(e_hat)
-                    h_real = self.encoder(x_norm)
-
-                y_real = self.discriminator(h_real)
-                y_fake = self.discriminator(h_hat)
-                y_fake_e = self.discriminator(e_hat)
-
-                d_loss_real = self.bce_loss(y_real, torch.ones_like(y_real))
-                d_loss_fake = self.bce_loss(y_fake, torch.zeros_like(y_fake))
-                d_loss_fake_e = self.bce_loss(y_fake_e, torch.zeros_like(y_fake_e))
-                d_loss = d_loss_real + d_loss_fake + self.gamma * d_loss_fake_e
-
-                self.optimizer_discriminator.zero_grad()
-                d_loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 5)
-                self.optimizer_discriminator.step()
-                d_loss_total += d_loss.item()
-
-                num_batches += 1
-
-            if (iteration + 1) % max(1, num_iterations // 10) == 0:
-                print(f"  Adversarial iteration {iteration+1}/{num_iterations}, "
-                      f"G Loss: {g_loss_total/num_batches:.6f}, "
-                      f"D Loss: {d_loss_total/num_batches:.6f}")
+    def _train_discriminator(self):
+        """Train discriminator network."""
+        self.discriminator.train()
+        self.optim_discriminator.zero_grad()
+        self.D_loss_real = self.BCELoss(self.Y_real, torch.ones_like(self.Y_real))
+        self.D_loss_fake = self.BCELoss(self.Y_fake, torch.zeros_like(self.Y_fake))
+        self.D_loss_fake_e = self.BCELoss(self.Y_fake_e, torch.zeros_like(self.Y_fake_e))
+        self.D_loss = self.D_loss_real + \
+                      self.D_loss_fake + \
+                      self.gamma * self.D_loss_fake_e
+        # Train discriminator (only when the discriminator does not work well)
+        if self.D_loss > 0.15:
+            self.D_loss.backward()
+            self.optim_discriminator.step()
 
     def fit(self, data_loader, num_epochs: int = 10, *args, **kwargs):
         """
-        Train TimeGAN model.
-
+        Train TimeGAN model using the 3-stage training process.
+        
         Args:
             data_loader: DataLoader providing batches of shape (batch_size, seq_length)
-            num_epochs: Number of training epochs (controls iterations per stage)
-            supervisor_epochs: Number of supervisor training epochs (default: num_epochs)
-            adversarial_epochs: Number of adversarial training epochs (default: num_epochs)
+                        Assumes data is already log returns.
+                        Batches are provided as lists: batch = [torch.tensor(batchsize, seq_len)]
+            num_epochs: Number of training epochs
         """
-        # Extract extra epoch options for supervisor and adversarial training
-        supervisor_epochs = num_epochs // 2
-        adversarial_epochs = num_epochs * 2
-
-        # Infer seq_len from first batch if not set
-        data_min_val = float('inf')
-        data_max_val = float('-inf')
-        data_loader_for_min_max = data_loader
-
-        # First sweep for min/max normalization over all batches
-        for batch, _ in data_loader_for_min_max:
-            batch_min = batch.min().item()
-            batch_max = batch.max().item()
-            data_min_val = min(data_min_val, batch_min)
-            data_max_val = max(data_max_val, batch_max)
-        self.data_min = data_min_val
-        self.data_max = data_max_val
-        print(f"Data range (for normalization): [{self.data_min:.4f}, {self.data_max:.4f}]")
-
-        # Infer seq_len from first batch if not set
+        # Collect all batches from DataLoader
+        all_batches = []
+        for batch in data_loader:
+            batch_tensor = batch[0].to(self.device)
+            # Ensure shape is (batch_size, seq_len)
+            if batch_tensor.dim() == 1:
+                batch_tensor = batch_tensor.unsqueeze(0)
+            
+            # Convert to numpy and ensure 2D shape (batch_size, seq_len)
+            batch_np = batch_tensor.cpu().numpy()
+            if batch_np.ndim == 1:
+                batch_np = batch_np.reshape(1, -1)
+            all_batches.append(batch_np)
+        
+        # Concatenate all batches along batch dimension: (total_samples, seq_len)
+        all_data = np.concatenate(all_batches, axis=0)
+        
+        # Infer seq_len if not provided
         if self.seq_len is None:
-            first_batch, _ = next(iter(data_loader))
-            self.seq_len = first_batch.shape[-1] if first_batch.dim() >= 1 else len(first_batch)
+            self.seq_len = all_data.shape[1]
             print(f"Inferred sequence length: {self.seq_len}")
-
+        
+        # Store original data as list of arrays for batch_generator compatibility
+        self.ori_data = [all_data[i] for i in range(len(all_data))]
+        self.ori_time, self.max_seq_len = extract_time(all_data)
+        self.max_seq_len = max(self.ori_time)
+        
+        # Preprocess data with MinMaxScaler
+        print("Preprocessing data...")
+        all_data_preprocessed = self.scaler.fit_transform(all_data)
+        self.scaler_fitted = True
+        
+        # Reshape for preprocessing: (num_samples, seq_len) -> (num_samples, seq_len, 1)
+        all_data_preprocessed_reshaped = all_data_preprocessed.reshape(len(self.ori_data), self.seq_len, 1)
+        self.ori_data = [all_data_preprocessed_reshaped[i] for i in range(len(all_data_preprocessed_reshaped))]
+        
         # Initialize networks
         self._init_networks()
         self._init_optimizers()
+        
+        # Calculate iterations per stage based on num_epochs
+        per_print_num = max(1, num_epochs // self.print_times)
 
-        # === 3-stage TimeGAN training === #
-        print("\n=== Stage 1: Training Autoencoder ===")
-        self._train_autoencoder(data_loader, num_epochs)
+        # 1. Embedding network training
+        print('Start Embedding Network Training')
+        for epoch in range(num_epochs):
+            self._gen_batch()
+            self._batch_forward()
+            self._train_embedder()
+            if epoch % per_print_num == 0:
+                print(f'epoch: {epoch}/{num_epochs}, e_loss: {np.round(np.sqrt(self.E_loss_T0.item()), 4)}')
+        print('Finish Embedding Network Training')
 
-        print("\n=== Stage 2: Training Supervisor ===")
-        self._train_supervisor(data_loader, supervisor_epochs)
+        # 2. Training only with supervised loss
+        print('Start Training with Supervised Loss Only')
+        for epoch in range(num_epochs):
+            self._gen_batch()
+            self._batch_forward()
+            self._train_supervisor()
+            if epoch % per_print_num == 0:
+                print(f'epoch: {epoch}/{num_epochs}, g_loss_s: {np.round(np.sqrt(self.G_loss_S.item()), 4)}')
+        print('Finish Training with Supervised Loss Only')
 
-        print("\n=== Stage 3: Adversarial Training ===")
-        self._train_adversarial(data_loader, adversarial_epochs)
+        # 3. Joint Training
+        print('Start Joint Training')
+        for epoch in range(num_epochs):
+            # Generator training (twice more than discriminator training)
+            for kk in range(2):
+                self._gen_batch()
+                self._batch_forward()
+                self._train_generator(join_train=True)
+                self._batch_forward()
+                self._train_embedder(join_train=True)
+            # Discriminator training
+            self._gen_batch()
+            self._batch_forward()
+            self._train_discriminator()
 
-        print("TimeGAN training complete!")
-
-    def generate(self, num_samples: int, generation_length: int, seed: int = 42) -> torch.Tensor:
+            # Print multiple checkpoints
+            if epoch % per_print_num == 0:
+                print(f'epoch: {epoch}/{num_epochs}, '
+                      f'd_loss: {np.round(self.D_loss.item(), 4)}, '
+                      f'g_loss_u: {np.round(self.G_loss_U.item(), 4)}, '
+                      f'g_loss_s: {np.round(np.sqrt(self.G_loss_S.item()), 4)}, '
+                      f'g_loss_v: {np.round(self.G_loss_V.item(), 4)}, '
+                      f'e_loss_t0: {np.round(np.sqrt(self.E_loss_T0.item()), 4)}')
+        print('Finish Joint Training')
+        print('TimeGAN training complete!')
+    def generate(self, num_samples: int, generation_length: int, seed: int = 42, *args, **kwargs) -> torch.Tensor:
         """
-        Generate synthetic time series samples.
+        Generate synthetic log returns.
         
         Args:
             num_samples: Number of samples to generate
-            generation_length: Length of each generated sequence
-            seed: Random seed for generation
+            generation_length: Length of each generated sample
+            seed: Random seed
+        
         Returns:
-            Generated samples of shape (num_samples, generation_length)
+            Generated log returns of shape (num_samples, generation_length)
         """
         torch.manual_seed(seed)
+        np.random.seed(seed)
+        
         if self.generator is None:
             raise RuntimeError("Model must be trained before generating samples.")
+        
+        if not self.scaler_fitted:
+            raise RuntimeError("Scaler must be fitted before generating samples.")
         
         self.generator.eval()
         self.supervisor.eval()
         self.recovery.eval()
         
+        # Generate using the stored ori_time for sequence lengths
+        if self.ori_time is None:
+            seq_lens = [generation_length] * num_samples
+        else:
+            # Use same distribution of sequence lengths as training data
+            seq_lens = np.random.choice(self.ori_time, size=num_samples, replace=True)
+            seq_lens = [min(s, generation_length) for s in seq_lens]
+        
         with torch.no_grad():
-            z = torch.randn(num_samples, generation_length, self.input_dim).to(self.device)
-            e_hat = self.generator(z)
-            h_hat = self.supervisor(e_hat)
-            x_hat = self.recovery(h_hat)
-            x_hat = torch.clamp(x_hat, 0.0, 1.0)
-            x_hat = self._denormalize_data(x_hat)
-            return x_hat.squeeze(-1).cpu()  # (num_samples, generation_length)
+            all_generated = []
+            for batch_idx in range(0, num_samples, self.batch_size):
+                batch_size_current = min(self.batch_size, num_samples - batch_idx)
+                batch_seq_lens = seq_lens[batch_idx:batch_idx + batch_size_current]
+                
+                # Generate random vectors
+                Z_batch = random_generator(batch_size_current, self.input_dim, self.max_seq_len, batch_seq_lens)
+                Z_batch = torch.tensor(np.array(Z_batch), dtype=torch.float32).to(self.device)
+                
+                # Generate synthetic data
+                E_hat = self.generator(Z_batch)
+                H_hat = self.supervisor(E_hat)
+                X_hat = self.recovery(H_hat)
+                
+                # Convert to numpy and inverse transform
+                X_hat_np = X_hat.cpu().detach().numpy()
+                
+                # Inverse transform (denormalize)
+                X_hat_denorm = self.scaler.inverse_transform(X_hat_np)
+                
+                # Extract sequences up to generation_length
+                for i in range(batch_size_current):
+                    seq = X_hat_denorm[i, :generation_length, 0]  # Extract (generation_length,)
+                    all_generated.append(seq)
+            
+            generated_array = np.array(all_generated)  # (num_samples, generation_length)
+            
+            # Remove mean to center the data
+            generated_array = generated_array - generated_array.mean()
+            
+            return torch.tensor(generated_array, dtype=torch.float32)
