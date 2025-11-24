@@ -1,9 +1,10 @@
 import torch.nn as nn
 import torch
 import numpy as np
-from torch.utils.data import Dataset
+from sklearn.preprocessing import StandardScaler
 
 from src.models.base.base_model import DeepLearningModel
+
 
 def get_rnn_cell(module_name):
     """Basic RNN Cell.
@@ -140,87 +141,6 @@ class Discriminator(nn.Module):
         Y = self.sigmoid(Y)
         return Y
 
-class MinMaxScaler:
-    """Min-Max Normalizer."""
-    
-    def __init__(self):
-        self.min_val = None
-        self.max_val = None
-        self.fitted = False
-    
-    def fit_transform(self, data):
-        """Fit and transform data. Expects shape (N, seq_len) and returns (N, seq_len, 1)."""
-        data = np.array(data)
-        original_shape = data.shape
-        
-        # Reshape to (N, seq_len, 1) if needed
-        if data.ndim == 1:
-            data = data.reshape(1, -1, 1)
-        elif data.ndim == 2:
-            data = data.reshape(data.shape[0], data.shape[1], 1)
-        
-        # Flatten for min/max computation: (N*seq_len, 1)
-        data_flat = data.reshape(-1, 1)
-        self.min_val = np.min(data_flat, axis=0)
-        data_flat = data_flat - self.min_val
-        self.max_val = np.max(data_flat, axis=0)
-        norm_data_flat = data_flat / (self.max_val + 1e-7)
-        
-        # Reshape back to (N, seq_len, 1)
-        norm_data = norm_data_flat.reshape(data.shape)
-        self.fitted = True
-        return norm_data
-    
-    def transform(self, data):
-        """Transform data. Expects shape (N, seq_len) or (N, seq_len, 1)."""
-        if not self.fitted:
-            raise ValueError("MinMaxScaler must be fitted before transform")
-        data = np.array(data)
-        original_shape = data.shape
-        
-        # Reshape to (N, seq_len, 1) if needed
-        if data.ndim == 1:
-            data = data.reshape(1, -1, 1)
-        elif data.ndim == 2:
-            data = data.reshape(data.shape[0], data.shape[1], 1)
-        
-        # Flatten for transformation
-        data_flat = data.reshape(-1, 1)
-        data_flat = data_flat - self.min_val
-        norm_data_flat = data_flat / (self.max_val + 1e-7)
-        
-        # Reshape back
-        norm_data = norm_data_flat.reshape(data.shape)
-        return norm_data
-    
-    def inverse_transform(self, data):
-        """Inverse transform data. Expects shape (N, seq_len, 1) or (N, seq_len)."""
-        if not self.fitted:
-            raise ValueError("MinMaxScaler must be fitted before inverse_transform")
-        data = np.array(data)
-        original_shape = data.shape
-        
-        # Reshape to (N, seq_len, 1) if needed
-        if data.ndim == 1:
-            data = data.reshape(1, -1, 1)
-        elif data.ndim == 2:
-            data = data.reshape(data.shape[0], data.shape[1], 1)
-        
-        # Flatten for inverse transformation
-        data_flat = data.reshape(-1, 1)
-        data_flat = data_flat * (self.max_val + 1e-7) + self.min_val
-        
-        # Reshape back to original shape
-        denorm_data = data_flat.reshape(data.shape)
-        
-        # Return in original shape format
-        if len(original_shape) == 1:
-            return denorm_data.squeeze()
-        elif len(original_shape) == 2:
-            return denorm_data.squeeze(-1)
-        return denorm_data
-
-
 def extract_time(data):
     """Returns Maximum sequence length and each sequence length.
     Args:
@@ -335,7 +255,7 @@ class TimeGAN(DeepLearningModel):
         self.optim_supervisor = None
         
         # Preprocessing scaler
-        self.scaler = MinMaxScaler()
+        self.scaler = StandardScaler()
         self.scaler_fitted = False
         
         # Training data storage
@@ -438,10 +358,18 @@ class TimeGAN(DeepLearningModel):
         self.optim_supervisor.zero_grad()
         self.G_loss_U = self.BCELoss(self.Y_fake, torch.ones_like(self.Y_fake))
         self.G_loss_U_e = self.BCELoss(self.Y_fake_e, torch.ones_like(self.Y_fake_e))
-        self.G_loss_V1 = torch.mean(torch.abs(torch.sqrt(torch.std(self.X_hat, dim=0)[1] + 1e-6) - torch.sqrt(
-            torch.std(self.X, dim=0)[1] + 1e-6)))
-        self.G_loss_V2 = torch.mean(torch.abs((torch.mean(self.X_hat, dim=0)) - (torch.mean(self.X, dim=0))))
-        self.G_loss_V = self.G_loss_V1 + self.G_loss_V2
+        # flatten over batch and time for each feature
+        x_real = self.X.view(-1, self.input_dim)     # (batch*seq, feat)
+        x_fake = self.X_hat.view(-1, self.input_dim)
+
+        mean_real = torch.mean(x_real, dim=0)
+        mean_fake = torch.mean(x_fake, dim=0)
+        std_real = torch.std(x_real, dim=0) + 1e-6
+        std_fake = torch.std(x_fake, dim=0) + 1e-6
+
+        self.G_loss_V = torch.mean(torch.abs(mean_fake - mean_real)) + \
+                torch.mean(torch.abs(std_fake - std_real))
+
         self.G_loss_S = self.MSELoss(self.H_hat_supervise[:, :-1, :], self.H[:, 1:, :])
         self.G_loss = self.G_loss_U + \
                       self.gamma * self.G_loss_U_e + \
@@ -466,9 +394,8 @@ class TimeGAN(DeepLearningModel):
                       self.D_loss_fake + \
                       self.gamma * self.D_loss_fake_e
         # Train discriminator (only when the discriminator does not work well)
-        if self.D_loss > 0.15:
-            self.D_loss.backward()
-            self.optim_discriminator.step()
+        self.D_loss.backward()
+        self.optim_discriminator.step()
 
     def fit(self, data_loader, num_epochs: int = 10, *args, **kwargs):
         """
@@ -507,9 +434,9 @@ class TimeGAN(DeepLearningModel):
         self.ori_time, self.max_seq_len = extract_time(all_data)
         self.max_seq_len = max(self.ori_time)
         
-        # Preprocess data with MinMaxScaler
+        # Preprocess data with StandardScaler
         print("Preprocessing data...")
-        all_data_preprocessed = self.scaler.fit_transform(all_data)
+        all_data_preprocessed = self.scaler.fit_transform(all_data.reshape(-1, 1))
         self.scaler_fitted = True
         
         # Reshape for preprocessing: (num_samples, seq_len) -> (num_samples, seq_len, 1)
@@ -568,6 +495,7 @@ class TimeGAN(DeepLearningModel):
                       f'e_loss_t0: {np.round(np.sqrt(self.E_loss_T0.item()), 4)}')
         print('Finish Joint Training')
         print('TimeGAN training complete!')
+        
     def generate(self, num_samples: int, generation_length: int, seed: int = 42, *args, **kwargs) -> torch.Tensor:
         """
         Generate synthetic log returns.
@@ -606,30 +534,34 @@ class TimeGAN(DeepLearningModel):
             for batch_idx in range(0, num_samples, self.batch_size):
                 batch_size_current = min(self.batch_size, num_samples - batch_idx)
                 batch_seq_lens = seq_lens[batch_idx:batch_idx + batch_size_current]
-                
-                # Generate random vectors
-                Z_batch = random_generator(batch_size_current, self.input_dim, self.max_seq_len, batch_seq_lens)
+
+                # Generate random Z
+                Z_batch = random_generator(batch_size_current, self.input_dim,
+                                        self.max_seq_len, batch_seq_lens)
                 Z_batch = torch.tensor(np.array(Z_batch), dtype=torch.float32).to(self.device)
-                
-                # Generate synthetic data
+
+                # TimeGAN forward
                 E_hat = self.generator(Z_batch)
                 H_hat = self.supervisor(E_hat)
-                X_hat = self.recovery(H_hat)
-                
-                # Convert to numpy and inverse transform
-                X_hat_np = X_hat.cpu().detach().numpy()
-                
-                # Inverse transform (denormalize)
-                X_hat_denorm = self.scaler.inverse_transform(X_hat_np)
-                
-                # Extract sequences up to generation_length
+                X_hat = self.recovery(H_hat)                    # (batch, seq_len, 1)
+
+                # ---- FIXED INVERSE TRANSFORM ----
+                X_hat_np = X_hat.cpu().detach().numpy()        # (batch, seq_len, 1)
+                b, t, f = X_hat_np.shape
+                X_hat_np_2d = X_hat_np.reshape(-1, 1)  # (batch*seq_len, 1)
+                X_hat_denorm_2d = self.scaler.inverse_transform(X_hat_np_2d)
+                X_hat_denorm = X_hat_denorm_2d.reshape(b, t, f)
+
+                # ---------------------------------
+
+                # Extract sequences safely
                 for i in range(batch_size_current):
-                    seq = X_hat_denorm[i, :generation_length, 0]  # Extract (generation_length,)
+                    seq_len_actual = min(generation_length, X_hat_denorm.shape[1])
+                    seq = X_hat_denorm[i, :seq_len_actual, 0]
                     all_generated.append(seq)
-            
-            generated_array = np.array(all_generated)  # (num_samples, generation_length)
-            
-            # Remove mean to center the data
+
+
+            generated_array = np.array(all_generated)
             generated_array = generated_array - generated_array.mean()
-            
+
             return torch.tensor(generated_array, dtype=torch.float32)

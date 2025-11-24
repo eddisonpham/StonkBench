@@ -1,25 +1,30 @@
 """
-Linear Regression hedging model.
+LightGBM hedging model.
 """
 
 import torch
 import numpy as np
-from sklearn.linear_model import LinearRegression as SklearnLinearRegression
+import lightgbm as lgb
 
-from src.hedging_models.base_hedger import BaseHedgingModel
+from src.hedging_models.base_hedger import NonDeepHedgingModel
 
 
-class LinearRegression(BaseHedgingModel):
-    def __init__(self, seq_length: int, hidden_size: int = 64, strike: float = 1.0):
+class LightGBM(NonDeepHedgingModel):
+    """
+    LightGBM hedger that learns delta from price sequences.
+    """
+    
+    def __init__(self, seq_length: int, hidden_size: int = 64, strike: float = 1.0,
+                 n_estimators: int = 100, max_depth: int = 6, learning_rate: float = 0.1):
         super().__init__(seq_length, hidden_size, strike)
-        self.models = []  # One model per time step
+        self.n_estimators = n_estimators
+        self.max_depth = max_depth
+        self.lgb_learning_rate = learning_rate
+        self.models = []
     
     def fit(self, data: torch.Tensor, num_epochs: int = 100, batch_size: int = 32,
             learning_rate: float = 0.001, verbose: bool = True):
-        """Train Linear Regression models for each time step."""
-        if not isinstance(data, torch.Tensor):
-            raise TypeError(f"data must be torch.Tensor, got {type(data)}")
-        
+        """Train LightGBM models for each time step."""
         if data.dim() == 3:
             prices = data[:, :, 0]
         else:
@@ -51,30 +56,43 @@ class LinearRegression(BaseHedgingModel):
             X = np.array(X)
             y = np.array(y)
             
-            model = SklearnLinearRegression()
-            model.fit(X, y)
+            train_data = lgb.Dataset(X, label=y)
+            model = lgb.train(
+                {
+                    'objective': 'regression',
+                    'metric': 'mse',
+                    'num_leaves': 31,
+                    'learning_rate': self.lgb_learning_rate,
+                    'max_depth': self.max_depth,
+                    'verbose': -1
+                },
+                train_data,
+                num_boost_round=self.n_estimators
+            )
             self.models.append(model)
         
-        # Optimize premium
+        # Compute optimal premium using least squares (no gradients)
+        # Optimal premium minimizes MSE: p* = E[Payoff - sum(Delta_t * (S_{t+1} - S_t))]
         prices = prices.to(self.device).float()
-        self.train()
-        optimizer = torch.optim.Adam([self.premium], lr=learning_rate)
         
-        for epoch in range(num_epochs):
-            optimizer.zero_grad()
+        with torch.no_grad():
             deltas = self.forward(prices)
-            loss = self.compute_loss(prices, deltas)
-            loss.backward()
-            optimizer.step()
+            final_prices = prices[:, -1]
+            payoffs = self.compute_payoff(final_prices)
             
-            if verbose and (epoch + 1) % 10 == 0:
-                print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {loss.item():.6f}")
+            # Compute sum of delta-weighted price changes
+            price_diffs = prices[:, 1:] - prices[:, :-1]
+            delta_weighted_changes = torch.sum(deltas * price_diffs, dim=1)
+            
+            # Optimal premium is the mean of (payoff - delta_weighted_changes)
+            optimal_premium = torch.mean(payoffs - delta_weighted_changes)
+            self.premium = optimal_premium
         
         if verbose:
-            print(f"Training completed. Final premium: {self.premium.item():.6f}")
+            print(f"Training completed. Premium: {self.premium.item():.6f}")
     
     def forward(self, prices: torch.Tensor) -> torch.Tensor:
-        """Predict deltas using Linear Regression models."""
+        """Predict deltas using LightGBM models."""
         if len(self.models) == 0:
             batch_size = prices.shape[0]
             return torch.zeros(batch_size, self.seq_length - 1, device=self.device)

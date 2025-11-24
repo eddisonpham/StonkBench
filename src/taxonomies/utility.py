@@ -22,16 +22,10 @@ from pathlib import Path
 import json
 from datetime import datetime
 
-from src.hedging_models.feedforward_layers import FeedforwardLayers
-from src.hedging_models.feedforward_time import FeedforwardTime
-from src.hedging_models.rnn_hedger import RNN
-from src.hedging_models.lstm_hedger import LSTM
-from src.hedging_models.black_scholes import BlackScholes
-from src.hedging_models.delta_gamma import DeltaGamma
-from src.hedging_models.random_forest import RandomForest
-from src.hedging_models.linear_regression import LinearRegression
-from src.hedging_models.xgboost import XGBoost
-from src.hedging_models.lightgbm import LightGBM
+from src.hedging_models.deep_hedgers import FeedforwardLayers, FeedforwardTime, RNN, LSTM
+from src.hedging_models.non_deep_hedgers import (
+    BlackScholes, DeltaGamma, RandomForest, LinearRegression, XGBoost, LightGBM
+)
 
 from src.utils.preprocessing_utils import LogReturnTransformation
 
@@ -244,7 +238,7 @@ class AugmentedTestingEvaluator:
         if synthetic_train_initial is None:
             R_syn = synthetic_train_log_returns.shape[0]
             mean_initial = float(self.real_train_initial.mean().item())
-            self.synthetic_train_initial = torch.ones(R_syn) * mean_initial
+            self.synthetic_train_initial = torch.ones(R_syn, device=self.real_train_initial.device) * mean_initial
         else:
             self.synthetic_train_initial = synthetic_train_initial.float()
         
@@ -401,21 +395,23 @@ class AlgorithmComparisonEvaluator:
         
         # Handle synthetic initial prices
         mean_initial = float(self.real_train_initial.mean().item())
+        device = self.real_train_initial.device
+        
         if synthetic_train_initial is None:
             R_syn = synthetic_train_log_returns.shape[0]
-            self.synthetic_train_initial = torch.ones(R_syn) * mean_initial
+            self.synthetic_train_initial = torch.ones(R_syn, device=device) * mean_initial
         else:
             self.synthetic_train_initial = synthetic_train_initial.float()
             
         if synthetic_val_initial is None:
             R_syn = synthetic_val_log_returns.shape[0]
-            self.synthetic_val_initial = torch.ones(R_syn) * mean_initial
+            self.synthetic_val_initial = torch.ones(R_syn, device=device) * mean_initial
         else:
             self.synthetic_val_initial = synthetic_val_initial.float()
             
         if synthetic_test_initial is None:
             R_syn = synthetic_test_log_returns.shape[0]
-            self.synthetic_test_initial = torch.ones(R_syn) * mean_initial
+            self.synthetic_test_initial = torch.ones(R_syn, device=device) * mean_initial
         else:
             self.synthetic_test_initial = synthetic_test_initial.float()
         

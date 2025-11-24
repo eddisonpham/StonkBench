@@ -1,13 +1,9 @@
-"""
-Feedforward Neural Network with L-1 hidden layers for deep hedging.
-"""
-
 import torch
 import torch.nn as nn
-from src.hedging_models.base_hedger import BaseHedgingModel
+from src.hedging_models.base_hedger import DeepHedgingModel
 
 
-class FeedforwardLayers(BaseHedgingModel):
+class FeedforwardLayers(DeepHedgingModel):
     
     def __init__(self, seq_length: int, hidden_size: int = 64, strike: float = 1.0):
         super().__init__(seq_length, hidden_size, strike)

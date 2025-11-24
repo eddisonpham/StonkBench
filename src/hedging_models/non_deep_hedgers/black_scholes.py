@@ -7,10 +7,10 @@ import numpy as np
 from scipy.stats import norm
 from typing import Optional
 
-from src.hedging_models.base_hedger import BaseHedgingModel
+from src.hedging_models.base_hedger import NonDeepHedgingModel
 
 
-class BlackScholes(BaseHedgingModel):
+class BlackScholes(NonDeepHedgingModel):
     def __init__(self, seq_length: int, hidden_size: int = 64, strike: float = 1.0, risk_free_rate: float = 0.0):
         super().__init__(seq_length, hidden_size, strike)
         self.risk_free_rate = risk_free_rate
@@ -27,16 +27,26 @@ class BlackScholes(BaseHedgingModel):
     def _compute_delta(self, S: torch.Tensor, K: float, r: float, sigma: float, T: float) -> torch.Tensor:
         """Compute Black-Scholes delta."""
         S_np = S.cpu().numpy()
-        d1 = (np.log(S_np / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        sqrt_T = np.sqrt(max(T, 1e-6))
+        d1 = (np.log(S_np / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * sqrt_T)
         delta = norm.cdf(d1)
         return torch.from_numpy(delta).float().to(self.device)
     
-    def fit(self, data: torch.Tensor, num_epochs: int = 100, batch_size: int = 32,
-            learning_rate: float = 0.001, verbose: bool = True):
-        """Estimate volatility from training data."""
-        if not isinstance(data, torch.Tensor):
-            raise TypeError(f"data must be torch.Tensor, got {type(data)}")
-        
+    def _compute_premium(self, S0: torch.Tensor, K: float, r: float, sigma: float, T: float) -> float:
+        """Compute Black-Scholes option premium analytically."""
+        S0_np = S0.cpu().numpy() if isinstance(S0, torch.Tensor) else S0
+        S0_mean = float(np.mean(S0_np))
+        sqrt_T = np.sqrt(max(T, 1e-6))
+        d1 = (np.log(S0_mean / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * sqrt_T)
+        d2 = d1 - sigma * sqrt_T
+        premium = S0_mean * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+        return float(premium)
+    
+    def fit(self, data: torch.Tensor, verbose: bool = True):
+        """
+        Estimate volatility and compute premium using analytical Black-Scholes formula.
+        No gradient-based optimization is used.
+        """
         if data.dim() == 3:
             prices = data[:, :, 0]
         else:
@@ -47,38 +57,17 @@ class BlackScholes(BaseHedgingModel):
         # Estimate volatility from all training data
         self.volatility = self._estimate_volatility(prices)
         
-        # Optimize premium using gradient descent
-        self.train()
-        optimizer = torch.optim.Adam([self.premium], lr=learning_rate)
-        
-        num_samples = prices.shape[0]
-        
-        for epoch in range(num_epochs):
-            indices = torch.randperm(num_samples)
-            total_loss = 0.0
-            num_batches = 0
-            
-            for i in range(0, num_samples, batch_size):
-                batch_indices = indices[i:i + batch_size]
-                batch_prices = prices[batch_indices]
-                
-                optimizer.zero_grad()
-                
-                deltas = self.forward(batch_prices)
-                loss = self.compute_loss(batch_prices, deltas)
-                loss.backward()
-                optimizer.step()
-                
-                total_loss += loss.item()
-                num_batches += 1
-            
-            avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
-            
-            if verbose and (epoch + 1) % 10 == 0:
-                print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {avg_loss:.6f}")
+        # Compute premium analytically using Black-Scholes formula
+        # Use initial prices (first time step) for premium calculation
+        S0 = prices[:, 0]
+        self.premium = torch.tensor(
+            self._compute_premium(S0, self.strike, self.risk_free_rate, 
+                                 self.volatility, self.time_to_maturity),
+            device=self.device
+        )
         
         if verbose:
-            print(f"Training completed. Final premium: {self.premium.item():.6f}, Volatility: {self.volatility:.6f}")
+            print(f"Training completed. Premium: {self.premium.item():.6f}, Volatility: {self.volatility:.6f}")
     
     def forward(self, prices: torch.Tensor) -> torch.Tensor:
         """Compute Black-Scholes deltas."""
@@ -91,7 +80,6 @@ class BlackScholes(BaseHedgingModel):
         for t in range(L - 1):
             S_t = prices[:, t]  # Current price
             T_remaining = (L - 1 - t) / (L - 1)  # Normalized time to maturity
-            T_remaining = max(T_remaining, 0.01)  # Avoid division by zero
             
             delta_t = self._compute_delta(S_t, self.strike, self.risk_free_rate, 
                                          self.volatility, T_remaining)
