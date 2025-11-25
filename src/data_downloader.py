@@ -1,195 +1,177 @@
 """
-Utility script to download and save OHLC stock data using yfinance, for given tickers.
+Utility script for downloading and processing OHLC stock data from histdata using yfinance tickers.
 """
 
 from pathlib import Path
 import argparse
 import zipfile
+from typing import Optional, Tuple, Union
 import pandas as pd
-
+from functools import reduce
 from histdata import download_hist_data as dl
 from histdata.api import Platform as P, TimeFrame as TF
 
 
-def unzip_and_save_csv(zip_file_path, output_dir, cbind=False):
-    """
-    Unzips a downloaded file and saves the CSV data to a folder based on the zip filename.
-    If cbind is True, also reads the extracted CSV into a pandas.DataFrame and returns it.
+PROJECT_ROOT = Path(__file__).parent.parent
+DATA_FOLDER = PROJECT_ROOT/ "data" / "raw"
+OUT_FOLDER = PROJECT_ROOT / "data" / "processed"
+
+
+def unzip_and_save_csv(
+    zip_file_path: Union[str, Path],
+    output_dir: Union[str, Path]
+) -> Optional[pd.DataFrame]:
+    """Unzip a zip file containing a CSV to a specified directory. Optionally also return the loaded DataFrame.
+
+    Args:
+        zip_file_path: Path to ZIP file.
+        output_dir: Directory to extract the contents.
+
     Returns:
-      - If cbind is False: Path to the first CSV (Path) or None
-      - If cbind is True: tuple(Path or None, DataFrame or None)
+        The loaded DataFrame.
+        Returns None on failure.
     """
-    zip_file_path = Path(zip_file_path)
-    output_dir = Path(output_dir)
-    
-    # Extract pair name from zip filename (e.g., "DAT_ASCII_SPXUSD_T_201906.zip" -> "SPXUSD")
-    zip_name = zip_file_path.stem  # Remove .zip extension
-    parts = zip_name.split('_')
-    pair_name = parts[2] if len(parts) > 2 else 'data'
-    
+    print(f"Unzipping {zip_file_path} to {output_dir}")
+    zip_file_path, output_dir = Path(zip_file_path), Path(output_dir)
+
+    pair_name = zip_file_path.stem.split('_')[2] if len(zip_file_path.stem.split('_')) > 2 else 'data'
     pair_dir = output_dir / pair_name
     pair_dir.mkdir(parents=True, exist_ok=True)
-    
+
     try:
-        with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
-            # Extract all files to pair-specific folder
-            zip_ref.extractall(pair_dir)
-        
-        # Find the first CSV file
+        with zipfile.ZipFile(zip_file_path, 'r') as z:
+            z.extractall(pair_dir)
+
         csv_files = list(pair_dir.glob('*.csv'))
-        if csv_files:
-            csv_path = csv_files[0]
-            print(f"Successfully extracted CSV file: {csv_path}")
-        else:
-            print("No CSV files found in the extracted content")
-            csv_path = None
+        csv_path = csv_files[0] if csv_files else None
+
+        zip_file_path.unlink()
         
-        # Delete the zip file after extraction
-        try:
-            zip_file_path.unlink()
-            print(f"Deleted zip file: {zip_file_path}")
-        except Exception as e:
-            print(f"Could not delete zip file: {e}")
-        
-        if cbind:
-            if csv_path is None:
-                return (None, None)
-            try:
-                df = pd.read_csv(csv_path)
-                return (csv_path, df)
-            except Exception as e:
-                print(f"Error reading CSV into DataFrame: {e}")
-                return (csv_path, None)
-        else:
-            return csv_path
+        if csv_path is None:
+            return None
+
+        df = pd.read_csv(csv_path)
+        return df
+
     except Exception as e:
-        print(f"Error unzipping file: {e}")
-        return (None, None) if cbind else None
+        print(f"Unzip error: {e}")
+        return None
 
-def main():
+def impute_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Main function to download and save OHLC data.
-    Pass argument to download index/pair and year. Default platform is MetaStock and timeframe is 1 minute.
+    Forward-fill missing OHLC values for all columns except 'timestamp'.
+    """
+    if df.empty:
+        return df
 
-    python3 src/data_downloader.py --index spxusd nsxusd --year 2022 2023 --cbind True
-    """
-    data_dir = Path(__file__).parent.parent / "data" / "raw"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    project_root = Path(__file__).parent.parent
-    
-    # Download the file
-    parser = argparse.ArgumentParser(description="Download OHLC data for a given index and year.")
-    parser.add_argument('--index', '-i', nargs='+', default=['spxusd'],
-                        help='Index/pair name(s), space-separated (e.g. spxusd spxeur)')
-    parser.add_argument('--year', '-y', nargs='+', default=['2023'],
-                        help='Year(s) to download, space-separated (e.g. 2021 2022 2023)')
-    parser.add_argument('--cbind', '-c', nargs='+', default=True,
-                        help='True means to combine all downloaded data into a single DataFrame and save as CSV')
+    columns_to_impute = [col for col in df.columns if col != "timestamp"]
+    if not columns_to_impute:
+        return df
+
+    df = df.set_index("timestamp")
+    df[columns_to_impute] = df[columns_to_impute].ffill()
+    return df.reset_index()
+
+def main() -> None:
+    """Main entrypoint for downloading, extracting, and processing OHLC data."""
+    DATA_FOLDER.mkdir(parents=True, exist_ok=True)
+
+    parser = argparse.ArgumentParser(description="Download OHLC data.")
+    parser.add_argument('--index', '-i', nargs='+', default=['spxusd'])
+    parser.add_argument('--year', '-y', nargs='+', default=['2023'])
     args = parser.parse_args()
 
-    index = args.index
+    indices = args.index
     years = args.year
-    cbind = args.cbind
     years.sort()
 
-    # Iterate over years and indices to download data
-    result_df = None
-    for i in index:
-        index_df = None
+    all_columns = ["timestamp"] + [i.lower() for i in indices]
+    combined_df_list = []
+
+    for i in indices:
+        i_lower = i.lower()
+        temp_df_list = []
+
         for year in years:
-            i = i.lower()
-            print(f"Downloading {i} data for year {year}...")
-            dl(year=year, month=None, pair=i, platform=P.META_STOCK, time_frame=TF.ONE_MINUTE)
-    
-            # Find the downloaded zip file in project root directory
-            zip_files = sorted(project_root.glob('*.zip'), key=lambda p: p.stat().st_mtime, reverse=True)
-            if not zip_files:
-                print("No zip file found in project root directory")
-                return
+            print(f"Downloading {i_lower} {year}")
+            dl(year=year, month=None, pair=i_lower,
+               platform=P.META_STOCK, time_frame=TF.ONE_MINUTE)
 
-            zip_file = zip_files[0]  # Get the most recently downloaded zip
-            print(f"Found zip file: {zip_file}")
-            res = unzip_and_save_csv(zip_file, data_dir, cbind=bool(cbind))
-            # unzip_and_save_csv returns (csv_path, df) when cbind is True, otherwise a Path or None
-            par_df = None
-            if isinstance(res, tuple):
-                _, par_df = res
-            elif isinstance(res, pd.DataFrame):
-                par_df = res
+            candidate_zips = [
+                p for p in PROJECT_ROOT.glob('*.zip')
+                if year in p.name and i_lower in p.name.lower()
+            ]
+            candidate_zips = sorted(
+                candidate_zips,
+                key=lambda p: p.stat().st_mtime,
+                reverse=True
+            )
 
-            if par_df is not None:
-                # reformat par_df
-                try:
-                    # timestamp = second column
-                    ts = par_df.iloc[:, 1].copy()
+            if not candidate_zips:
+                print(f"No zip found for {i_lower} {year}.")
+                continue
 
-                    # choose closing price column: prefer 6th column (index 5), otherwise second-to-last
-                    close_idx = 5 if par_df.shape[1] > 5 else -2
-                    close = par_df.iloc[:, close_idx].copy()
-                    close = pd.to_numeric(close, errors='coerce')
+            zip_path = candidate_zips[0]
+            par_df = unzip_and_save_csv(zip_path, DATA_FOLDER)
 
-                    col_name = i.lower()
-                    par_df = pd.DataFrame({'timestamp': ts, col_name: close})
-                except Exception as e:
-                    print(f"Error reformatting DataFrame: {e}")
-                    par_df = pd.DataFrame()  # ensure par_df is a DataFrame even on failure
-                # concatenate into index_df
-                if index_df is None:
-                    index_df = par_df
-                else:
-                    index_df = pd.concat([index_df, par_df], ignore_index=True, sort=False)
-            else:
-                print(f"No DataFrame returned for {zip_file}, skipping concatenation.")
-        
-        if index_df is not None and not index_df.empty:
-            # Before merging, ensure index_df has one row per timestamp
-            try:
-                col_name = i.lower()
+            if par_df is None:
+                print(f"Failed to unzip and load CSV from {zip_path}. Skipping.")
+                continue
 
-                # Normalize timestamp to numeric values and drop rows with invalid timestamps
-                index_df['timestamp'] = pd.to_numeric(index_df['timestamp'], errors='coerce')
-                index_df = index_df.dropna(subset=['timestamp'])
+            ts_col = 1
+            val_col = 5 if par_df.shape[1] > 5 else max(0, par_df.shape[1] - 2)
 
-                # If there are duplicate timestamps (from multiple files), keep the last occurrence
-                index_df = index_df.drop_duplicates(subset=['timestamp'], keep='last')
+            temp_col_df = pd.DataFrame({
+                'timestamp': pd.to_numeric(par_df.iloc[:, ts_col], errors='coerce'),
+                i_lower: pd.to_numeric(par_df.iloc[:, val_col], errors='coerce')
+            })
 
-                # Sort by timestamp for deterministic ordering
-                index_df = index_df.sort_values('timestamp').reset_index(drop=True)
+            temp_col_df = (
+                temp_col_df
+                .dropna(subset=['timestamp'])
+                .sort_values('timestamp', ignore_index=True)
+            )
 
-                if result_df is None:
-                    result_df = index_df.copy()
-                else:
-                    # Normalize result_df timestamps as well
-                    result_df['timestamp'] = pd.to_numeric(result_df['timestamp'], errors='coerce')
-                    result_df = result_df.dropna(subset=['timestamp'])
+            temp_df_list.append(temp_col_df)
 
-                    # Ensure result_df has unique timestamps before join
-                    result_df = result_df.drop_duplicates(subset=['timestamp'], keep='last')
+        if not temp_df_list:
+            print(f"No data collected for index {i_lower}.")
+            continue
 
-                    # Join on timestamp, adding the new column to the right
-                    result_df = result_df.set_index('timestamp').join(
-                        index_df.set_index('timestamp')[[col_name]],
-                        how='outer'
-                    ).reset_index()
+        index_df = (
+            pd.concat(temp_df_list, ignore_index=True)
+            .drop_duplicates('timestamp', keep='last')
+            .sort_values('timestamp')
+            .reset_index(drop=True)
+        )
 
-                    # After join, drop any accidental duplicate timestamp rows
-                    result_df = result_df.drop_duplicates(subset=['timestamp'], keep='last')
-            except Exception as e:
-                print(f"Error merging index_df into result_df: {e}")
+        combined_df_list.append(index_df)
 
-    if cbind and result_df is not None and not result_df.empty:
-        # Save the final combined DataFrame
-        data_processed = Path(__file__).parent.parent / "data" / "processed"
-        data_processed.mkdir(parents=True, exist_ok=True)
+    if not combined_df_list:
+        print("No data to save.")
+        return
 
-        indices_str = "_".join([str(it).lower() for it in index])
-        years_str = "_".join([str(y) for y in years])
-        output_csv = data_processed / f"combined_{indices_str}_{years_str}.csv"
-        try:
-            result_df.to_csv(output_csv, index=False)
-            print(f"Saved combined data to {output_csv}")
-        except Exception as e:
-            print(f"Error saving combined DataFrame to CSV: {e}")
+    combined_df = reduce(
+        lambda left, right: pd.merge(left, right, on='timestamp', how='outer'),
+        combined_df_list
+    )
+
+    combined_df['timestamp'] = pd.to_numeric(combined_df['timestamp'], errors='coerce')
+    combined_df = (
+        combined_df
+        .dropna(subset=['timestamp'])
+        .drop_duplicates('timestamp', keep='last')
+        .sort_values('timestamp')
+        .reset_index(drop=True)
+    )
+
+    combined_df = impute_missing_values(combined_df)
+
+    OUT_FOLDER.mkdir(parents=True, exist_ok=True)
+    safe_name = "_".join([col for col in all_columns if col != 'timestamp']).replace(" ", "_")
+    output_csv = OUT_FOLDER / f"combined_{safe_name}.csv"
+    combined_df.to_csv(output_csv, index=False)
+    print(f"Saved combined CSV to {output_csv}")
 
 if __name__ == "__main__":
     main()
