@@ -48,17 +48,9 @@ class DeepHedgingModel(nn.Module, ABC):
         
         Terminal Value = p + sum_{t=0}^{L-2} Delta_t * (S_{t+1} - S_t)
         """
-        # Price differences: S_{t+1} - S_t
         price_diffs = prices[:, 1:] - prices[:, :-1]  # (batch_size, L-1)
-        
-        # Sum of delta-weighted price changes: (batch_size,)
         delta_weighted_changes = torch.sum(deltas * price_diffs, dim=1)
-        
-        # Terminal value = premium + sum(Delta_t * (S_{t+1} - S_t))
-        # Premium is broadcast across batch_size
-        premium_value = self.premium.squeeze() if self.premium.dim() > 0 else self.premium
-        terminal_value = premium_value + delta_weighted_changes
-        
+        terminal_value = self.premium + delta_weighted_changes
         return terminal_value
     
     def compute_loss(
@@ -90,8 +82,7 @@ class DeepHedgingModel(nn.Module, ABC):
         data: torch.Tensor, 
         num_epochs: int = 100, 
         batch_size: int = 32,
-        learning_rate: float = 0.001,
-        verbose: bool = True
+        learning_rate: float = 0.001
     ):
         """
         Train the deep hedging model.
@@ -139,12 +130,9 @@ class DeepHedgingModel(nn.Module, ABC):
                 num_batches += 1
             
             avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
-            
-            if verbose and (epoch + 1) % 10 == 0:
-                print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {avg_loss:.6f}")
+            print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {avg_loss:.6f}")
         
-        if verbose:
-            print(f"Training completed. Final premium: {self.premium.item():.6f}")
+        print(f"Training completed. Final premium: {self.premium.item():.6f}")
     
     def evaluate(self, prices: torch.Tensor) -> dict:
         """
@@ -195,14 +183,11 @@ class NonDeepHedgingModel(ABC):
     For a call option: Payoff(S_T) = max(S_T - K, 0)
     """
     
-    def __init__(self, seq_length: int, hidden_size: int = 64, strike: float = 1.0):
+    def __init__(self, seq_length: int, strike: float = 1.0):
         self.seq_length = seq_length
-        self.hidden_size = hidden_size
         self.strike = strike
         
-        # Premium as a simple float (not a PyTorch parameter)
         self.premium = torch.zeros(1)
-        
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     def compute_payoff(self, final_prices: torch.Tensor) -> torch.Tensor:
@@ -221,20 +206,9 @@ class NonDeepHedgingModel(ABC):
         
         Terminal Value = p + sum_{t=0}^{L-2} Delta_t * (S_{t+1} - S_t)
         """
-        # Price differences: S_{t+1} - S_t
         price_diffs = prices[:, 1:] - prices[:, :-1]  # (batch_size, L-1)
-        
-        # Sum of delta-weighted price changes: (batch_size,)
         delta_weighted_changes = torch.sum(deltas * price_diffs, dim=1)
-        
-        # Terminal value = premium + sum(Delta_t * (S_{t+1} - S_t))
-        # Premium is broadcast across batch_size
-        if isinstance(self.premium, torch.Tensor):
-            premium_value = self.premium.squeeze() if self.premium.dim() > 0 else self.premium
-        else:
-            premium_value = float(self.premium)
-        terminal_value = premium_value + delta_weighted_changes
-        
+        terminal_value = self.premium + delta_weighted_changes
         return terminal_value
     
     def compute_loss(
@@ -262,11 +236,7 @@ class NonDeepHedgingModel(ABC):
         pass
     
     @abstractmethod
-    def fit(
-        self, 
-        data: torch.Tensor, 
-        verbose: bool = True
-    ):
+    def fit(self, data: torch.Tensor):
         """
         Train the hedging model.
         Non-deep learning models should implement their own training logic.

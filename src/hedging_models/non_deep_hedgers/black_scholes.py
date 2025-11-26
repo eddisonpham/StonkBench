@@ -1,89 +1,79 @@
-"""
-Black-Scholes hedging model.
-"""
-
 import torch
-import numpy as np
 from scipy.stats import norm
-from typing import Optional
 
 from src.hedging_models.base_hedger import NonDeepHedgingModel
 
 
 class BlackScholes(NonDeepHedgingModel):
-    def __init__(self, seq_length: int, hidden_size: int = 64, strike: float = 1.0, risk_free_rate: float = 0.0):
-        super().__init__(seq_length, hidden_size, strike)
-        self.risk_free_rate = risk_free_rate
-        self.volatility = None
-        self.time_to_maturity = 1.0
+    """
+    Black-Scholes analytical hedging model for European call options.
     
-    def _estimate_volatility(self, prices: torch.Tensor) -> float:
-        """Estimate volatility from log returns."""
-        prices_np = prices.cpu().numpy()
-        log_returns = np.diff(np.log(prices_np), axis=1)
-        volatility = float(np.std(log_returns))
-        return max(volatility, 1e-6)
-    
-    def _compute_delta(self, S: torch.Tensor, K: float, r: float, sigma: float, T: float) -> torch.Tensor:
-        """Compute Black-Scholes delta."""
-        S_np = S.cpu().numpy()
-        sqrt_T = np.sqrt(max(T, 1e-6))
-        d1 = (np.log(S_np / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * sqrt_T)
-        delta = norm.cdf(d1)
-        return torch.from_numpy(delta).float().to(self.device)
-    
-    def _compute_premium(self, S0: torch.Tensor, K: float, r: float, sigma: float, T: float) -> float:
-        """Compute Black-Scholes option premium analytically."""
-        S0_np = S0.cpu().numpy() if isinstance(S0, torch.Tensor) else S0
-        S0_mean = float(np.mean(S0_np))
-        sqrt_T = np.sqrt(max(T, 1e-6))
-        d1 = (np.log(S0_mean / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * sqrt_T)
-        d2 = d1 - sigma * sqrt_T
-        premium = S0_mean * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
-        return float(premium)
-    
-    def fit(self, data: torch.Tensor, verbose: bool = True):
+    Attributes:
+        sigma: Volatility of the underlying asset.
+        r: Risk-free interest rate (default 0 for simplicity).
+    """
+    def __init__(self, seq_length: int, strike: float = 1.0, sigma: float = None, r: float = 0.0):
+        super().__init__(seq_length, strike)
+        self.sigma = sigma
+        self.r = r  # risk-free rate
+
+    def fit(self, data: torch.Tensor):
         """
-        Estimate volatility and compute premium using analytical Black-Scholes formula.
-        No gradient-based optimization is used.
+        Estimate volatility sigma if not provided.
+        `data` should be (batch_size, seq_length) of historical prices.
         """
-        if data.dim() == 3:
-            prices = data[:, :, 0]
-        else:
-            prices = data
+        if self.sigma is None:
+            log_returns = torch.log(data[:, 1:] / data[:, :-1])
+            self.sigma = log_returns.std().item() * (self.seq_length ** 0.5)
         
-        prices = prices.to(self.device).float()
-        
-        # Estimate volatility from all training data
-        self.volatility = self._estimate_volatility(prices)
-        
-        # Compute premium analytically using Black-Scholes formula
-        # Use initial prices (first time step) for premium calculation
-        S0 = prices[:, 0]
-        self.premium = torch.tensor(
-            self._compute_premium(S0, self.strike, self.risk_free_rate, 
-                                 self.volatility, self.time_to_maturity),
-            device=self.device
-        )
-        
-        if verbose:
-            print(f"Training completed. Premium: {self.premium.item():.6f}, Volatility: {self.volatility:.6f}")
-    
+        S0 = data[:, 0].mean()
+        self.premium = torch.tensor([self.black_scholes_price(S0)], device=data.device)
+        print(f"Estimated premium: {self.premium.item():.4f}")
+
     def forward(self, prices: torch.Tensor) -> torch.Tensor:
-        """Compute Black-Scholes deltas."""
-        if self.volatility is None:
-            self.volatility = self._estimate_volatility(prices)
+        """
+        Compute Black-Scholes delta at each time step.
+        prices: (batch_size, seq_length)
+        Returns:
+            deltas: (batch_size, seq_length-1)
+        """
+        batch_size, L = prices.shape
+        deltas = torch.zeros(batch_size, L-1, device=prices.device)
 
-        L = prices.shape[1]
+        for t in range(L-1):
+            S_t = prices[:, t]
+            T_minus_t = (L - 1 - t) / (L - 1)  # time to maturity fraction
+            deltas[:, t] = self.black_scholes_delta(S_t, T_minus_t)
         
-        deltas = []
-        for t in range(L - 1):
-            S_t = prices[:, t]  # Current price
-            T_remaining = (L - 1 - t) / (L - 1)  # Normalized time to maturity
-            
-            delta_t = self._compute_delta(S_t, self.strike, self.risk_free_rate, 
-                                         self.volatility, T_remaining)
-            deltas.append(delta_t)
-        
-        return torch.stack(deltas, dim=1)  # (batch_size, L-1)
+        return deltas
 
+    def black_scholes_price(self, S: torch.Tensor, K: float = None, T: float = 1.0) -> torch.Tensor:
+        """Compute Black-Scholes call option price. Fully tensor-based."""
+        K = K if K is not None else self.strike
+        sigma, r = self.sigma, self.r
+        if sigma is None:
+            raise ValueError("Sigma (volatility) must be set before pricing.")
+
+        S = torch.as_tensor(S, dtype=torch.float32)
+        T = torch.as_tensor(T, dtype=torch.float32)
+        sigma = torch.as_tensor(sigma, dtype=torch.float32)
+        r = torch.as_tensor(r, dtype=torch.float32)
+        K = torch.as_tensor(K, dtype=torch.float32)
+
+        d1 = (torch.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * torch.sqrt(T))
+        d2 = d1 - sigma * torch.sqrt(T)
+        price = S * torch.tensor(norm.cdf(d1.cpu().numpy()), device=S.device) - K * torch.exp(-r * T) * torch.tensor(norm.cdf(d2.cpu().numpy()), device=S.device)
+        return price
+
+    def black_scholes_delta(self, S: torch.Tensor, T: float) -> torch.Tensor:
+        """Compute Black-Scholes delta for a call option. Fully tensor-based."""
+        sigma, r, K = self.sigma, self.r, self.strike
+        S = torch.as_tensor(S, dtype=torch.float32)
+        T = torch.as_tensor(T, dtype=torch.float32)
+        sigma = torch.as_tensor(sigma, dtype=torch.float32)
+        r = torch.as_tensor(r, dtype=torch.float32)
+        K = torch.as_tensor(K, dtype=torch.float32)
+
+        d1 = (torch.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * torch.sqrt(T))
+        delta = torch.tensor(norm.cdf(d1.cpu().numpy()), device=S.device)
+        return delta

@@ -24,7 +24,7 @@ from datetime import datetime
 
 from src.hedging_models.deep_hedgers import FeedforwardLayers, FeedforwardTime, RNN, LSTM
 from src.hedging_models.non_deep_hedgers import (
-    BlackScholes, DeltaGamma, RandomForest, LinearRegression, XGBoost, LightGBM
+    BlackScholes, DeltaGamma, LinearRegression, XGBoost
 )
 
 from src.utils.preprocessing_utils import LogReturnTransformation
@@ -60,7 +60,7 @@ def log_returns_to_prices(
     return torch.from_numpy(prices_np).float()
 
 
-def compute_replication_errors(hedger, prices: torch.Tensor, strike: float = 1.0) -> torch.Tensor:
+def compute_replication_errors(hedger, prices: torch.Tensor) -> torch.Tensor:
     """
     Compute Replication Errors: R = Final Payoff - Terminal Value for each sample.
     Assumes prices is a torch tensor, returns torch tensor.
@@ -73,7 +73,7 @@ def compute_replication_errors(hedger, prices: torch.Tensor, strike: float = 1.0
         deltas = hedger.forward(prices)
         terminal_values = hedger.compute_terminal_value(prices, deltas)
         final_prices = prices[:, -1]
-        payoffs = torch.clamp(final_prices - strike, min=0.0) # European call option payoff
+        payoffs = torch.clamp(final_prices - hedger.strike, min=0.0) # European call option payoff
         R = payoffs - terminal_values
     
     return R
@@ -84,11 +84,9 @@ def compute_marginal_metrics(X_real: torch.Tensor, X_synthetic: torch.Tensor) ->
     Compute marginal distribution metrics: MSE over time of mean, p95, p05.
     Assumes both inputs are torch tensors.
     """
-    # Compute statistics
     mean_real = X_real.mean().item()
     mean_syn = X_synthetic.mean().item()
     
-    # Convert to numpy for percentile calculation
     X_real_np = X_real.cpu().numpy()
     X_syn_np = X_synthetic.cpu().numpy()
     
@@ -211,7 +209,6 @@ class AugmentedTestingEvaluator:
         real_val_initial: torch.Tensor,
         synthetic_train_initial: torch.Tensor = None,
         seq_length: int = None,
-        strike: float = None,
         hidden_size: int = 64,
         num_epochs: int = 50,
         batch_size: int = 128,
@@ -252,11 +249,7 @@ class AugmentedTestingEvaluator:
         print("[AugmentedTestingEvaluator] Converting log returns to prices for synthetic training data...")
         self.synthetic_train_prices = log_returns_to_prices(self.synthetic_train_log_returns, self.synthetic_train_initial)
         
-        # Set strike price
-        if strike is None:
-            self.strike = float(self.real_train_initial.mean().item())  # At-the-money option
-        else:
-            self.strike = strike
+        self.strike = float(self.real_train_initial.mean().item())
         print("[AugmentedTestingEvaluator] Initialization complete.")
 
     def evaluate(self, hedger_class) -> Dict[str, Any]:
@@ -270,12 +263,10 @@ class AugmentedTestingEvaluator:
         R_mixed = min(R_real, R_syn)
         
         print(f"[AugmentedTestingEvaluator] Mixing {R_mixed} real and {R_mixed} synthetic training samples (50/50)...")
-        # Sample equal amounts from real and synthetic
         torch.manual_seed(42)
         real_indices = torch.randperm(R_real)[:R_mixed]
         syn_indices = torch.randperm(R_syn)[:R_mixed]
         
-        # Extract the real and synthetic portions for comparison
         real_train_subset = self.real_train_prices[real_indices]
         synthetic_train_subset = self.synthetic_train_prices[syn_indices]
         
@@ -283,12 +274,10 @@ class AugmentedTestingEvaluator:
             real_train_subset,
             synthetic_train_subset
         ], dim=0)
-        # Shuffle
         shuffle_idx = torch.randperm(mixed_train_prices.shape[0])
         mixed_train_prices = mixed_train_prices[shuffle_idx]
         
         print("[AugmentedTestingEvaluator] Training hedger on mixed (synthetic + real) data...")
-        # Train hedger on mixed data
         hedger_mixed = hedger_class(
             seq_length=self.seq_length,
             hidden_size=self.hidden_size,
@@ -303,7 +292,6 @@ class AugmentedTestingEvaluator:
         )
         
         print("[AugmentedTestingEvaluator] Training hedger on real data only...")
-        # Train hedger on real data only
         hedger_real = hedger_class(
             seq_length=self.seq_length,
             hidden_size=self.hidden_size,
@@ -318,8 +306,8 @@ class AugmentedTestingEvaluator:
         )
         
         print("[AugmentedTestingEvaluator] Evaluating both hedgers on real validation set...")
-        X_mixed = compute_replication_errors(hedger_mixed, self.real_val_prices, self.strike)
-        X_real_only = compute_replication_errors(hedger_real, self.real_val_prices, self.strike)
+        X_mixed = compute_replication_errors(hedger_mixed, self.real_val_prices)
+        X_real_only = compute_replication_errors(hedger_real, self.real_val_prices)
         
         print("[AugmentedTestingEvaluator] Computing metrics for mixed and real-only hedgers...")
         marginal_mixed = compute_marginal_metrics(X_real_only, X_mixed)
@@ -368,7 +356,6 @@ class AlgorithmComparisonEvaluator:
         synthetic_val_initial: torch.Tensor = None,
         synthetic_test_initial: torch.Tensor = None,
         seq_length: int = None,
-        strike: float = None,
         hidden_size: int = 64,
         num_epochs: int = 50,
         batch_size: int = 32,
@@ -393,7 +380,6 @@ class AlgorithmComparisonEvaluator:
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         
-        # Handle synthetic initial prices
         mean_initial = float(self.real_train_initial.mean().item())
         device = self.real_train_initial.device
         
@@ -415,12 +401,10 @@ class AlgorithmComparisonEvaluator:
         else:
             self.synthetic_test_initial = synthetic_test_initial.float()
         
-        # All synthetic log returns are already tensors
         synthetic_train_log_returns = synthetic_train_log_returns.float()
         synthetic_val_log_returns = synthetic_val_log_returns.float()
         synthetic_test_log_returns = synthetic_test_log_returns.float()
         
-        # Convert log returns to prices (returns torch tensors)
         print("Converting log returns to prices for real data...")
         self.real_train_prices = log_returns_to_prices(self.real_train_log_returns, self.real_train_initial)
         self.real_val_prices = log_returns_to_prices(self.real_val_log_returns, self.real_val_initial)
@@ -431,13 +415,8 @@ class AlgorithmComparisonEvaluator:
         self.synthetic_val_prices = log_returns_to_prices(synthetic_val_log_returns, self.synthetic_val_initial)
         self.synthetic_test_prices = log_returns_to_prices(synthetic_test_log_returns, self.synthetic_test_initial)
         
-        # Set strike price
-        if strike is None:
-            self.strike = mean_initial  # At-the-money option
-        else:
-            self.strike = strike
-        
-        # Define all hedging model classes
+        self.strike = mean_initial
+
         self.hedger_classes = {
             'Feedforward_L-1': FeedforwardLayers,
             'Feedforward_Time': FeedforwardTime,
@@ -445,14 +424,11 @@ class AlgorithmComparisonEvaluator:
             'LSTM': LSTM
         }
 
-        # Define all non-deep hedging model classes
         self.hedger_classes.update({
             'BlackScholes': BlackScholes,
             'DeltaGamma': DeltaGamma,
-            'RandomForest': RandomForest,
             'LinearRegression': LinearRegression,
             'XGBoost': XGBoost,
-            'LightGBM': LightGBM
         })
         print("[AlgorithmComparisonEvaluator] Initialization complete.")
     
@@ -467,7 +443,6 @@ class AlgorithmComparisonEvaluator:
             print(f"[AlgorithmComparisonEvaluator] --- Evaluating {hedger_name} ---")
             
             print(f"[AlgorithmComparisonEvaluator] Training {hedger_name} on real data...")
-            # Train on real data
             hedger_real = hedger_class(
                 seq_length=self.seq_length,
                 hidden_size=self.hidden_size,
@@ -482,7 +457,6 @@ class AlgorithmComparisonEvaluator:
             )
             
             print(f"[AlgorithmComparisonEvaluator] Training {hedger_name} on synthetic data...")
-            # Train on synthetic data
             hedger_syn = hedger_class(
                 seq_length=self.seq_length,
                 hidden_size=self.hidden_size,
@@ -497,29 +471,23 @@ class AlgorithmComparisonEvaluator:
             )
             
             print(f"[AlgorithmComparisonEvaluator] Evaluating {hedger_name} on real test set...")
-            # Evaluate both hedgers on real test set
             X_real_test_real_hedger = compute_replication_errors(
                 hedger_real,
                 self.real_test_prices,
-                self.strike
             )
             X_real_test_syn_hedger = compute_replication_errors(
                 hedger_syn,
                 self.real_test_prices,
-                self.strike
             )
             
             print(f"[AlgorithmComparisonEvaluator] Evaluating {hedger_name} on synthetic test set...")
-            # Evaluate both hedgers on synthetic test set
             X_syn_test_real_hedger = compute_replication_errors(
                 hedger_real,
                 self.synthetic_test_prices,
-                self.strike
             )
             X_syn_test_syn_hedger = compute_replication_errors(
                 hedger_syn,
                 self.synthetic_test_prices,
-                self.strike
             )
             
             print(f"[AlgorithmComparisonEvaluator] Computing metrics for {hedger_name} on real and synthetic test sets...")

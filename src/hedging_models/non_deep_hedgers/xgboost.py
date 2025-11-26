@@ -1,111 +1,64 @@
-"""
-XGBoost hedging model.
-"""
-
 import torch
 import numpy as np
-import xgboost as xgb
+from xgboost import XGBRegressor
 
 from src.hedging_models.base_hedger import NonDeepHedgingModel
 
 
 class XGBoost(NonDeepHedgingModel):
-    def __init__(self, seq_length: int, hidden_size: int = 64, strike: float = 1.0,
-                 n_estimators: int = 100, max_depth: int = 6, learning_rate: float = 0.1):
-        super().__init__(seq_length, hidden_size, strike)
-        self.n_estimators = n_estimators
-        self.max_depth = max_depth
-        self.xgb_learning_rate = learning_rate
+    def __init__(self, seq_length: int, strike: float = 1.0, **xgb_params):
+        """
+        Dynamic XGBoost hedger that adapts to the input sequence length during fit().
+        """
+        super().__init__(seq_length, strike=strike)
+        self.xgb_params = xgb_params
         self.models = []
-    
-    def fit(self, data: torch.Tensor, num_epochs: int = 100, batch_size: int = 32,
-            learning_rate: float = 0.001, verbose: bool = True):
-        """Train XGBoost models for each time step."""
-        if data.dim() == 3:
-            prices = data[:, :, 0]
-        else:
-            prices = data
-        
-        prices_np = prices.cpu().numpy()
-        R, L = prices_np.shape
-        
-        self.models = []
-        
-        for t in range(L - 1):
-            X = []
-            y = []
-            
-            for i in range(R):
-                features = [
-                    prices_np[i, t],
-                    prices_np[i, :t+1].mean() if t > 0 else prices_np[i, 0],
-                    (L - 1 - t) / (L - 1),
-                    self.strike,
-                ]
-                X.append(features)
-                
-                if t < L - 1:
-                    price_change = prices_np[i, t+1] - prices_np[i, t]
-                    target = np.clip(price_change / (prices_np[i, t] + 1e-6), -1, 1)
-                    y.append(target)
-            
-            X = np.array(X)
-            y = np.array(y)
-            
-            model = xgb.XGBRegressor(
-                n_estimators=self.n_estimators,
-                max_depth=self.max_depth,
-                learning_rate=self.xgb_learning_rate,
-                random_state=42,
-                n_jobs=-1
-            )
-            model.fit(X, y)
-            self.models.append(model)
-        
-        # Compute optimal premium using least squares (no gradients)
-        # Optimal premium minimizes MSE: p* = E[Payoff - sum(Delta_t * (S_{t+1} - S_t))]
-        prices = prices.to(self.device).float()
-        
-        with torch.no_grad():
-            deltas = self.forward(prices)
-            final_prices = prices[:, -1]
-            payoffs = self.compute_payoff(final_prices)
-            
-            # Compute sum of delta-weighted price changes
-            price_diffs = prices[:, 1:] - prices[:, :-1]
-            delta_weighted_changes = torch.sum(deltas * price_diffs, dim=1)
-            
-            # Optimal premium is the mean of (payoff - delta_weighted_changes)
-            optimal_premium = torch.mean(payoffs - delta_weighted_changes)
-            self.premium = optimal_premium
-        
-        if verbose:
-            print(f"Training completed. Premium: {self.premium.item():.6f}")
-    
+
     def forward(self, prices: torch.Tensor) -> torch.Tensor:
-        """Predict deltas using XGBoost models."""
-        if len(self.models) == 0:
-            batch_size = prices.shape[0]
-            return torch.zeros(batch_size, self.seq_length - 1, device=self.device)
-        
+        if prices.dim() == 3:
+            prices = prices[:, :, 0]
         prices_np = prices.cpu().numpy()
         batch_size, L = prices_np.shape
-        
-        deltas = []
-        for t in range(L - 1):
-            X = []
-            for i in range(batch_size):
-                features = [
-                    prices_np[i, t],
-                    prices_np[i, :t+1].mean() if t > 0 else prices_np[i, 0],
-                    (L - 1 - t) / (L - 1),
-                    self.strike,
-                ]
-                X.append(features)
-            
-            X = np.array(X)
-            delta_t = self.models[t].predict(X)
-            deltas.append(torch.from_numpy(delta_t).float().to(self.device))
-        
-        return torch.stack(deltas, dim=1)  # (batch_size, L-1)
 
+        if L - 1 != len(self.models):
+            raise ValueError(
+                f"Number of trained models {len(self.models)} does not match "
+                f"sequence length {L} (L-1 models required)"
+            )
+
+        deltas_list = []
+        for t, model in enumerate(self.models):
+            X_t = prices_np[:, : t + 1]
+            delta_t = model.predict(X_t)
+            # Clip deltas to [0, 1] to avoid invalid hedging positions
+            delta_t = np.clip(delta_t, 0.0, 1.0)
+            deltas_list.append(delta_t.reshape(batch_size, 1))
+        deltas = np.hstack(deltas_list)
+        return torch.tensor(deltas, dtype=torch.float32, device=self.device)
+
+    def fit(self, prices: torch.Tensor):
+        if prices.dim() == 3:
+            prices = prices[:, :, 0]
+
+        _, L = prices.shape
+        self.models = [XGBRegressor(**self.xgb_params) for _ in range(L - 1)]
+
+        prices_np = prices.cpu().numpy()
+        final_prices = prices[:, -1]
+        payoffs = self.compute_payoff(final_prices)
+        self.premium = payoffs.mean()
+
+        # Compute target deltas and clip them to [0, 1]
+        deltas_targets = []
+        for t in range(L - 1):
+            S_t = prices[:, t]
+            S_tp1 = prices[:, t + 1]
+            delta_target = (payoffs - self.premium) / (S_tp1 - S_t + 1e-8)
+            delta_target = torch.clamp(delta_target, 0.0, 1.0)
+            deltas_targets.append(delta_target.cpu().numpy())
+
+        # Fit models
+        for t, model in enumerate(self.models):
+            X_t = prices_np[:, : t + 1]
+            y_t = deltas_targets[t]
+            model.fit(X_t, y_t)
