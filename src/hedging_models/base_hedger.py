@@ -87,9 +87,6 @@ class DeepHedgingModel(nn.Module, ABC):
         """
         Train the deep hedging model.
         """
-        # Ensure data is a torch tensor
-        if not isinstance(data, torch.Tensor):
-            raise TypeError(f"data must be torch.Tensor, got {type(data)}")
         
         # Extract open channel (first channel, index 0)
         if data.dim() == 3:
@@ -113,19 +110,11 @@ class DeepHedgingModel(nn.Module, ABC):
             for i in range(0, num_samples, batch_size):
                 batch_indices = indices[i:i + batch_size]
                 batch_prices = prices[batch_indices]
-                
                 optimizer.zero_grad()
-                
-                # Forward pass: compute deltas
                 deltas = self.forward(batch_prices)
-                
-                # Compute loss
                 loss = self.compute_loss(batch_prices, deltas)
-                
-                # Backward pass
                 loss.backward()
                 optimizer.step()
-                
                 total_loss += loss.item()
                 num_batches += 1
             
@@ -140,8 +129,6 @@ class DeepHedgingModel(nn.Module, ABC):
         """
         self.eval()
         
-        if not isinstance(prices, torch.Tensor):
-            raise TypeError(f"prices must be torch.Tensor, got {type(prices)}")
         if prices.dim() == 3:
             prices = prices[:, :, 0]
         prices = prices.to(self.device).float()
