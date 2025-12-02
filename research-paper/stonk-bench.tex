@@ -346,46 +346,46 @@
     Generative Adversarial Networks (GANs), Variational Autoencoders (VAEs), and Diffusion Models.
     
 
-  \subsubsection{Diffusion Models}
-    Diffusion models (or score-based generative models) have 
-    emerged as powerful methods for modeling complex data 
-    distributions via a forward (noise-adding) process and a 
-    learned reverse (denoising) process \cite{ho2020denoising}. 
-    In the forward direction, one gradually corrupts a data sample 
-    \(x_0\) into noise via a Markov chain:
-   
-    \begin{align}
-      q(x_{1:T}\mid x_0) &= \prod_{t=1}^T q(x_t \mid x_{t-1}), \\
-      q(x_t \mid x_{t-1}) &= \mathcal{N}\left(x_t; \sqrt{1-\beta_t}\,x_{t-1}, \beta_t I\right). \nonumber
-    \end{align}
-   
-    
-    The reverse (generative) model is parameterized as
-    \[
-      p_\theta(x_{t-1} \mid x_t) = \mathcal{N}\bigl(x_{t-1}; 
-      \mu_\theta(x_t, t), \Sigma_\theta(x_t, t)\bigr),
-    \]
-    where \(\mu_\theta\) and \(\Sigma_\theta\) are often 
-    expressed via a neural network that estimates the score 
-    \(\nabla_{\theta} \log p_\theta(x_t)\). A common training 
-    objective is the simplified denoising score-matching loss:
-    \[
-      \mathbb{E}_{t, x_0, \epsilon}\Bigl[ \bigl\| \epsilon - \epsilon_\theta(x_t, t)\bigr\|^2 \Bigr],
-    \]
-    where \(x_t = \sqrt{\bar\alpha_t}\,x_0 + \sqrt{1-\bar\alpha_t}\,\epsilon\).
-    
-    In finance/time-series, diffusion models have recently been 
-    adapted to generate synthetic asset paths by converting 
-    multivariate time series into suitable representations (e.g. 
-    wavelet-transformed images) and then sampling via reverse 
-    diffusion \cite{Tanaka25}. For instance, Takahashi and Mizuno 
-    shows that such an approach can reproduce key statistical 
-    properties of financial data (e.g.\ volatility clustering, 
-    tail behavior) \cite{Takahashi24}.  
-    Another relevant work is "A Financial Time Series Denoiser 
-    Based on Diffusion Model", which shows how diffusion can help 
-    improve downstream predictability and reduce noise in 
-    financial signals \cite{wang24denoiser}.
+  %   \subsubsection{Diffusion Models}
+  %     Diffusion models (or score-based generative models) have 
+  %     emerged as powerful methods for modeling complex data 
+  %     distributions via a forward (noise-adding) process and a 
+  %     learned reverse (denoising) process \cite{ho2020denoising}. 
+  %     In the forward direction, one gradually corrupts a data sample 
+  %     \(x_0\) into noise via a Markov chain:
+  %    
+  %     \begin{align}
+  %       q(x_{1:T}\mid x_0) &= \prod_{t=1}^T q(x_t \mid x_{t-1}), \\
+  %       q(x_t \mid x_{t-1}) &= \mathcal{N}\left(x_t; \sqrt{1-\beta_t}\,x_{t-1}, \beta_t I\right). \nonumber
+  %     \end{align}
+  %    
+  %     
+  %     The reverse (generative) model is parameterized as
+  %     \[
+  %       p_\theta(x_{t-1} \mid x_t) = \mathcal{N}\bigl(x_{t-1}; 
+  %       \mu_\theta(x_t, t), \Sigma_\theta(x_t, t)\bigr),
+  %     \]
+  %     where \(\mu_\theta\) and \(\Sigma_\theta\) are often 
+  %     expressed via a neural network that estimates the score 
+  %     \(\nabla_{\theta} \log p_\theta(x_t)\). A common training 
+  %     objective is the simplified denoising score-matching loss:
+  %     \[
+  %       \mathbb{E}_{t, x_0, \epsilon}\Bigl[ \bigl\| \epsilon - \epsilon_\theta(x_t, t)\bigr\|^2 \Bigr],
+  %     \]
+  %     where \(x_t = \sqrt{\bar\alpha_t}\,x_0 + \sqrt{1-\bar\alpha_t}\,\epsilon\).
+  %     
+  %     In finance/time-series, diffusion models have recently been 
+  %     adapted to generate synthetic asset paths by converting 
+  %     multivariate time series into suitable representations (e.g. 
+  %     wavelet-transformed images) and then sampling via reverse 
+  %     diffusion \cite{Tanaka25}. For instance, Takahashi and Mizuno 
+  %     shows that such an approach can reproduce key statistical 
+  %     properties of financial data (e.g.\ volatility clustering, 
+  %     tail behavior) \cite{Takahashi24}.  
+  %     Another relevant work is "A Financial Time Series Denoiser 
+  %     Based on Diffusion Model", which shows how diffusion can help 
+  %     improve downstream predictability and reduce noise in 
+  %     financial signals \cite{wang24denoiser}.
     
     \subsubsection{Variational Autoencoders (VAEs)}
     Variational Autoencoders \cite{kingma2022vae, 
