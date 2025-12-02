@@ -271,6 +271,7 @@
         parameters are \(\mu\) and \(\sigma\).
         \begin{equation}
         dS_t = \mu S_t\,dt + \sigma S_t\,dW_t.
+        \label{eq:gbm}
         \end{equation}
 
         \item \label{alg:ou} \textbf{Ornstein–Uhlenbeck (OU).} 
@@ -283,7 +284,8 @@
         \end{equation}
 
         \item \label{alg:mjd} \textbf{Merton Jump Diffusion (MJD).} 
-        Extends GBM by incorporating normally-distributed jumps. 
+        Extends the GBM equation \eqref{eq:gbm} by incorporating 
+        normally-distributed jumps. 
         Model-specific parameters are \(\lambda\) (jump intensity), 
         \(\mu_j\) and \(\sigma_j\) (mean and standard deviation of 
         jump sizes).
@@ -295,8 +297,9 @@
 
         \item \label{alg:dejd} \textbf{Double-Exponential Jump 
         Diffusion (DEJD).} 
-        A jump-diffusion model with asymmetric double-exponential 
-        jump sizes. Model-specific parameters are \(p\) 
+        Another jump-diffusion model with asymmetric double-exponential 
+        jump sizes modifying equation \eqref{eq:gbm}. 
+        Model-specific parameters are \(p\) 
         (probability of upward jump) and \(\eta_1, \eta_2\) 
         (exponential parameters for upward/downward jumps).
         \begin{align}
@@ -408,6 +411,16 @@
     latent representation, they are useful in finance to model 
     underlying latent drivers of asset dynamics and to sample 
     coherent trajectories.
+    \begin{enumerate}[label=\textbf{[A\arabic*]},resume]
+      \item \label{alg:timevae} \textbf{TimeVAE.}
+      A time-series specific VAE variant that combines causal
+      temporal encoders (e.g., causal convolutions or RNNs) with an
+      autoregressive decoder to preserve path coherence. Training
+      typically augments the ELBO with prediction or stepwise
+      reconstruction losses to improve short- and long-range
+      dependencies; TimeVAE is used in our benchmark as a
+      dedicated VAE baseline for temporal data \cite{Desai21}.
+    \end{enumerate}
     
     \subsubsection{Generative Adversarial Networks (GANs)}
     Generative Adversarial Networks 
@@ -444,21 +457,14 @@
     without requiring explicit likelihood models.
     
     \begin{enumerate}[label=\textbf{[A\arabic*]},resume]
-      \item \label{alg:timevae} \textbf{TimeVAE.}
-      A time-series specific VAE variant that combines causal
-      temporal encoders (e.g., causal convolutions or RNNs) with an
-      autoregressive decoder to preserve path coherence. Training
-      typically augments the ELBO with prediction or stepwise
-      reconstruction losses to improve short- and long-range
-      dependencies; TimeVAE is used in our benchmark as a
-      dedicated VAE baseline for temporal data.
       \item \label{alg:quantgan} \textbf{QuantGAN.}
       A GAN variant tailored for financial applications that
       incorporates quantile-aware objectives or conditional
       quantile matching and temporal architectures (e.g.,
       temporal convnets or transformers). QuantGANs aim to better
       capture tail behaviour and risk-sensitive statistics
-      (e.g., VaR/CVaR) important for downstream financial tasks.
+      (e.g., VaR/CVaR) important for downstream financial tasks
+      \cite{Wiese2020}.
     \end{enumerate}
   \subsection{Miscellaneous}
   This section consists of models that are classified as neither 
