@@ -16,16 +16,21 @@ Replication Error Metrics:
 """
 
 import torch
-import numpy as np
 from typing import Dict, Any
 from pathlib import Path
 import json
 from datetime import datetime
 
-from src.hedging_models.deep_hedgers import FeedforwardLayers, FeedforwardTime, RNN, LSTM
-from src.hedging_models.non_deep_hedgers import (
-    BlackScholes, DeltaGamma, LinearRegression, XGBoost
-)
+from src.hedging_models.base_hedger import DeepHedgingModel, NonDeepHedgingModel
+from src.hedging_models.deep_hedgers.feedforward_layers import FeedforwardLayers
+from src.hedging_models.deep_hedgers.feedforward_time import FeedforwardTime
+from src.hedging_models.deep_hedgers.rnn_hedger import RNN
+from src.hedging_models.deep_hedgers.lstm_hedger import LSTM
+
+from src.hedging_models.non_deep_hedgers.black_scholes import BlackScholes
+from src.hedging_models.non_deep_hedgers.delta_gamma import DeltaGamma
+from src.hedging_models.non_deep_hedgers.linear_regression import LinearRegression
+from src.hedging_models.non_deep_hedgers.xgboost import XGBoost
 
 from src.utils.preprocessing_utils import LogReturnTransformation
 
@@ -47,35 +52,28 @@ def log_returns_to_prices(
         raise ValueError(f"initial_prices shape {initial_prices.shape} doesn't match expected (R,)")
     
     scaler = LogReturnTransformation()
-    prices_np = np.zeros((R, L))
-    
-    # Convert to numpy for LogReturnTransformation (which works with numpy)
-    log_returns_np = log_returns.cpu().numpy()
-    initial_prices_np = initial_prices.cpu().numpy()
+    prices = torch.zeros((R, L), device=log_returns.device)
     
     for i in range(R):
-        prices_full = scaler.inverse_transform(log_returns_np[i], initial_prices_np[i])
-        prices_np[i] = prices_full[1:]
+        prices_full = scaler.inverse_transform(log_returns[i], initial_prices[i])
+        prices[i] = prices_full[1:]
     
-    return torch.from_numpy(prices_np).float()
-
+    return prices
 
 def compute_replication_errors(hedger, prices: torch.Tensor) -> torch.Tensor:
     """
     Compute Replication Errors: R = Final Payoff - Terminal Value for each sample.
     Assumes prices is a torch tensor, returns torch tensor.
     """
-    hedger.eval()
-    
+    if isinstance(hedger, DeepHedgingModel):
+        hedger.eval()
     prices = prices.to(hedger.device).float()
-    
     with torch.no_grad():
         deltas = hedger.forward(prices)
         terminal_values = hedger.compute_terminal_value(prices, deltas)
         final_prices = prices[:, -1]
-        payoffs = torch.clamp(final_prices - hedger.strike, min=0.0) # European call option payoff
+        payoffs = torch.clamp(final_prices - float(hedger.strike), min=0.0)  # European call option payoff
         R = payoffs - terminal_values
-    
     return R
 
 
@@ -84,33 +82,25 @@ def compute_marginal_metrics(X_real: torch.Tensor, X_synthetic: torch.Tensor) ->
     Compute marginal distribution metrics: MSE over time of mean, p95, p05.
     Assumes both inputs are torch tensors.
     """
-    mean_real = X_real.mean().item()
-    mean_syn = X_synthetic.mean().item()
-    
-    X_real_np = X_real.cpu().numpy()
-    X_syn_np = X_synthetic.cpu().numpy()
-    
-    p95_real = np.percentile(X_real_np, 95)
-    p95_syn = np.percentile(X_syn_np, 95)
-    
-    p05_real = np.percentile(X_real_np, 5)
-    p05_syn = np.percentile(X_syn_np, 5)
-    
-    # MSE for each statistic
-    mse_mean = (mean_real - mean_syn) ** 2
-    mse_p95 = (p95_real - p95_syn) ** 2
-    mse_p05 = (p05_real - p05_syn) ** 2
-    
+    mean_real = X_real.mean()
+    mean_syn = X_synthetic.mean()
+    p95_real = X_real.quantile(0.95)
+    p95_syn = X_synthetic.quantile(0.95)
+    p05_real = X_real.quantile(0.05)
+    p05_syn = X_synthetic.quantile(0.05)
+    mse_mean = float((mean_real - mean_syn).pow(2).item())
+    mse_p95 = float((p95_real - p95_syn).pow(2).item())
+    mse_p05 = float((p05_real - p05_syn).pow(2).item())
     return {
-        'mse_mean': float(mse_mean),
-        'mse_p95': float(mse_p95),
-        'mse_p05': float(mse_p05),
-        'mean_real': float(mean_real),
-        'mean_syn': float(mean_syn),
-        'p95_real': float(p95_real),
-        'p95_syn': float(p95_syn),
-        'p05_real': float(p05_real),
-        'p05_syn': float(p05_syn)
+        'mse_mean': mse_mean,
+        'mse_p95': mse_p95,
+        'mse_p05': mse_p05,
+        'mean_real': float(mean_real.item()),
+        'mean_syn': float(mean_syn.item()),
+        'p95_real': float(p95_real.item()),
+        'p95_syn': float(p95_syn.item()),
+        'p05_real': float(p05_real.item()),
+        'p05_syn': float(p05_syn.item())
     }
 
 
@@ -129,12 +119,11 @@ def compute_quadratic_variation(prices: torch.Tensor) -> torch.Tensor:
         qvar = torch.sum(price_diffs ** 2, dim=1)  # (R, N)
     else:
         raise ValueError(f"Expected 2D or 3D tensor, got {prices.ndim}D")
-    
     return qvar
 
 
 def compute_temporal_metrics(
-    prices_real: torch.Tensor, 
+    prices_real: torch.Tensor,
     prices_synthetic: torch.Tensor
 ) -> Dict[str, float]:
     """
@@ -143,12 +132,10 @@ def compute_temporal_metrics(
     """
     qvar_real = compute_quadratic_variation(prices_real)
     qvar_syn = compute_quadratic_variation(prices_synthetic)
-    
-    # Compute MSE
-    mse_qvar = torch.mean((qvar_real - qvar_syn) ** 2).item()
-    
+    # Compute MSE for vectors
+    mse_qvar = float(torch.mean((qvar_real - qvar_syn) ** 2).item())
     return {
-        'mse_qvar': float(mse_qvar),
+        'mse_qvar': mse_qvar,
         'mean_qvar_real': float(qvar_real.mean().item()),
         'mean_qvar_syn': float(qvar_syn.mean().item())
     }
@@ -161,20 +148,14 @@ def compute_covariance_matrix(prices: torch.Tensor) -> torch.Tensor:
     """
     if prices.ndim == 2:
         # (R, L) - covariance across samples for each time step
-        # Convert to numpy for np.cov, then back to tensor
-        prices_np = prices.cpu().numpy()
-        cov_np = np.cov(prices_np.T)  # (L, L)
-        cov = torch.from_numpy(cov_np).float()
+        cov = torch.cov(prices.T)  # (L, L)
     elif prices.ndim == 3:
         # (R, L, N) - flatten to (R, L*N) then compute covariance
         R, L, N = prices.shape
         prices_flat = prices.reshape(R, L * N)
-        prices_np = prices_flat.cpu().numpy()
-        cov_np = np.cov(prices_np.T)  # (L*N, L*N)
-        cov = torch.from_numpy(cov_np).float()
+        cov = torch.cov(prices_flat.T)  # (L*N, L*N)
     else:
         raise ValueError(f"Expected 2D or 3D tensor, got {prices.ndim}D")
-    
     return cov
 
 
@@ -188,16 +169,38 @@ def compute_correlation_metrics(
     """
     cov_real = compute_covariance_matrix(prices_real)
     cov_syn = compute_covariance_matrix(prices_synthetic)
-    
     # MSE between covariance matrices
-    mse_cov = torch.mean((cov_real - cov_syn) ** 2).item()
-    
+    mse_cov = float(torch.mean((cov_real - cov_syn) ** 2).item())
     return {
-        'mse_cov': float(mse_cov),
+        'mse_cov': mse_cov,
         'mean_cov_real': float(cov_real.mean().item()),
         'mean_cov_syn': float(cov_syn.mean().item())
     }
 
+
+def fit_hedger(
+    hedger,
+    data: torch.Tensor,
+    num_epochs: int = 50,
+    batch_size: int = 32,
+    learning_rate: float = 1e-3
+):
+    """
+    Fit a hedging model with appropriate arguments based on its type.
+    
+    Args:
+        hedger: The hedging model instance (DeepHedgingModel or NonDeepHedgingModel)
+        data: Training data tensor
+        num_epochs: Number of training epochs (only for DeepHedgingModel)
+        batch_size: Batch size (only for DeepHedgingModel)
+        learning_rate: Learning rate (only for DeepHedgingModel)
+    """
+    if isinstance(hedger, DeepHedgingModel):
+        hedger.fit(data, num_epochs=num_epochs, batch_size=batch_size, learning_rate=learning_rate)
+    elif isinstance(hedger, NonDeepHedgingModel):
+        hedger.fit(data)
+    else:
+        raise ValueError(f"Unknown hedger type: {type(hedger)}")
 
 class AugmentedTestingEvaluator:
     def __init__(
@@ -209,25 +212,23 @@ class AugmentedTestingEvaluator:
         real_val_initial: torch.Tensor,
         synthetic_train_initial: torch.Tensor = None,
         seq_length: int = None,
-        hidden_size: int = 64,
         num_epochs: int = 50,
         batch_size: int = 128,
-        learning_rate: float = 0.001
+        learning_rate: float = 1e-3
     ):
         print("[AugmentedTestingEvaluator] Initialization started...")
         
-        self.real_train_log_returns = real_train_log_returns.float()
-        self.real_val_log_returns = real_val_log_returns.float()
-        self.synthetic_train_log_returns = synthetic_train_log_returns.float()
-        self.real_train_initial = real_train_initial.float()
-        self.real_val_initial = real_val_initial.float()
+        self.real_train_log_returns = real_train_log_returns
+        self.real_val_log_returns = real_val_log_returns
+        self.synthetic_train_log_returns = synthetic_train_log_returns
+        self.real_train_initial = real_train_initial
+        self.real_val_initial = real_val_initial
         
         if seq_length is None:
             self.seq_length = self.real_train_log_returns.shape[1]
         else:
             self.seq_length = seq_length
             
-        self.hidden_size = hidden_size
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
@@ -280,29 +281,27 @@ class AugmentedTestingEvaluator:
         print("[AugmentedTestingEvaluator] Training hedger on mixed (synthetic + real) data...")
         hedger_mixed = hedger_class(
             seq_length=self.seq_length,
-            hidden_size=self.hidden_size,
             strike=self.strike
         )
-        hedger_mixed.fit(
+        fit_hedger(
+            hedger_mixed,
             mixed_train_prices,
             num_epochs=self.num_epochs,
             batch_size=self.batch_size,
-            learning_rate=self.learning_rate,
-            verbose=True
+            learning_rate=self.learning_rate
         )
         
         print("[AugmentedTestingEvaluator] Training hedger on real data only...")
         hedger_real = hedger_class(
             seq_length=self.seq_length,
-            hidden_size=self.hidden_size,
             strike=self.strike
         )
-        hedger_real.fit(
+        fit_hedger(
+            hedger_real,
             self.real_train_prices,
             num_epochs=self.num_epochs,
             batch_size=self.batch_size,
-            learning_rate=self.learning_rate,
-            verbose=True
+            learning_rate=self.learning_rate
         )
         
         print("[AugmentedTestingEvaluator] Evaluating both hedgers on real validation set...")
@@ -356,26 +355,24 @@ class AlgorithmComparisonEvaluator:
         synthetic_val_initial: torch.Tensor = None,
         synthetic_test_initial: torch.Tensor = None,
         seq_length: int = None,
-        hidden_size: int = 64,
         num_epochs: int = 50,
         batch_size: int = 32,
-        learning_rate: float = 0.001
+        learning_rate: float = 1e-3
     ):
         print("[AlgorithmComparisonEvaluator] Initialization started...")
         
-        self.real_train_log_returns = real_train_log_returns.float()
-        self.real_val_log_returns = real_val_log_returns.float()
-        self.real_test_log_returns = real_test_log_returns.float()
-        self.real_train_initial = real_train_initial.float()
-        self.real_val_initial = real_val_initial.float()
-        self.real_test_initial = real_test_initial.float()
+        self.real_train_log_returns = real_train_log_returns
+        self.real_val_log_returns = real_val_log_returns
+        self.real_test_log_returns = real_test_log_returns
+        self.real_train_initial = real_train_initial
+        self.real_val_initial = real_val_initial
+        self.real_test_initial = real_test_initial
         
         if seq_length is None:
             self.seq_length = self.real_train_log_returns.shape[1]
         else:
             self.seq_length = seq_length
             
-        self.hidden_size = hidden_size
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
@@ -445,29 +442,27 @@ class AlgorithmComparisonEvaluator:
             print(f"[AlgorithmComparisonEvaluator] Training {hedger_name} on real data...")
             hedger_real = hedger_class(
                 seq_length=self.seq_length,
-                hidden_size=self.hidden_size,
                 strike=self.strike
             )
-            hedger_real.fit(
+            fit_hedger(
+                hedger_real,
                 self.real_train_prices,
                 num_epochs=self.num_epochs,
                 batch_size=self.batch_size,
-                learning_rate=self.learning_rate,
-                verbose=True
+                learning_rate=self.learning_rate
             )
             
             print(f"[AlgorithmComparisonEvaluator] Training {hedger_name} on synthetic data...")
             hedger_syn = hedger_class(
                 seq_length=self.seq_length,
-                hidden_size=self.hidden_size,
                 strike=self.strike
             )
-            hedger_syn.fit(
+            fit_hedger(
+                hedger_syn,
                 self.synthetic_train_prices,
                 num_epochs=self.num_epochs,
                 batch_size=self.batch_size,
-                learning_rate=self.learning_rate,
-                verbose=True
+                learning_rate=self.learning_rate
             )
             
             print(f"[AlgorithmComparisonEvaluator] Evaluating {hedger_name} on real test set...")

@@ -150,8 +150,7 @@ class TimeVAE(DeepLearningModel):
         x_hat = self.decoder(z)
         return x_hat, mu, log_var
 
-    def fit(self, data_loader: DataLoader, num_epochs: int = 200, verbose: bool = True,
-            validation_loader: DataLoader = None, plot_callback=None):
+    def fit(self, data_loader: DataLoader, num_epochs: int = 200, verbose: bool = True):
         """Train TimeVAE and save the best parameters based on reconstruction loss only."""
         for epoch in range(1, num_epochs + 1):
             kl_weight = self.kl_ramp(epoch)

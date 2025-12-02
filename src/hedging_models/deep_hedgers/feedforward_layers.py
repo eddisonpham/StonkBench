@@ -9,7 +9,7 @@ class FeedforwardLayers(DeepHedgingModel):
     Feed-forward MLP hedger.
 
     - Input: prices tensor (batch_size, L)
-    - Architecture: Flatten -> Dense -> ReLU -> Dense -> ReLU -> Dense -> output (L-1)
+    - Architecture: MLP -> output dimension (L-1)
     - Output: deltas (batch_size, L-1)
     """
 
@@ -24,22 +24,27 @@ class FeedforwardLayers(DeepHedgingModel):
         super().__init__(seq_length=seq_length, hidden_size=hidden_size, strike=strike)
         self.mlp_layers = mlp_layers
         self.final_scale = final_scale
+
         layers = []
-        layers.append(nn.Linear(seq_length+1, hidden_size))
+        # First layer: (L → hidden)
+        layers.append(nn.Linear(seq_length, hidden_size))
+        layers.append(nn.ReLU(inplace=True))
+
+        # Middle layers
         for _ in range(mlp_layers):
             layers.append(nn.Linear(hidden_size, hidden_size))
             layers.append(nn.ReLU(inplace=True))
-        layers.append(nn.Linear(hidden_size, seq_length))
+
+        # Final layer: (hidden → L-1)
+        layers.append(nn.Linear(hidden_size, seq_length - 1))
+
         self.mlp = nn.Sequential(*layers)
         self.to(self.device)
 
     def forward(self, prices: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass to compute deltas.
-
         prices: (batch_size, L)
         returns deltas: (batch_size, L-1)
         """
         prices = prices.to(self.device).float()
         return self.mlp(prices)
-
