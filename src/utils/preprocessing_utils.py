@@ -2,84 +2,53 @@
 Preprocessing utility functions
 """
 
+from typing import Tuple
 import os
 import random
-import numpy as np
 import pandas as pd
 import torch
-from statsmodels.tsa.stattools import acf, pacf
+from statsmodels.tsa.stattools import pacf
 from torch.utils.data import Dataset, DataLoader
-from scipy.signal import argrelextrema
 
 from src.utils.display_utils import (
-    show_divider,
     show_with_start_divider,
     show_with_end_divider
 )
 
 
 class LogReturnTransformation:
-    """
-    Transform a price series into log returns and provide an inverse transformation
-    to reconstruct the original prices.
-    When transforming, preserves the initial price(s) as part of the transformation output,
-    so inverse transformation can accurately recover the original series.
-    """
-    
-    def transform(self, data):
+
+    def transform(self, data: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Compute log returns and preserve the initial value.
-
-        Returns:
-            Tuple[np.ndarray, Any]: 
-                - log_returns of shape (L-1,)
-                - initial_value (the first price)
+        Assumes data is a torch tensor.
         """
-        data = np.asarray(data)
-        log_returns = np.log(data[1:] / data[:-1])
+        log_returns = torch.log(data[1:] / data[:-1])
         initial_value = data[0]
         return log_returns, initial_value
 
-    def inverse_transform(self, log_returns, initial_value):
+    def inverse_transform(self, log_returns: torch.Tensor, initial_value: torch.Tensor) -> torch.Tensor:
         """
         Reconstruct the original price series from log returns.
-
-        Args:
-            log_returns (np.ndarray): Log returns of shape (L-1)
-            initial_value (np.ndarray or float): Initial price(s)
-
-        Returns:
-            np.ndarray: Reconstructed price series of shape (L,)
+        Assumes log_returns and initial_value are torch tensors or convertibles.
         """
-        prices = [np.asarray(initial_value)]
+        prices = [initial_value]
         for r in log_returns:
-            prices.append(prices[-1] * np.exp(r))
-        return np.array(prices)
+            prices.append(prices[-1] * torch.exp(r))
+        return torch.stack(prices)
 
 class TimeSeriesDataset(Dataset):
-    """
-    PyTorch Dataset for 2D time series data (R, l):
-    - R: number of sequences/windows
-    - l: sequence length
 
-    Features:
-    - Optional shuffling (only recommended for training)
-    - Seed support for reproducibility (for shuffling)
-    - Optional transform on each sequence
-    """
-
-    def __init__(self, data: np.ndarray, shuffle: bool = False, seed: int = 42, transform=None):
-        if isinstance(data, torch.Tensor):
-            if data.ndim != 2:
-                raise ValueError(f"Data must be 2D with shape (R, l), got {data.shape}")
-            self.data = data.float()
-        elif isinstance(data, np.ndarray):
-            if data.ndim != 2:
-                raise ValueError(f"Data must be 2D with shape (R, l), got {data.shape}")
-            self.data = torch.from_numpy(data).float()
-        else:
-            raise ValueError("Data must be a numpy array or a torch tensor")
-
+    def __init__(
+        self, 
+        data: torch.Tensor, 
+        initial_values: torch.Tensor,
+        shuffle: bool = False, 
+        seed: int = 42, 
+        transform=None, 
+    ):
+        self.data = data.float()
+        self.initial_values = initial_values
         self.transform = transform
         self.shuffle = shuffle
         self.seed = seed
@@ -97,12 +66,12 @@ class TimeSeriesDataset(Dataset):
         """Return the number of sequences/windows."""
         return len(self.data)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         actual_idx = self.indices[idx]
         sample = self.data[actual_idx]
         if self.transform:
             sample = self.transform(sample)
-        return sample
+        return sample, self.initial_values[actual_idx]
 
     def set_seed(self, seed: int):
         """Reset seed and reshuffle indices if shuffle=True."""
@@ -123,14 +92,17 @@ def create_dataloaders(
     valid_seed=None,
     test_seed=None,
     num_workers=0, 
-    pin_memory=False
+    pin_memory=False,
+    train_initial=None,
+    valid_initial=None,
+    test_initial=None
 ):
     """
     Create train/validation DataLoaders for time series data.
     """
-    train_dataset = TimeSeriesDataset(train_data, seed=train_seed, shuffle=True)
-    valid_dataset = TimeSeriesDataset(valid_data, seed=valid_seed, shuffle=False)
-    test_dataset = TimeSeriesDataset(test_data, seed=test_seed, shuffle=False)
+    train_dataset = TimeSeriesDataset(train_data, initial_values=train_initial, seed=train_seed, shuffle=True)
+    valid_dataset = TimeSeriesDataset(valid_data, initial_values=valid_initial, seed=valid_seed, shuffle=False)
+    test_dataset = TimeSeriesDataset(test_data, initial_values=test_initial, seed=test_seed, shuffle=False)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size,
                               num_workers=num_workers, pin_memory=pin_memory)
@@ -149,66 +121,87 @@ def find_length(data):
     nobs = len(series)
     nlags = min(200, nobs // 10)
     pacf_vals = pacf(series, nlags=nlags, method='yw')
-    desired_length = int(np.argmax(pacf_vals[1:]) + 1)
+    pacf_vals = torch.from_numpy(pacf_vals)
+    desired_length = int(torch.argmax(pacf_vals[1:]) + 1)
     print(f"Desired time series sample length (lag with max PACF >0): {desired_length}")
     print(f"PACF at that lag: {pacf_vals[desired_length]}")
     return desired_length
 
-def sliding_window_view(data: np.ndarray, window_size: int, stride: int = 1) -> np.ndarray:
+def sliding_window_view(data: torch.Tensor, window_size: int, stride: int = 1) -> torch.Tensor:
     """
-    Segment a 2D time series (L) into overlapping windows (R, window_size).
+    Segment a 1D tensor into overlapping windows of size `window_size` with a given `stride`.
     """
-    assert data.ndim == 1, "Input array must be 1D"
+    assert data.ndim == 1, "Input tensor must be 1D"
     L = data.shape[0]
     assert L >= window_size, "Window size must be <= sequence length"
 
     num_windows = (L - window_size) // stride + 1
-    new_strides = (data.strides[0] * stride, data.strides[0])
-    new_shape = (num_windows, window_size)
-    return np.lib.stride_tricks.as_strided(data, shape=new_shape, strides=new_strides)
+    return data.as_strided(size=(num_windows, window_size), stride=(data.stride(0) * stride, data.stride(0)))
 
-def preprocess_parametric(ori_data, valid_ratio=0.1, test_ratio=0.1):
+def preprocess_parametric(
+    ori_data: torch.Tensor, 
+    initial_value: torch.Tensor, 
+    valid_ratio: float = 0.1, 
+    test_ratio: float = 0.1
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Preprocessing for parametric models: split full series into train/val/test.
-    No transformation is applied here.
     """
-    ori_data = torch.from_numpy(ori_data)
     L = ori_data.shape[0]
     train_end = int(L * (1 - valid_ratio - test_ratio))
     valid_end = int(L * (1 - test_ratio))
     train_data = ori_data[:train_end]
     valid_data = ori_data[train_end:valid_end]
     test_data = ori_data[valid_end:]
-    return train_data, valid_data, test_data
+    
+    scaler = LogReturnTransformation()
+    
+    train_prices = scaler.inverse_transform(train_data, initial_value)
+    train_initial = initial_value
+    valid_initial = train_prices[-1]
+    
+    valid_prices = scaler.inverse_transform(valid_data, valid_initial)
+    test_initial = valid_prices[-1]
+    
+    return train_data, valid_data, test_data, train_initial, valid_initial, test_initial
 
 def preprocess_non_parametric(
-    ori_data, 
-    seq_length=None, 
-    valid_ratio=0.1, 
-    test_ratio=0.1, 
-    stride=1
-):
+    ori_data: torch.Tensor, 
+    original_prices: torch.Tensor,
+    seq_length: int = None, 
+    valid_ratio: float = 0.1, 
+    test_ratio: float = 0.1, 
+    stride: int = 1
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Preprocessing for non-parametric models: transformation, window length selection, sliding windows, and train/val/test split.
     """
-    data = np.asarray(ori_data)
-
     if seq_length is None:
-        seq_length = find_length(data)
+        seq_length = find_length(ori_data)
 
-    windows = sliding_window_view(data, seq_length, stride=stride)
+    windows = sliding_window_view(ori_data, seq_length, stride=stride)
     L = windows.shape[0]
     train_end = int(L * (1 - valid_ratio - test_ratio))
     valid_end = int(L * (1 - test_ratio))
     train_data = windows[:train_end]
     valid_data = windows[train_end:valid_end]
     test_data = windows[valid_end:]
-    return train_data, valid_data, test_data
+    
+    train_indices = torch.arange(0, train_end) * stride
+    valid_indices = torch.arange(train_end, valid_end) * stride
+    test_indices = torch.arange(valid_end, L) * stride
+    
+    train_initial = original_prices[train_indices]
+    valid_initial = original_prices[valid_indices]
+    test_initial = original_prices[test_indices]
+    
+    return train_data, valid_data, test_data, train_initial, valid_initial, test_initial
 
 def preprocess_data(cfg, supress_cfg_message=False):
     """
     Preprocess time series data for parametric or non-parametric models.
-    Returns: train, valid, test
+    Returns: train, valid, test, train_initial, valid_initial, test_initial
+    where *_initial are initial values for reconstructing prices from log returns.
     """
     if not supress_cfg_message:
         show_with_start_divider(f"Preprocessing data for {cfg.get('ticker')}")
@@ -224,17 +217,19 @@ def preprocess_data(cfg, supress_cfg_message=False):
         raise FileNotFoundError(f"File {ori_data_path} does not exist.")
 
     df = pd.read_csv(ori_data_path)
-    ori_data = df['Close'].values
+    original_prices = df['Close'].values
+    original_prices = torch.from_numpy(original_prices)
 
     scaler = LogReturnTransformation()
-    ori_data, _ = scaler.transform(ori_data)
+    log_returns, initial_value = scaler.transform(original_prices)
 
     if is_parametric:
-        return preprocess_parametric(ori_data, valid_ratio, test_ratio)
+        return preprocess_parametric(log_returns, initial_value, valid_ratio, test_ratio)
     return preprocess_non_parametric(
-            ori_data, 
-            seq_length=seq_length,
-            valid_ratio=valid_ratio, 
-            test_ratio=test_ratio,
-            stride=1,
-        )
+        log_returns, 
+        original_prices,
+        seq_length=seq_length,
+        valid_ratio=valid_ratio, 
+        test_ratio=test_ratio,
+        stride=1,
+    )

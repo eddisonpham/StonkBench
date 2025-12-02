@@ -5,7 +5,6 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, Callable
 import numpy as np
-import mlflow
 import time
 
 from src.taxonomies.diversity import calculate_icd
@@ -107,7 +106,5 @@ class VisualAssessmentEvaluator(TaxonomyEvaluator):
 
             visualize_tsne(self.ori_data, self.syn_data, str(model_results_dir))
             visualize_distribution(self.ori_data, self.syn_data, str(model_results_dir))
-
-            mlflow.log_artifacts(str(model_results_dir))
         except Exception as e:
             print(f"Warning: Visual assessment failed: {e}")

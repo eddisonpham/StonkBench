@@ -27,7 +27,7 @@ class OUProcess(ParametricModel):
         self.sigma = sigma_e * torch.sqrt(2 * self.theta / denom)
         print(f"mu: {self.mu.item()}, theta: {self.theta.item()}, sigma: {self.sigma.item()}")
 
-    def generate(self, num_samples: int, generation_length: int, seed: int = 42):
+    def generate(self, num_samples: int, generation_length: int, seed: int = 42) -> torch.Tensor:
         torch.manual_seed(seed)
         np.random.seed(seed)
         log_returns = torch.zeros((num_samples, generation_length))
