@@ -319,11 +319,6 @@
           r_t &= \sigma_t z_t,\quad z_t\sim\mathcal D,\\
           \sigma_t^2 &= \omega + \alpha r_{t-1}^2 + \beta \sigma_{t-1}^2. \nonumber
         \end{align}
-        \item \label{alg:blockbootstrap} \textbf{Block Bootstrap.} 
-        A resampling technique that preserves short-range 
-        dependence by sampling contiguous blocks of returns. 
-        Although not parametric, it is included here as it is a 
-        statistical model.
       \end{enumerate}
 
 
@@ -386,7 +381,6 @@
   %     Based on Diffusion Model", which shows how diffusion can help 
   %     improve downstream predictability and reduce noise in 
   %     financial signals \cite{wang24denoiser}.
-    
     \subsubsection{Variational Autoencoders (VAEs)}
     Variational Autoencoders \cite{kingma2022vae, 
     rezende2014stochastic} are latent-variable generative models 
@@ -449,10 +443,27 @@
     distributions and dependencies in multivariate time-series 
     without requiring explicit likelihood models.
     
+    \begin{enumerate}[label=\textbf{[A\arabic*]},resume]
+      \item \label{alg:timevae} \textbf{TimeVAE.}
+      A time-series specific VAE variant that combines causal
+      temporal encoders (e.g., causal convolutions or RNNs) with an
+      autoregressive decoder to preserve path coherence. Training
+      typically augments the ELBO with prediction or stepwise
+      reconstruction losses to improve short- and long-range
+      dependencies; TimeVAE is used in our benchmark as a
+      dedicated VAE baseline for temporal data.
+      \item \label{alg:quantgan} \textbf{QuantGAN.}
+      A GAN variant tailored for financial applications that
+      incorporates quantile-aware objectives or conditional
+      quantile matching and temporal architectures (e.g.,
+      temporal convnets or transformers). QuantGANs aim to better
+      capture tail behaviour and risk-sensitive statistics
+      (e.g., VaR/CVaR) important for downstream financial tasks.
+    \end{enumerate}
   \subsection{Miscellaneous}
   This section consists of models that are classified as neither 
   parametric nor non-parametric.
-  \begin{enumerate}[label=\textbf{[A\arabic*]}]
+  \begin{enumerate}[label=\textbf{[A\arabic*]}, resume]
         \item \label{alg:blockbootstrap2} \textbf{Block Bootstrap 
         (non-parametric).} 
         A resampling technique that preserves short-range 
