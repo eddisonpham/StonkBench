@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.3.15)  31 OCT 2025 16:55
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.3.15)  1 DEC 2025 21:46
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -616,11 +616,7 @@ Package: balance 1999/02/23 4.3 (PWD)
 File: l3backend-pdftex.def 2024-05-08 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count324
 \l__pdf_internal_box=\box63
-) (./stonk-bench.aux
-
-LaTeX Warning: Label `alg:blockbootstrap' multiply defined.
-
-)
+) (./stonk-bench.aux)
 \openout1 = `stonk-bench.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/nxlmi/m/it on input line 18.
@@ -811,221 +807,203 @@ Package caption Info: Begin \AtBeginDocument code.
 Package caption Info: float package is loaded.
 Package caption Info: End \AtBeginDocument code.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 17.28pt on input line 74.
-LaTeX Font Info:    Trying to load font information for T1+LinuxBiolinumT-TLF on input line 74.
+(Font)              scaled to size 17.28pt on input line 79.
+LaTeX Font Info:    Trying to load font information for T1+LinuxBiolinumT-TLF on input line 79.
  (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/latex/libertine/T1LinuxBiolinumT-TLF.fd
 File: T1LinuxBiolinumT-TLF.fd 2017/03/20 (autoinst) Font definitions for T1/LinuxBiolinumT-TLF.
 )
 LaTeX Font Info:    Font shape `T1/LinuxBiolinumT-TLF/m/n' will be
-(Font)              scaled to size 17.28pt on input line 74.
+(Font)              scaled to size 17.28pt on input line 79.
 Package microtype Info: Loading generic protrusion settings for font family
 (microtype)             `LinuxBiolinumT-TLF' (encoding: T1).
 (microtype)             For optimal results, create family-specific settings.
 (microtype)             See the microtype manual for details.
 LaTeX Font Info:    Font shape `T1/LinuxBiolinumT-TLF/b/n' will be
-(Font)              scaled to size 17.28pt on input line 74.
+(Font)              scaled to size 17.28pt on input line 79.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 12.0pt on input line 74.
+(Font)              scaled to size 12.0pt on input line 79.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 12.0pt on input line 74.
+(Font)              scaled to size 12.0pt on input line 79.
 Package microtype Info: Loading generic protrusion settings for font family
 (microtype)             `LinuxLibertineT-TLF' (encoding: OT1).
 (microtype)             For optimal results, create family-specific settings.
 (microtype)             See the microtype manual for details.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 8.8pt on input line 74.
+(Font)              scaled to size 8.8pt on input line 79.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 6.6pt on input line 74.
+(Font)              scaled to size 6.6pt on input line 79.
 LaTeX Font Info:    Font shape `OML/nxlmi/m/it' will be
-(Font)              scaled to size 12.0pt on input line 74.
+(Font)              scaled to size 12.0pt on input line 79.
 LaTeX Font Info:    Font shape `OML/nxlmi/m/it' will be
-(Font)              scaled to size 8.8pt on input line 74.
+(Font)              scaled to size 8.8pt on input line 79.
 LaTeX Font Info:    Font shape `OML/nxlmi/m/it' will be
-(Font)              scaled to size 6.6pt on input line 74.
+(Font)              scaled to size 6.6pt on input line 79.
 LaTeX Font Info:    Font shape `LMS/ntxsy/m/n' will be
-(Font)              scaled to size 12.0pt on input line 74.
+(Font)              scaled to size 12.0pt on input line 79.
 LaTeX Font Info:    Font shape `LMS/ntxsy/m/n' will be
-(Font)              scaled to size 8.8pt on input line 74.
+(Font)              scaled to size 8.8pt on input line 79.
 LaTeX Font Info:    Font shape `LMS/ntxsy/m/n' will be
-(Font)              scaled to size 6.6pt on input line 74.
+(Font)              scaled to size 6.6pt on input line 79.
 LaTeX Font Info:    Font shape `LMX/ntxexx/m/n' will be
-(Font)              scaled to size 12.0pt on input line 74.
+(Font)              scaled to size 12.0pt on input line 79.
 LaTeX Font Info:    Font shape `LMX/ntxexx/m/n' will be
-(Font)              scaled to size 8.8pt on input line 74.
+(Font)              scaled to size 8.8pt on input line 79.
 LaTeX Font Info:    Font shape `LMX/ntxexx/m/n' will be
-(Font)              scaled to size 6.6pt on input line 74.
+(Font)              scaled to size 6.6pt on input line 79.
  (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/latex/microtype/mt-msa.cfg
 File: mt-msa.cfg 2006/02/04 v1.1 microtype config. file: AMS symbols (a) (RS)
 ) (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/latex/microtype/mt-msb.cfg
 File: mt-msb.cfg 2005/06/01 v1.0 microtype config. file: AMS symbols (b) (RS)
 )
 LaTeX Font Info:    Font shape `U/ntxmia/m/it' will be
-(Font)              scaled to size 12.0pt on input line 74.
+(Font)              scaled to size 12.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxmia/m/it' will be
-(Font)              scaled to size 8.8pt on input line 74.
+(Font)              scaled to size 8.8pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxmia/m/it' will be
-(Font)              scaled to size 6.6pt on input line 74.
+(Font)              scaled to size 6.6pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxsym/m/n' will be
-(Font)              scaled to size 12.0pt on input line 74.
+(Font)              scaled to size 12.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxsym/m/n' will be
-(Font)              scaled to size 8.8pt on input line 74.
+(Font)              scaled to size 8.8pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxsym/m/n' will be
-(Font)              scaled to size 6.6pt on input line 74.
+(Font)              scaled to size 6.6pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxsyc/m/n' will be
-(Font)              scaled to size 12.0pt on input line 74.
+(Font)              scaled to size 12.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxsyc/m/n' will be
-(Font)              scaled to size 8.8pt on input line 74.
+(Font)              scaled to size 8.8pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxsyc/m/n' will be
-(Font)              scaled to size 6.6pt on input line 74.
+(Font)              scaled to size 6.6pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
-(Font)              scaled to size 12.0pt on input line 74.
+(Font)              scaled to size 12.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
-(Font)              scaled to size 8.8pt on input line 74.
+(Font)              scaled to size 8.8pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
-(Font)              scaled to size 6.6pt on input line 74.
-LaTeX Font Info:    Trying to load font information for TS1+LinuxLibertineT-TLF on input line 74.
+(Font)              scaled to size 6.6pt on input line 79.
+LaTeX Font Info:    Trying to load font information for TS1+LinuxLibertineT-TLF on input line 79.
  (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/latex/libertine/TS1LinuxLibertineT-TLF.fd
 File: TS1LinuxLibertineT-TLF.fd 2017/03/20 (autoinst) Font definitions for TS1/LinuxLibertineT-TLF.
 )
 LaTeX Font Info:    Font shape `TS1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 8.8pt on input line 74.
+(Font)              scaled to size 8.8pt on input line 79.
 Package microtype Info: Loading generic protrusion settings for font family
 (microtype)             `LinuxLibertineT-TLF' (encoding: TS1).
 (microtype)             For optimal results, create family-specific settings.
 (microtype)             See the microtype manual for details.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 10.0pt on input line 74.
+(Font)              scaled to size 10.0pt on input line 79.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 10.0pt on input line 74.
+(Font)              scaled to size 10.0pt on input line 79.
 LaTeX Font Info:    Font shape `OML/nxlmi/m/it' will be
-(Font)              scaled to size 10.0pt on input line 74.
+(Font)              scaled to size 10.0pt on input line 79.
 LaTeX Font Info:    Font shape `LMS/ntxsy/m/n' will be
-(Font)              scaled to size 10.0pt on input line 74.
+(Font)              scaled to size 10.0pt on input line 79.
 LaTeX Font Info:    Font shape `LMX/ntxexx/m/n' will be
-(Font)              scaled to size 10.0pt on input line 74.
+(Font)              scaled to size 10.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxmia/m/it' will be
-(Font)              scaled to size 10.0pt on input line 74.
+(Font)              scaled to size 10.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxsym/m/n' will be
-(Font)              scaled to size 10.0pt on input line 74.
+(Font)              scaled to size 10.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxsyc/m/n' will be
-(Font)              scaled to size 10.0pt on input line 74.
+(Font)              scaled to size 10.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
-(Font)              scaled to size 10.0pt on input line 74.
-<tse-1981.png, id=179, 803.0pt x 534.99875pt>
+(Font)              scaled to size 10.0pt on input line 79.
+<tse-1981.png, id=131, 803.0pt x 534.99875pt>
 File: tse-1981.png Graphic file (type png)
 <use tse-1981.png>
-Package pdftex.def Info: tse-1981.png  used on input line 74.
+Package pdftex.def Info: tse-1981.png  used on input line 79.
 (pdftex.def)             Requested size: 506.30928pt x 147.4621pt.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/b/n' will be
-(Font)              scaled to size 9.0pt on input line 74.
+(Font)              scaled to size 9.0pt on input line 79.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 5.5pt on input line 74.
+(Font)              scaled to size 5.5pt on input line 79.
 LaTeX Font Info:    Font shape `TS1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 5.5pt on input line 74.
+(Font)              scaled to size 5.5pt on input line 79.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/it' will be
-(Font)              scaled to size 7.0pt on input line 74.
+(Font)              scaled to size 7.0pt on input line 79.
 LaTeX Font Info:    Font shape `TS1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 7.0pt on input line 74.
+(Font)              scaled to size 7.0pt on input line 79.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/b/n' will be
-(Font)              scaled to size 10.95pt on input line 74.
+(Font)              scaled to size 10.95pt on input line 79.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 8.0pt on input line 74.
+(Font)              scaled to size 8.0pt on input line 79.
 
 
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/b/n' will be
-(Font)              scaled to size 8.0pt on input line 74.
+(Font)              scaled to size 8.0pt on input line 79.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/it' will be
-(Font)              scaled to size 8.0pt on input line 74.
+(Font)              scaled to size 8.0pt on input line 79.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 8.0pt on input line 74.
+(Font)              scaled to size 8.0pt on input line 79.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 6.0pt on input line 74.
+(Font)              scaled to size 6.0pt on input line 79.
 LaTeX Font Info:    Font shape `OML/nxlmi/m/it' will be
-(Font)              scaled to size 8.0pt on input line 74.
+(Font)              scaled to size 8.0pt on input line 79.
 LaTeX Font Info:    Font shape `OML/nxlmi/m/it' will be
-(Font)              scaled to size 6.0pt on input line 74.
+(Font)              scaled to size 6.0pt on input line 79.
 LaTeX Font Info:    Font shape `LMS/ntxsy/m/n' will be
-(Font)              scaled to size 8.0pt on input line 74.
+(Font)              scaled to size 8.0pt on input line 79.
 LaTeX Font Info:    Font shape `LMS/ntxsy/m/n' will be
-(Font)              scaled to size 6.0pt on input line 74.
+(Font)              scaled to size 6.0pt on input line 79.
 LaTeX Font Info:    Font shape `LMX/ntxexx/m/n' will be
-(Font)              scaled to size 8.0pt on input line 74.
+(Font)              scaled to size 8.0pt on input line 79.
 LaTeX Font Info:    Font shape `LMX/ntxexx/m/n' will be
-(Font)              scaled to size 6.0pt on input line 74.
+(Font)              scaled to size 6.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxmia/m/it' will be
-(Font)              scaled to size 8.0pt on input line 74.
+(Font)              scaled to size 8.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxmia/m/it' will be
-(Font)              scaled to size 6.0pt on input line 74.
+(Font)              scaled to size 6.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxsym/m/n' will be
-(Font)              scaled to size 8.0pt on input line 74.
+(Font)              scaled to size 8.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxsym/m/n' will be
-(Font)              scaled to size 6.0pt on input line 74.
+(Font)              scaled to size 6.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxsyc/m/n' will be
-(Font)              scaled to size 8.0pt on input line 74.
+(Font)              scaled to size 8.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxsyc/m/n' will be
-(Font)              scaled to size 6.0pt on input line 74.
+(Font)              scaled to size 6.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
-(Font)              scaled to size 8.0pt on input line 74.
+(Font)              scaled to size 8.0pt on input line 79.
 LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
-(Font)              scaled to size 6.0pt on input line 74.
-
-Package natbib Warning: Citation `potluru24survey' on page 1 undefined on input line 78.
-
+(Font)              scaled to size 6.0pt on input line 79.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 9.0pt on input line 92.
+(Font)              scaled to size 9.0pt on input line 101.
 LaTeX Font Info:    Font shape `OML/nxlmi/m/it' will be
-(Font)              scaled to size 9.0pt on input line 92.
+(Font)              scaled to size 9.0pt on input line 101.
 LaTeX Font Info:    Font shape `LMS/ntxsy/m/n' will be
-(Font)              scaled to size 9.0pt on input line 92.
+(Font)              scaled to size 9.0pt on input line 101.
 LaTeX Font Info:    Font shape `LMX/ntxexx/m/n' will be
-(Font)              scaled to size 9.0pt on input line 92.
+(Font)              scaled to size 9.0pt on input line 101.
 LaTeX Font Info:    Font shape `U/ntxmia/m/it' will be
-(Font)              scaled to size 9.0pt on input line 92.
+(Font)              scaled to size 9.0pt on input line 101.
 LaTeX Font Info:    Font shape `U/ntxsym/m/n' will be
-(Font)              scaled to size 9.0pt on input line 92.
+(Font)              scaled to size 9.0pt on input line 101.
 LaTeX Font Info:    Font shape `U/ntxsyc/m/n' will be
-(Font)              scaled to size 9.0pt on input line 92.
+(Font)              scaled to size 9.0pt on input line 101.
 LaTeX Font Info:    Font shape `U/ntxexa/m/n' will be
-(Font)              scaled to size 9.0pt on input line 92.
+(Font)              scaled to size 9.0pt on input line 101.
 
 
 [1.1{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/map/pdftex/updmap/pdftex.map}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_25tcsq.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_76gpa5.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_naooyc.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_nh77jq.enc}
 
 {/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_7grukw.enc} <./tse-1981.png>]
-
-Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 106.
-
-
-Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 109.
-
-
-Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 111.
-
-
-Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 116.
-
-
-Package natbib Warning: Citation `stenger24survey' on page 2 undefined on input line 124.
-
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 6.6pt on input line 141.
+(Font)              scaled to size 6.6pt on input line 165.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 9.0pt on input line 143.
+(Font)              scaled to size 9.0pt on input line 172.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 6.6pt on input line 143.
+(Font)              scaled to size 6.6pt on input line 172.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 5.5pt on input line 143.
+(Font)              scaled to size 5.5pt on input line 172.
 LaTeX Font Info:    Font shape `T1/LinuxBiolinumT-TLF/m/n' will be
-(Font)              scaled to size 9.0pt on input line 148.
+(Font)              scaled to size 9.0pt on input line 184.
 LaTeX Font Info:    Font shape `T1/LinuxBiolinumT-TLF/m/it' will be
-(Font)              scaled to size 9.0pt on input line 148.
+(Font)              scaled to size 9.0pt on input line 184.
 
 Underfull \vbox (badness 2600) has occurred while \output is active []
 
 
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 182--187
+Underfull \hbox (badness 10000) in paragraph at lines 236--244
 
  []
 
@@ -1035,47 +1013,34 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 
 LaTeX Font Info:    Font shape `T1/LinuxBiolinumT-TLF/m/n' will be
-(Font)              scaled to size 7.0pt on input line 220.
+(Font)              scaled to size 7.0pt on input line 281.
 [2.2{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_oexx6f.enc}{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/libertine/lbtn_fygcup.enc}]
-Overfull \hbox (10.43973pt too wide) in paragraph at lines 233--237
+Overfull \hbox (10.43973pt too wide) in paragraph at lines 297--302
 \T1/LinuxLibertineT-TLF/m/n/9 (-20) jump) and $\OML/nxlmi/m/it/9 ^^Q[]; ^^Q[]$ \T1/LinuxLibertineT-TLF/m/n/9 (-20) (ex-po-nen-tial pa-ram-e-ters for up-ward/downward
  []
 
 
 
 
-Package natbib Warning: Citation `sohl2015deep' on page 3 undefined on input line 278.
-
-
-Overfull \hbox (6.59732pt too wide) in paragraph at lines 299--308
+Overfull \hbox (6.59732pt too wide) in paragraph at lines 377--389
 []\T1/LinuxLibertineT-TLF/m/n/9 (-20) In finance/time-series, dif-fu-sion mod-els have re-cently been adapted
  []
-
-
-Package natbib Warning: Citation `kingma2013auto' on page 3 undefined on input line 310.
-
-
-Package natbib Warning: Citation `acciaio2024tcvae' on page 3 undefined on input line 318.
 
 
 
 [3.3]
 
-Package natbib Warning: Citation `goodfellow2014generative' on page 4 undefined on input line 321.
-
-
-
 
 
 [4.4]
-Overfull \hbox (6.79115pt too wide) in paragraph at lines 416--418
+Overfull \hbox (6.79115pt too wide) in paragraph at lines 573--575
 []\T1/LinuxLibertineT-TLF/b/n/9 (-20) Kurtosis Dif-fer-ence (KD): \T1/LinuxLibertineT-TLF/m/n/9 (-20) Ab-so-lute dif-fer-ence of per-channel
  []
 
 
 
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/it' will be
-(Font)              scaled to size 9.0pt on input line 531.
+(Font)              scaled to size 9.0pt on input line 725.
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
@@ -1083,12 +1048,12 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 [5.5]
 
-LaTeX Font Info:    Trying to load font information for T1+zi4 on input line 654.
+LaTeX Font Info:    Trying to load font information for T1+zi4 on input line 883.
 (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/latex/inconsolata/t1zi4.fd
 File: t1zi4.fd 2018/01/14 T1/zi4 (Inconsolata)
 )
 LaTeX Font Info:    Font shape `T1/zi4/m/n' will be
-(Font)              scaled to size 9.0pt on input line 654.
+(Font)              scaled to size 9.0pt on input line 883.
 Package microtype Info: Loading generic protrusion settings for font family
 (microtype)             `zi4' (encoding: T1).
 (microtype)             For optimal results, create family-specific settings.
@@ -1106,332 +1071,70 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
 Processing 'acks' comment.
 \openout3 = `comment.cut'.
 
  Comment 'acks' writing to comment.cut. Straight input of comment.cut. (./comment.cut) (./stonk-bench.bbl
+LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
+(Font)              scaled to size 7.3pt on input line 48.
+
 
 [6.6{/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-4.enc}]
-LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 7.3pt on input line 56.
+LaTeX Info: Redefining \tempurl on input line 66.
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
 
 
+LaTeX Info: Redefining \tempurl on input line 78.
+LaTeX Info: Redefining \tempurl on input line 98.
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
 
 
 [7.7]
-LaTeX Info: Redefining \tempurl on input line 123.
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+
+
 LaTeX Info: Redefining \tempurl on input line 135.
-LaTeX Info: Redefining \tempurl on input line 147.
-)
-LaTeX Font Info:    Font shape `T1/zi4/b/n' will be
-(Font)              scaled to size 9.0pt on input line 789.
-
-
-Class acmart Warning: A possible image without description on input line 790.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-
-Class acmart Warning: A possible image without description on input line 797.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-
-Class acmart Warning: A possible image without description on input line 804.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/GBM/visualizations/tsne.png, id=352, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/GBM/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/GBM/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/GBM/visualizations/tsne.png  used on input line 811.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 813.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png, id=354, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png  used on input line 816.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 818.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png, id=355, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png  used on input line 823.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 825.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png, id=356, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png  used on input line 828.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 830.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/MJD/visualizations/tsne.png, id=357, 422.41815pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/MJD/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/MJD/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/MJD/visualizations/tsne.png  used on input line 835.
-(pdftex.def)             Requested size: 480.9787pt x 480.7823pt.
-
-Class acmart Warning: A possible image without description on input line 837.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png, id=358, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png  used on input line 840.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 842.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png, id=359, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png  used on input line 847.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 849.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png, id=360, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png  used on input line 852.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 854.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png, id=361, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png  used on input line 859.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 861.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png, id=362, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png  used on input line 864.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 866.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png, id=363, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png  used on input line 871.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 873.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png, id=364, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png  used on input line 876.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 878.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png, id=365, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png  used on input line 883.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 885.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png, id=366, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png  used on input line 888.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 890.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png, id=367, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png  used on input line 895.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 897.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/QuantGAN/visualizations/distribution_channels_combined.png, id=368, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/QuantGAN/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/QuantGAN/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/QuantGAN/visualizations/distribution_channels_combined.png  used on input line 900.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 902.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png, id=369, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png  used on input line 907.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 909.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png, id=370, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png  used on input line 912.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 914.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/Takahashi/visualizations/tsne.png, id=371, 422.96017pt x 422.23747pt>
-File: ../results/evaluation_20251031_114743/Takahashi/visualizations/tsne.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/Takahashi/visualizations/tsne.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/Takahashi/visualizations/tsne.png  used on input line 919.
-(pdftex.def)             Requested size: 480.9787pt x 480.17668pt.
-
-Class acmart Warning: A possible image without description on input line 921.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../results/evaluation_20251031_114743/Takahashi/visualizations/distribution_channels_combined.png, id=372, 1073.39018pt x 567.13882pt>
-File: ../results/evaluation_20251031_114743/Takahashi/visualizations/distribution_channels_combined.png Graphic file (type png)
-<use ../results/evaluation_20251031_114743/Takahashi/visualizations/distribution_channels_combined.png>
-Package pdftex.def Info: ../results/evaluation_20251031_114743/Takahashi/visualizations/distribution_channels_combined.png  used on input line 924.
-(pdftex.def)             Requested size: 480.9787pt x 254.12837pt.
-
-Class acmart Warning: A possible image without description on input line 926.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../evaluation_plots/feature_based.png, id=373, 1076.823pt x 715.2321pt>
-File: ../evaluation_plots/feature_based.png Graphic file (type png)
-<use ../evaluation_plots/feature_based.png>
-Package pdftex.def Info: ../evaluation_plots/feature_based.png  used on input line 931.
-(pdftex.def)             Requested size: 480.9787pt x 319.46141pt.
-
-Class acmart Warning: A possible image without description on input line 933.
-
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
 
 
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../evaluation_plots/similarity_metrics.png, id=374, 860.013pt x 354.123pt>
-File: ../evaluation_plots/similarity_metrics.png Graphic file (type png)
-<use ../evaluation_plots/similarity_metrics.png>
-Package pdftex.def Info: ../evaluation_plots/similarity_metrics.png  used on input line 936.
-(pdftex.def)             Requested size: 480.9787pt x 198.04814pt.
-
-Class acmart Warning: A possible image without description on input line 938.
+[8.8]
+LaTeX Info: Redefining \tempurl on input line 171.
+LaTeX Info: Redefining \tempurl on input line 183.
+LaTeX Info: Redefining \tempurl on input line 195.
+)
+LaTeX Font Info:    Font shape `T1/zi4/b/n' will be
+(Font)              scaled to size 9.0pt on input line 1123.
 
 
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../evaluation_plots/stylized_fact_heavy_tails.png, id=375, 1285.6833pt x 426.1521pt>
-File: ../evaluation_plots/stylized_fact_heavy_tails.png Graphic file (type png)
-<use ../evaluation_plots/stylized_fact_heavy_tails.png>
-Package pdftex.def Info: ../evaluation_plots/stylized_fact_heavy_tails.png  used on input line 941.
-(pdftex.def)             Requested size: 480.9787pt x 159.42299pt.
-
-Class acmart Warning: A possible image without description on input line 943.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../evaluation_plots/stylized_fact_autocorr_raw.png, id=376, 1285.4424pt x 426.1521pt>
-File: ../evaluation_plots/stylized_fact_autocorr_raw.png Graphic file (type png)
-<use ../evaluation_plots/stylized_fact_autocorr_raw.png>
-Package pdftex.def Info: ../evaluation_plots/stylized_fact_autocorr_raw.png  used on input line 946.
-(pdftex.def)             Requested size: 480.9787pt x 159.44899pt.
-
-Class acmart Warning: A possible image without description on input line 948.
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../evaluation_plots/stylized_fact_volatility_clustering.png, id=377, 1285.4424pt x 426.1521pt>
-File: ../evaluation_plots/stylized_fact_volatility_clustering.png Graphic file (type png)
-<use ../evaluation_plots/stylized_fact_volatility_clustering.png>
-Package pdftex.def Info: ../evaluation_plots/stylized_fact_volatility_clustering.png  used on input line 951.
-(pdftex.def)             Requested size: 480.9787pt x 159.44899pt.
-
-Class acmart Warning: A possible image without description on input line 953.
+Class acmart Warning: A possible image without description on input line 1124.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
 
-Package natbib Warning: There were undefined citations.
+Class acmart Warning: A possible image without description on input line 1131.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+
+Class acmart Warning: A possible image without description on input line 1138.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
 
 
 Class acmart Warning: Some images may lack descriptions.
@@ -1444,45 +1147,39 @@ Class acmart Warning: CCS concepts are mandatory for papers over two pages.
 
 
 
-Package balance Warning: You have called \balance in second column
-(balance)                Columns might not be balanced.
 
-[8.8] [9.9 <../results/evaluation_20251031_114743/GBM/visualizations/tsne.png>] [10.10 <../results/evaluation_20251031_114743/GBM/visualizations/distribution_channels_combined.png>] [11.11 <../results/evaluation_20251031_114743/OU_Process/visualizations/tsne.png>] [12.12 <../results/evaluation_20251031_114743/OU_Process/visualizations/distribution_channels_combined.png>] [13.13 <../results/evaluation_20251031_114743/MJD/visualizations/tsne.png>] [14.14 <../results/evaluation_20251031_114743/MJD/visualizations/distribution_channels_combined.png>] [15.15 <../results/evaluation_20251031_114743/GARCH11/visualizations/tsne.png>] [16.16 <../results/evaluation_20251031_114743/GARCH11/visualizations/distribution_channels_combined.png>] [17.17 <../results/evaluation_20251031_114743/DEJD/visualizations/tsne.png>] [18.18 <../results/evaluation_20251031_114743/DEJD/visualizations/distribution_channels_combined.png>] [19.19 <../results/evaluation_20251031_114743/BlockBootstrap/visualizations/tsne.png>] [20.20 <../results/evaluation_20251031_114743/BlockBootstrap/visualizations/distribution_channels_combined.png>] [21.21 <../results/evaluation_20251031_114743/TimeGAN/visualizations/tsne.png>] [22.22 <../results/evaluation_20251031_114743/TimeGAN/visualizations/distribution_channels_combined.png>] [23.23 <../results/evaluation_20251031_114743/QuantGAN/visualizations/tsne.png>] [24.24 <../results/evaluation_20251031_114743/QuantGAN/visualizations/distribution_channels_combined.png>] [25.25 <../results/evaluation_20251031_114743/TimeVAE/visualizations/tsne.png>] [26.26 <../results/evaluation_20251031_114743/TimeVAE/visualizations/distribution_channels_combined.png>] [27.27 <../results/evaluation_20251031_114743/Takahashi/visualizations/tsne.png>] [28.28 <../results/evaluation_20251031_114743/Takahashi/visualizations/distribution_channels_combined.png>] [29.29 <../evaluation_plots/feature_based.png> <../evaluation_plots/similarity_metrics.png>]
+[9.9]
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 12.0pt on input line 955.
+(Font)              scaled to size 12.0pt on input line 1140.
 LaTeX Font Info:    Font shape `OT1/LinuxLibertineT-TLF/sb/n' will be
-(Font)              scaled to size 8.8pt on input line 955.
+(Font)              scaled to size 8.8pt on input line 1140.
 LaTeX Font Info:    Font shape `T1/LinuxLibertineT-TLF/m/n' will be
-(Font)              scaled to size 8.8pt on input line 955.
+(Font)              scaled to size 8.8pt on input line 1140.
  (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/generic/stringenc/se-pdfdoc.def
 File: se-pdfdoc.def 2019/11/29 v1.12 stringenc: PDFDocEncoding
 ) (/opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/tex/generic/stringenc/se-utf8.def
 File: se-utf8.def 2019/11/29 v1.12 stringenc: UTF-8
-) [30.30 <../evaluation_plots/stylized_fact_heavy_tails.png> <../evaluation_plots/stylized_fact_autocorr_raw.png> <../evaluation_plots/stylized_fact_volatility_clustering.png>] (./stonk-bench.aux)
+) [10.10] (./stonk-bench.aux)
  ***********
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
  ***********
-
-
-LaTeX Warning: There were multiply-defined labels.
-
 Package rerunfilecheck Info: File `stonk-bench.out' has not changed.
-(rerunfilecheck)             Checksum: 4BEF4ED3F59C269E06810FC095A6647B;7721.
+(rerunfilecheck)             Checksum: C323DEDCAF6DA550D3DEFB9749373C04;6142.
  ) 
 Here is how much of TeX's memory you used:
- 22275 strings out of 473190
- 380321 string characters out of 5704335
- 856557 words of memory out of 5000000
- 44243 multiletter control sequences out of 15000+600000
- 783876 words of font info for 509 fonts, out of 8000000 for 9000
+ 22038 strings out of 473190
+ 365204 string characters out of 5704335
+ 857704 words of memory out of 5000000
+ 44069 multiletter control sequences out of 15000+600000
+ 782816 words of font info for 501 fonts, out of 8000000 for 9000
  1302 hyphenation exceptions out of 8191
- 90i,16n,131p,1096b,713s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 90i,16n,131p,1096b,721s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/inconsolata/Inconsolata-zi4b.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/inconsolata/Inconsolata-zi4r.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI5.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathMI7.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/LibertineMathRM.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumT.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumTB.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinBiolinumTI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineT.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTB.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/libertine/LinLibertineTZ.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/NewTXMI.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/NewTXMI7.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txexs.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txmiaX.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txsym.pfb></opt/homebrew/Cellar/texlive/20250308_1/share/texmf-dist/fonts/type1/public/newtx/txsys.pfb>
-Output written on stonk-bench.pdf (30 pages, 12956724 bytes).
+Output written on stonk-bench.pdf (10 pages, 1126837 bytes).
 PDF statistics:
- 663 PDF objects out of 1000 (max. 8388607)
- 530 compressed objects within 6 object streams
- 181 named destinations out of 1000 (max. 500000)
- 130545 words of extra memory for PDF output out of 154059 (max. 10000000)
+ 468 PDF objects out of 1000 (max. 8388607)
+ 406 compressed objects within 5 object streams
+ 130 named destinations out of 1000 (max. 500000)
+ 130324 words of extra memory for PDF output out of 154059 (max. 10000000)
 

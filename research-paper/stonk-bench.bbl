@@ -2,7 +2,7 @@
 %%% Do NOT edit. File created by BibTeX with style
 %%% ACM-Reference-Format-Journals [18-Jan-2012].
 
-\begin{thebibliography}{13}
+\begin{thebibliography}{17}
 
 %%% ====================================================================
 %%% NOTE TO THE USER: you can override these defaults by providing
@@ -36,6 +36,18 @@
 \providecommand\natexlab[1]{#1}
 \providecommand\showeprint[2][]{arXiv:#2}
 
+\bibitem[Acciaio et~al\mbox{.}(2024)]%
+        {acciaio2024vae}
+\bibfield{author}{\bibinfo{person}{Beatrice Acciaio}, \bibinfo{person}{Stephan Eckstein}, {and} \bibinfo{person}{Songyan Hou}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \bibinfo{title}{Time-Causal VAE: Robust Financial Time Series Generator}.
+\newblock
+\showeprint[arxiv]{2411.02947}~[cs.LG]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/2411.02947}
+\showURL{%
+\tempurl}
+
+
 \bibitem[Ang et~al\mbox{.}(2023)]%
         {Ang23}
 \bibfield{author}{\bibinfo{person}{Yihao Ang}, \bibinfo{person}{Qiang Huang}, \bibinfo{person}{Yifan Bao}, \bibinfo{person}{Anthony K.~H. Tung}, {and} \bibinfo{person}{Zhiyong Huang}.} \bibinfo{year}{2023}\natexlab{}.
@@ -56,12 +68,36 @@
 \tempurl}
 
 
+\bibitem[Goodfellow et~al\mbox{.}(2014)]%
+        {goodfellow2014generativeadversarialnetworks}
+\bibfield{author}{\bibinfo{person}{Ian~J. Goodfellow}, \bibinfo{person}{Jean Pouget-Abadie}, \bibinfo{person}{Mehdi Mirza}, \bibinfo{person}{Bing Xu}, \bibinfo{person}{David Warde-Farley}, \bibinfo{person}{Sherjil Ozair}, \bibinfo{person}{Aaron Courville}, {and} \bibinfo{person}{Yoshua Bengio}.} \bibinfo{year}{2014}\natexlab{}.
+\newblock \bibinfo{title}{Generative Adversarial Networks}.
+\newblock
+\showeprint[arxiv]{1406.2661}~[stat.ML]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/1406.2661}
+\showURL{%
+\tempurl}
+
+
 \bibitem[Ho et~al\mbox{.}(2020)]%
         {ho2020denoising}
 \bibfield{author}{\bibinfo{person}{Jonathan Ho}, \bibinfo{person}{Ajay Jain}, {and} \bibinfo{person}{Pieter Abbeel}.} \bibinfo{year}{2020}\natexlab{}.
 \newblock \showarticletitle{Denoising diffusion probabilistic models}. In \bibinfo{booktitle}{\emph{Proceedings of the 34th International Conference on Neural Information Processing Systems}} (Vancouver, BC, Canada) \emph{(\bibinfo{series}{NIPS '20})}. \bibinfo{publisher}{Curran Associates Inc.}, \bibinfo{address}{Red Hook, NY, USA}, Article \bibinfo{articleno}{574}, \bibinfo{numpages}{12}~pages.
 \newblock
 \showISBNx{9781713829546}
+
+
+\bibitem[Kingma and Welling(2022)]%
+        {kingma2022vae}
+\bibfield{author}{\bibinfo{person}{Diederik~P Kingma} {and} \bibinfo{person}{Max Welling}.} \bibinfo{year}{2022}\natexlab{}.
+\newblock \bibinfo{title}{Auto-Encoding Variational Bayes}.
+\newblock
+\showeprint[arxiv]{1312.6114}~[stat.ML]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/1312.6114}
+\showURL{%
+\tempurl}
 
 
 \bibitem[Lee et~al\mbox{.}(2022)]%
@@ -87,6 +123,18 @@
 \newblock
 \showeprint[arxiv]{1909.13403}~[cs.LG]
 \href{https://doi.org/10.1145/3419394.3423643}{doi:\nolinkurl{10.1145/3419394.3423643}}
+
+
+\bibitem[Potluru et~al\mbox{.}(2024)]%
+        {Potluru24}
+\bibfield{author}{\bibinfo{person}{Vamsi~K. Potluru}, \bibinfo{person}{Daniel Borrajo}, \bibinfo{person}{Andrea Coletta}, \bibinfo{person}{Niccolo Dalmasso}, \bibinfo{person}{Yousef El-Laham}, \bibinfo{person}{Elizabeth Fons}, \bibinfo{person}{Mohsen Ghassemi}, \bibinfo{person}{Sriram Gopalakrishnan}, \bibinfo{person}{Vikesh Gosai}, \bibinfo{person}{Eleonora Kreacic}, \bibinfo{person}{Ganapathy Mani}, \bibinfo{person}{Saheed Obitayo}, \bibinfo{person}{Deepak Paramanand}, \bibinfo{person}{Natraj Raman}, \bibinfo{person}{Mikhail Solonin}, \bibinfo{person}{Srijan Sood}, \bibinfo{person}{Svitlana Vyetrenko}, \bibinfo{person}{Haibei Zhu}, \bibinfo{person}{Manuela Veloso}, {and} \bibinfo{person}{Tucker Balch}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \bibinfo{title}{Synthetic Data Applications in Finance}.
+\newblock
+\showeprint[arxiv]{2401.00081}~[cs.LG]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/2401.00081}
+\showURL{%
+\tempurl}
 
 
 \bibitem[Qi(2025)]%
@@ -138,7 +186,7 @@
 
 
 \bibitem[Wang et~al\mbox{.}(2020)]%
-        {wang20gan}
+        {Wang20}
 \bibfield{author}{\bibinfo{person}{Zhengwei Wang}, \bibinfo{person}{Qi She}, {and} \bibinfo{person}{Tomas~E. Ward}.} \bibinfo{year}{2020}\natexlab{}.
 \newblock \bibinfo{title}{Generative Adversarial Networks in Computer Vision: A Survey and Taxonomy}.
 \newblock
