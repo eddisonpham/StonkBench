@@ -483,31 +483,36 @@
   \subsection{Datasets and Preprocessing}
     The preprocessing procedure builds upon the TSGBench pipeline, 
     which standardizes segmentation, normalization, and train/test 
-    splitting of multivariate time series. Several modifications 
-    were introduced to better accommodate financial time series 
-    and stochastic models.
+    splitting of the time series \cite{Ang23}. Several
+    modifications were introduced to better accommodate financial
+    time series and stochastic models.
 
-    \subsubsection{Data type.} Stock price data (e.g., AAPL) at 
-    daily frequency with OHLC columns (Open, High, Low, Close) are 
+    \subsubsection{Data type.} Index price data at 
+    minute frequency at closing price are 
     used. Let \(X \in \mathbb{R}^{L \times N}\) denote a 
-    multivariate time series with \(N=4\) channels and length 
+    time series with \(N=1\) channel(s) and length 
     \(L\).
 
-    \subsubsection{Transformations.} Raw prices are converted to 
-    log-returns per channel via
+    \subsubsection{Transformations.}\label{subsub:transformations}
+    Raw prices are converted to log-returns per channel via
 
-    \[ r_t = \log P_t - \log P_{t-1} = \log(P_t / P_{t-1}) \,, 
+    \[ r_t = \log S_t - \log S_{t-1} = \log(S_t / S_{t-1}) \,, 
     \quad r_t \in \mathbb{R}^N, \]
     
-    yielding a transformed series of length \(L-1\).
+    yielding a transformed series of length \(L-1\). Log returns 
+    are preferred in finance due to their variance-stabilizing 
+    properties, preserving heavy tails and volatility clustering,
+    and removal of the first order integration (random walk) 
+    commonly exhibited in price series \cite{Takahashi24}.
 
     \subsubsection{Model-specific preprocessing.}  
-    The preprocessing follows the general TSGBench framework, with the following adaptations:
+    The preprocessing follows the general TSGBench framework,
+    with the following adaptations:
 
     \begin{itemize}
         \item Log returns are used directly instead of TSGBench's 
-        min-max normalization, preserving financial properties such 
-        as heavy tails and volatility clustering.
+        min-max normalization for the reasons outlined in 
+        §\ref{subsub:transformations}. 
         \item For parametric models, the transformed series is 
         divided into contiguous training, validation, and test 
         segments with ratios \((1-\alpha-\beta):\alpha:\beta\), 
@@ -519,7 +524,7 @@
         stride 1 are extracted. Unlike TSGBench, which employs an 
         autocorrelation-based hard-coded window of 125 (often 
         yielding a size of 1 for stock data due to fast 
-        autocorrelation decay), the window length \(L\) is 
+        autocorrelation decay \cite{Takahashi24}), the window length \(L\) is 
         determined via the partial autocorrelation function (PACF). 
         Specifically, PACF is computed for each channel up to 
         \(\lfloor 10\log_{10} n \rfloor\) lags, and the lag 
@@ -787,7 +792,7 @@
         \end{tabular}
       \end{table}
 
-      Our deep hedger architecture centeres around the 
+      Our deep hedger architecture centers around the 
       Train-Synthetic-Test-Real (TSTR) evaluation framework 
       \cite{Leznik21}, adapted for financial time series 
       generation. We begin with our real FTS dataset 
@@ -896,10 +901,18 @@
 
 \section{Results and Analysis}
   \subsection{Statistical Evaluation Results}
-  We report per-model, per-channel metrics. Copy values from the 
-  generated JSON (e.g., \texttt{complete\_evaluation.json}) into 
-  the following templates.
+    We present a concise, comprehensive evaluation of the synthetic
+    financial time series produced by each model. The analysis covers
+    marginal and second-order statistics, temporal dependencies,
+    diversity measures, stylized-facts verification, and generation
+    efficiency. Results are reported on the minute-level closing price
+    and summarized in the tables and figures that follow: fidelity
+    metrics, diversity metrics, stylized-fact comparisons, and
+    generation-time measurements. Best-performing entries are
+    highlighted where appropriate and comparative discussion appears
+    in the subsequent analysis subsections.
 
+\begin{comment}    
   \begin{table*}[h]
     \centering
     \caption{Fidelity metrics by model and channel 
@@ -1093,32 +1106,83 @@
       \bottomrule
     \end{tabular}
   \end{table*}
+\end{comment}    
 
   \subsection{Utility Evaluation Results}
-  Results of the deep hedging evaluation (replication error, P\&L distribution, risk-adjusted metrics) can be summarized in tables analogous to the 
-  above once computed.
+    Results of the deep hedging evaluation (replication error, P\&L distribution, risk-adjusted metrics) can be summarized in tables analogous to the 
+    above once computed.
 
   \subsection{Comprehensive Model Comparison}
-  Provide radar plots or scorecards that combine normalized metrics (fidelity, diversity, stylized facts, efficiency) into composite ranks per task.
+    Provide radar plots or scorecards that combine normalized metrics (fidelity, diversity, stylized facts, efficiency) into composite ranks per task.
 
   \subsection{Ranking Analysis}
-  Discuss trade-offs: fidelity vs. diversity, training time vs. quality, and sensitivity to window length and sample count.
+    Discuss trade-offs: fidelity vs. diversity, training time vs. quality, and sensitivity to window length and sample count.
 
 \section{Conclusion and Future Work}
-  In our research, we recognize the existing limitations in the evaluation of synthetic time series, 
-  particularly the absence of a universally accepted framework. To address this, we adopt the 
-  evaluation taxonomy proposed by Stenger et al. and expand upon it to create a comprehensive benchmark 
-  specifically tailored for Synthetic Data Generation for Financial Time Series (SDGFTS). 
-  Our contributions include the development of a consolidated evaluation framework that systematically 
-  reviews and integrates various assessment methods from leading studies in the field. 
-  This approach not only enhances the rigor of evaluations but also facilitates the comparison of 
-  different SDGFTS models, ultimately providing a more standardized and reliable means of assessing 
-  synthetic data quality.
+  In our research, we recognize the existing limitations in the evaluation of synthetic time series, particularly the absence of a universally accepted framework. To address this, we adopt the evaluation taxonomy proposed by Stenger et al. and expand upon it to create a comprehensive benchmark specifically tailored for Synthetic Data Generation for Financial Time Series (SDGFTS).
+  Our contributions include the development of a consolidated evaluation framework that systematically reviews and integrates various assessment methods from leading studies in the field. This approach not only enhances the rigor of evaluations but also facilitates the comparison of different SDGFTS models, ultimately providing a more standardized and reliable means of assessing synthetic data quality.
   \subsection{Summary of Findings}
-  \subsection{Implications for SDGFTS Research}
-  \subsection{Current Limitations and Shortcomings}
+    We believe that Stonk Bench will serve as a valuable resource for researchers and 
+    practitioners in the field of synthetic financial time series generation.
+    We hope that our benchmark will facilitate more rigorous and standardized evaluations of SDGFTS models, 
+    ultimately advancing the state of the art in this important area of research.
+    For the broader field of synthetic data generation, our work highlights the importance of a
+    comprehensive and unifying evaluation frameworks that consider both statistical properties
+    and practical utility that is proposed by Stenger \textit{et al.}.
+  \subsection{Stonk Bench Shortcomings}\label{subsub:shortcomings}
+      While Stonk Bench represents a significant step forward in the evaluation of SDGFTS models, we acknowledge several limitations in our current work:
+    \begin{enumerate}[label=\textbf{[S\arabic*]}]
+      \item \textbf{Incompatibility with other models:}
+        Stonk Bench has so far been evaluated mainly on classical
+        stochastic models (e.g., GBM, OU, GARCH) and a subset of
+        deep-learning approaches (diffusion models, GANs, VAEs).
+        Other model families — such as reinforcement-learning-based
+        generators, normalizing flows, autoregressive networks, and
+        hybrid methods — have not yet been benchmarked.
+      \item \textbf{No hyperparameter tuning:} For consistency and comparability across models, StonkBench evaluations were performed using default model configurations, without performing hyperparameter optimization. This ensures a fair baseline but may not reflect the absolute best performance achievable by each model.
+      \item \textbf{Metric and procedure generalizability:}
+        As a consequence, some metrics or evaluation procedures may
+        not directly translate to these untested families, which
+        limits the framework's generalizability across all synthetic
+        financial time-series generation methods.
+      \item \textbf{Data Leakage from Public Datasets:} Current models can potentially overfit to publicly available datasets \textemdash the same datasets that Stonk Bench is using\textemdash leading to inflated performance metrics that do not generalize well to unseen data. One possible solution is to either curate proprietary datasets or implement a grace period so the model can be tested on new data that was not publicly available during its development.
+      \item \textbf{Computational Resource Requirements:} The comprehensive nature of Stonk Bench \textemdash particularly accommodating any submitted deep hedging model and the deep hedging utility evaluation \textemdash demands significant computational resources. This may limit accessibility for researchers with constrained resources.
+      demands significant computational resources. This may limit accessibility for researchers with constrained resources.
+    \end{enumerate}
   \subsection{Future Research Directions}
+    \subsubsection{Remaining progress} In regard to the next portion of our project, we aim to expand Stonk Bench in several key areas.
+    \begin{enumerate}[label=\textbf{[F\arabic*]}]
+      \item \textbf{Multivariate time series predictions.}
+      Extend Stonk Bench to evaluate models on multivariate time series data, enabling a more comprehensive assessment of their performance in realistic scenarios. We wish test SDGFTS
+      models on datasets with multiple correlated assets and datasets with Bid-Ask spreads and trading volume to evaluate their ability to capture inter-asset dependencies and market microstructure effects \cite{Takahashi24}.
+      \item \textbf{Add distribution-matching metrics.}
+      Extend fidelity measures with additional tests such as the Kolmogorov--Smirnov (KS)
+      statistic to better capture marginal
+      and tail mismatches.
+    \end{enumerate}
 
+    \subsubsection{Beyond the project} We envision Stonk Bench evolving into a
+    community-driven benchmark for SDGFTS evaluation. As we acknowledge the limitations outlined
+    in §\ref{subsub:shortcomings}, we propose the following future directions:
+    \begin{enumerate}[label=\textbf{[F\arabic*]}, resume]
+      \item \textbf{Continuous model inclusion.}
+      Maintain Stonk Bench as a living benchmark by incorporating
+      newly developed SDGFTS techniques (normalizing flows,
+      autoregressive generators, advanced diffusion models,
+      reinforcement-learning-based generators, and hybrids) \cite{Potluru24}.
+      \item \textbf{Rigorous metric selection and ablations.}
+      As mentioned in Stenger et al., we wish to rigorously conduct ablation studies to
+      identify the most informative and robust metrics for different model families and
+      stylized facts; produce guidance for a compact, interpretable metric set \cite{Stenger24}.
+      \item \textbf{Public benchmark platform.}
+      Launch a website with documentation, code, datasets, and a
+      leaderboard for submitted SDGFTS models; provide CI-enabled
+      evaluation pipelines for reproducible comparisons.
+      \item \textbf{Community engagement.}
+      Foster collaboration via contribution guidelines, open issues,
+      and reproducible example workflows so researchers can extend
+      and validate the benchmark.
+    \end{enumerate}
 
 \begin{acks}
 To professor Irene Huang, University of Toronto, for her supervision and guidance throughout the project.
@@ -1126,7 +1190,7 @@ To professor Irene Huang, University of Toronto, for her supervision and guidanc
 
 
 \bibliographystyle{ACM-Reference-Format}
-\bibliography{stonk-bench}
+\bibliography{Stonk Bench}
 
 
 
@@ -1134,24 +1198,9 @@ To professor Irene Huang, University of Toronto, for her supervision and guidanc
 
 \section{Preprocessing Diagnostics}
   \subsection{Channel-wise Distributions}
-  \begin{figure*}[h]
-    \centering
-    % \includegraphics[width=0.95\textwidth]{results/evaluation_YYYYMMDD_HHMMSS/GBM/distributions.png}
-    \caption{Histograms and Q--Q plots of real vs. synthetic returns per channel. Replace with generated figures from \texttt{VisualAssessmentEvaluator}.}
-  \end{figure*}
 
   \subsection{Autocorrelation Analyses}
-  \begin{figure*}[h]
-    \centering
-    % \includegraphics[width=0.95\textwidth]{results/evaluation_YYYYMMDD_HHMMSS/GBM/acf_pacf.png}
-    \caption{ACF/PACF of returns and absolute returns for real vs. synthetic data.}
-  \end{figure*}
 
 \section{Embedding Visualizations}
-  \begin{figure*}[h]
-    \centering
-    % \includegraphics[width=0.95\textwidth]{results/evaluation_YYYYMMDD_HHMMSS/GBM/tsne.png}
-    \caption{t-SNE/UMAP embeddings of window-level features; color-coded real vs. synthetic for overlap assessment.}
-  \end{figure*}
 
 \end{document}
