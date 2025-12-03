@@ -36,6 +36,17 @@
 \providecommand\natexlab[1]{#1}
 \providecommand\showeprint[2][]{arXiv:#2}
 
+\bibitem[his(2019)]%
+        {histdata}
+ \bibinfo{year}{2019}\natexlab{}.
+\newblock \bibinfo{booktitle}{\emph{{HistData.com} Free Forex Historical Data}}.
+\newblock
+\urldef\tempurl%
+\url{https://www.histdata.com}
+\showURL{%
+Retrieved Dec 1, 2025 from \tempurl}
+
+
 \bibitem[Acciaio et~al\mbox{.}(2024)]%
         {acciaio2024vae}
 \bibfield{author}{\bibinfo{person}{Beatrice Acciaio}, \bibinfo{person}{Stephan Eckstein}, {and} \bibinfo{person}{Songyan Hou}.} \bibinfo{year}{2024}\natexlab{}.
@@ -68,6 +79,18 @@
 \tempurl}
 
 
+\bibitem[Desai et~al\mbox{.}(2021)]%
+        {Desai21}
+\bibfield{author}{\bibinfo{person}{Abhyuday Desai}, \bibinfo{person}{Cynthia Freeman}, \bibinfo{person}{Zuhui Wang}, {and} \bibinfo{person}{Ian Beaver}.} \bibinfo{year}{2021}\natexlab{}.
+\newblock \bibinfo{title}{TimeVAE: A Variational Auto-Encoder for Multivariate Time Series Generation}.
+\newblock
+\showeprint[arxiv]{2111.08095}~[cs.LG]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/2111.08095}
+\showURL{%
+\tempurl}
+
+
 \bibitem[Goodfellow et~al\mbox{.}(2014)]%
         {goodfellow2014generativeadversarialnetworks}
 \bibfield{author}{\bibinfo{person}{Ian~J. Goodfellow}, \bibinfo{person}{Jean Pouget-Abadie}, \bibinfo{person}{Mehdi Mirza}, \bibinfo{person}{Bing Xu}, \bibinfo{person}{David Warde-Farley}, \bibinfo{person}{Sherjil Ozair}, \bibinfo{person}{Aaron Courville}, {and} \bibinfo{person}{Yoshua Bengio}.} \bibinfo{year}{2014}\natexlab{}.
@@ -78,14 +101,6 @@
 \url{https://arxiv.org/abs/1406.2661}
 \showURL{%
 \tempurl}
-
-
-\bibitem[Ho et~al\mbox{.}(2020)]%
-        {ho2020denoising}
-\bibfield{author}{\bibinfo{person}{Jonathan Ho}, \bibinfo{person}{Ajay Jain}, {and} \bibinfo{person}{Pieter Abbeel}.} \bibinfo{year}{2020}\natexlab{}.
-\newblock \showarticletitle{Denoising diffusion probabilistic models}. In \bibinfo{booktitle}{\emph{Proceedings of the 34th International Conference on Neural Information Processing Systems}} (Vancouver, BC, Canada) \emph{(\bibinfo{series}{NIPS '20})}. \bibinfo{publisher}{Curran Associates Inc.}, \bibinfo{address}{Red Hook, NY, USA}, Article \bibinfo{articleno}{574}, \bibinfo{numpages}{12}~pages.
-\newblock
-\showISBNx{9781713829546}
 
 
 \bibitem[Kingma and Welling(2022)]%
@@ -173,18 +188,6 @@
 \tempurl}
 
 
-\bibitem[Tanaka et~al\mbox{.}(2025)]%
-        {Tanaka25}
-\bibfield{author}{\bibinfo{person}{Yuki Tanaka}, \bibinfo{person}{Ryuji Hashimoto}, \bibinfo{person}{Takehiro Takayanagi}, \bibinfo{person}{Zhe Piao}, \bibinfo{person}{Yuri Murayama}, {and} \bibinfo{person}{Kiyoshi Izumi}.} \bibinfo{year}{2025}\natexlab{}.
-\newblock \bibinfo{title}{CoFinDiff: Controllable Financial Diffusion Model for Time Series Generation}.
-\newblock
-\showeprint[arxiv]{2503.04164}~[q-fin.CP]
-\urldef\tempurl%
-\url{https://arxiv.org/abs/2503.04164}
-\showURL{%
-\tempurl}
-
-
 \bibitem[Wang et~al\mbox{.}(2020)]%
         {Wang20}
 \bibfield{author}{\bibinfo{person}{Zhengwei Wang}, \bibinfo{person}{Qi She}, {and} \bibinfo{person}{Tomas~E. Ward}.} \bibinfo{year}{2020}\natexlab{}.
@@ -197,13 +200,14 @@
 \tempurl}
 
 
-\bibitem[Wang and Ventre(2024)]%
-        {wang24denoiser}
-\bibfield{author}{\bibinfo{person}{Zhuohan Wang} {and} \bibinfo{person}{Carmine Ventre}.} \bibinfo{year}{2024}\natexlab{}.
-\newblock \showarticletitle{A Financial Time Series Denoiser Based on Diffusion Models}. In \bibinfo{booktitle}{\emph{Proceedings of the 5th ACM International Conference on AI in Finance}} (Brooklyn, NY, USA) \emph{(\bibinfo{series}{ICAIF '24})}. \bibinfo{publisher}{Association for Computing Machinery}, \bibinfo{address}{New York, NY, USA}, \bibinfo{pages}{72–80}.
+\bibitem[Wiese et~al\mbox{.}(2020)]%
+        {Wiese2020}
+\bibfield{author}{\bibinfo{person}{Magnus Wiese}, \bibinfo{person}{Robert Knobloch}, \bibinfo{person}{Ralf Korn}, {and} \bibinfo{person}{Peter Kretschmer}.} \bibinfo{year}{2020}\natexlab{}.
+\newblock \showarticletitle{Quant GANs: Deep Generation of Financial Time Series}.
+\newblock \bibinfo{journal}{\emph{Quantitative Finance}} \bibinfo{volume}{20}, \bibinfo{number}{9} (\bibinfo{date}{April} \bibinfo{year}{2020}), \bibinfo{pages}{1419–1440}.
 \newblock
-\showISBNx{9798400710810}
-\href{https://doi.org/10.1145/3677052.3698649}{doi:\nolinkurl{10.1145/3677052.3698649}}
+\showISSN{1469-7696}
+\href{https://doi.org/10.1080/14697688.2020.1730426}{doi:\nolinkurl{10.1080/14697688.2020.1730426}}
 
 
 \end{thebibliography}

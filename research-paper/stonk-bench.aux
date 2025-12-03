@@ -18,6 +18,7 @@
 \citation{Ang23}
 \citation{Boursin22}
 \citation{Stenger24,Ang23,Boursin22}
+\citation{histdata}
 \citation{Stenger24}
 \@writefile{toc}{\contentsline {subsection}{\numberline {1.1}Limitations in the SDGFTS Literature}{2}{subsection.1.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {1.2}Our Contributions}{2}{subsection.1.2}\protected@file@percent }
@@ -33,75 +34,75 @@
 \@writefile{toc}{\contentsline {section}{\numberline {3}Overview of Synthetic FTS Methods}{2}{section.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Classical Stochastic (Parametric) Methods}{2}{subsection.3.1}\protected@file@percent }
 \newlabel{alg:gbm}{{{{\textbf  {[A1]}}}}{2}{Classical Stochastic (Parametric) Methods}{Item.4}{}}
-\citation{ho2020denoising}
-\citation{Tanaka25}
-\citation{Takahashi24}
-\citation{wang24denoiser}
 \citation{kingma2022vae,rezende2014stochastic}
 \citation{acciaio2024vae}
+\citation{Desai21}
+\citation{goodfellow2014generativeadversarialnetworks}
+\citation{qi2025gan_financial}
+\citation{lee2022vrnngan}
 \@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Common notation and variables.}}{3}{table.caption.5}\protected@file@percent }
 \newlabel{tab:notation}{{1}{3}{Common notation and variables}{table.caption.5}{}}
+\newlabel{eq:gbm}{{1}{3}{Classical Stochastic (Parametric) Methods}{equation.1}{}}
 \newlabel{alg:ou}{{{{\textbf  {[A2]}}}}{3}{Classical Stochastic (Parametric) Methods}{Item.5}{}}
 \newlabel{alg:mjd}{{{{\textbf  {[A3]}}}}{3}{Classical Stochastic (Parametric) Methods}{Item.6}{}}
 \newlabel{alg:dejd}{{{{\textbf  {[A4]}}}}{3}{Classical Stochastic (Parametric) Methods}{Item.7}{}}
 \newlabel{alg:garch}{{{{\textbf  {[A5]}}}}{3}{Classical Stochastic (Parametric) Methods}{Item.8}{}}
-\newlabel{alg:blockbootstrap}{{{{\textbf  {[A6]}}}}{3}{Classical Stochastic (Parametric) Methods}{Item.9}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Deep Learning (Non-parametric) Methods}{3}{subsection.3.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.1}Diffusion Models}{3}{subsubsection.3.2.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.2}Variational Autoencoders (VAEs)}{3}{subsubsection.3.2.2}\protected@file@percent }
-\citation{goodfellow2014generativeadversarialnetworks}
-\citation{qi2025gan_financial}
-\citation{lee2022vrnngan}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.3}Generative Adversarial Networks (GANs)}{4}{subsubsection.3.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.1}Variational Autoencoders (VAEs)}{3}{subsubsection.3.2.1}\protected@file@percent }
+\newlabel{alg:timevae}{{{{\textbf  {[A6]}}}}{3}{Variational Autoencoders (VAEs)}{Item.9}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.2}Generative Adversarial Networks (GANs)}{3}{subsubsection.3.2.2}\protected@file@percent }
+\citation{Wiese2020}
+\citation{Ang23}
+\citation{Takahashi24}
+\citation{Takahashi24}
+\citation{Ang23}
+\newlabel{alg:quantgan}{{{{\textbf  {[A7]}}}}{4}{Generative Adversarial Networks (GANs)}{Item.10}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Miscellaneous}{4}{subsection.3.3}\protected@file@percent }
-\newlabel{alg:blockbootstrap2}{{{{\textbf  {[A1]}}}}{4}{Miscellaneous}{Item.10}{}}
+\newlabel{alg:blockbootstrap2}{{{{\textbf  {[A8]}}}}{4}{Miscellaneous}{Item.11}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {4}Stonk Bench Architecture}{4}{section.4}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Datasets and Preprocessing}{4}{subsection.4.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.1}Data type.}{4}{subsubsection.4.1.1}\protected@file@percent }
+\newlabel{subsub:transformations}{{4.1.2}{4}{Transformations}{subsubsection.4.1.2}{}}
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.2}Transformations.}{4}{subsubsection.4.1.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.3}Model-specific preprocessing.}{4}{subsubsection.4.1.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.4}Data loaders.}{4}{subsubsection.4.1.4}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Statistical Evaluation Measures}{4}{subsection.4.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.1}Feature-based Distance Measures}{4}{subsubsection.4.2.1}\protected@file@percent }
-\newlabel{metric:mdd}{{{{\textbf  {[M1]}}}}{4}{Feature-based Distance Measures}{Item.11}{}}
-\citation{Ang23}
+\newlabel{metric:mdd}{{{{\textbf  {[M1]}}}}{4}{Feature-based Distance Measures}{Item.12}{}}
+\newlabel{metric:md}{{{{\textbf  {[M2]}}}}{4}{Feature-based Distance Measures}{Item.13}{}}
+\newlabel{metric:sdd}{{{{\textbf  {[M3]}}}}{4}{Feature-based Distance Measures}{Item.14}{}}
+\newlabel{metric:kd}{{{{\textbf  {[M4]}}}}{4}{Feature-based Distance Measures}{Item.15}{}}
+\newlabel{metric:acd}{{{{\textbf  {[M5]}}}}{4}{Feature-based Distance Measures}{Item.16}{}}
 \citation{Boursin22}
 \citation{Leznik21}
-\newlabel{metric:md}{{{{\textbf  {[M2]}}}}{5}{Feature-based Distance Measures}{Item.12}{}}
-\newlabel{metric:sdd}{{{{\textbf  {[M3]}}}}{5}{Feature-based Distance Measures}{Item.13}{}}
-\newlabel{metric:kd}{{{{\textbf  {[M4]}}}}{5}{Feature-based Distance Measures}{Item.14}{}}
-\newlabel{metric:acd}{{{{\textbf  {[M5]}}}}{5}{Feature-based Distance Measures}{Item.15}{}}
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.2}Visualization Methods}{5}{subsubsection.4.2.2}\protected@file@percent }
-\newlabel{metric:tsne}{{{{\textbf  {[M6]}}}}{5}{Visualization Methods}{Item.16}{}}
-\newlabel{metric:dist}{{{{\textbf  {[M7]}}}}{5}{Visualization Methods}{Item.17}{}}
+\newlabel{metric:tsne}{{{{\textbf  {[M6]}}}}{5}{Visualization Methods}{Item.17}{}}
+\newlabel{metric:dist}{{{{\textbf  {[M7]}}}}{5}{Visualization Methods}{Item.18}{}}
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.3}Diversity Metrics}{5}{subsubsection.4.2.3}\protected@file@percent }
-\newlabel{metric:ed}{{{{\textbf  {[M8]}}}}{5}{Diversity Metrics}{Item.18}{}}
-\newlabel{metric:dtw}{{{{\textbf  {[M9]}}}}{5}{Diversity Metrics}{Item.19}{}}
+\newlabel{metric:ed}{{{{\textbf  {[M8]}}}}{5}{Diversity Metrics}{Item.19}{}}
+\newlabel{metric:dtw}{{{{\textbf  {[M9]}}}}{5}{Diversity Metrics}{Item.20}{}}
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.4}Efficiency Assessment}{5}{subsubsection.4.2.4}\protected@file@percent }
-\newlabel{metric:gentime}{{{{\textbf  {[M10]}}}}{5}{Efficiency Assessment}{Item.20}{}}
+\newlabel{metric:gentime}{{{{\textbf  {[M10]}}}}{5}{Efficiency Assessment}{Item.21}{}}
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.5}Stylized Facts Verification}{5}{subsubsection.4.2.5}\protected@file@percent }
-\newlabel{metric:heavytails}{{{{\textbf  {[M11]}}}}{5}{Stylized Facts Verification}{Item.21}{}}
-\newlabel{metric:autocorr}{{{{\textbf  {[M12]}}}}{5}{Stylized Facts Verification}{Item.22}{}}
-\newlabel{metric:volclustering}{{{{\textbf  {[M13]}}}}{5}{Stylized Facts Verification}{Item.23}{}}
+\newlabel{metric:heavytails}{{{{\textbf  {[M11]}}}}{5}{Stylized Facts Verification}{Item.22}{}}
+\newlabel{metric:autocorr}{{{{\textbf  {[M12]}}}}{5}{Stylized Facts Verification}{Item.23}{}}
+\newlabel{metric:volclustering}{{{{\textbf  {[M13]}}}}{5}{Stylized Facts Verification}{Item.24}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Utility Evaluation Measures: Deep Hedging}{5}{subsection.4.3}\protected@file@percent }
-\newlabel{utility:application}{{{{\textbf  {[U1]}}}}{5}{Utility Evaluation Measures: Deep Hedging}{Item.24}{}}
-\newlabel{utility:industry}{{{{\textbf  {[U2]}}}}{5}{Utility Evaluation Measures: Deep Hedging}{Item.25}{}}
-\newlabel{utility:validation}{{{{\textbf  {[U3]}}}}{5}{Utility Evaluation Measures: Deep Hedging}{Item.26}{}}
+\newlabel{utility:application}{{{{\textbf  {[U1]}}}}{5}{Utility Evaluation Measures: Deep Hedging}{Item.25}{}}
+\newlabel{utility:industry}{{{{\textbf  {[U2]}}}}{5}{Utility Evaluation Measures: Deep Hedging}{Item.26}{}}
+\newlabel{utility:validation}{{{{\textbf  {[U3]}}}}{5}{Utility Evaluation Measures: Deep Hedging}{Item.27}{}}
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.1}Deep Hedger Problem Defintion}{5}{subsubsection.4.3.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Notations for Deep Hedger Architecture.}}{5}{table.caption.6}\protected@file@percent }
+\newlabel{tab:deephedger-notation}{{2}{5}{Notations for Deep Hedger Architecture}{table.caption.6}{}}
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.2}Deep Hedger Architecture}{5}{table.caption.6}\protected@file@percent }
 \citation{Stenger24}
 \citation{Stenger24}
 \citation{Stenger24}
 \citation{Lin21}
 \citation{Lin21}
-\bibstyle{ACM-Reference-Format}
-\bibdata{stonk-bench}
-\bibcite{acciaio2024vae}{{1}{2024}{{Acciaio et~al\mbox  {.}}}{{}}}
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Notations for Deep Hedger Architecture.}}{6}{table.caption.6}\protected@file@percent }
-\newlabel{tab:deephedger-notation}{{2}{6}{Notations for Deep Hedger Architecture}{table.caption.6}{}}
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.3}Deep Hedger Extentions}{6}{subsubsection.4.3.3}\protected@file@percent }
-\newlabel{ext:augment}{{{{\textbf  {[E1]}}}}{6}{Deep Hedger Extentions}{Item.27}{}}
-\newlabel{ext:algcomparsion}{{{{\textbf  {[E2]}}}}{6}{Deep Hedger Extentions}{Item.28}{}}
+\newlabel{ext:augment}{{{{\textbf  {[E1]}}}}{6}{Deep Hedger Extentions}{Item.28}{}}
+\newlabel{ext:algcomparsion}{{{{\textbf  {[E2]}}}}{6}{Deep Hedger Extentions}{Item.29}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {5}Results and Analysis}{6}{section.5}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Statistical Evaluation Results}{6}{subsection.5.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Utility Evaluation Results}{6}{subsection.5.2}\protected@file@percent }
@@ -109,33 +110,35 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Ranking Analysis}{6}{subsection.5.4}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {6}Conclusion and Future Work}{6}{section.6}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Summary of Findings}{6}{subsection.6.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Implications for SDGFTS Research}{6}{subsection.6.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Current Limitations and Shortcomings}{6}{subsection.6.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Future Research Directions}{6}{subsection.6.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{Acknowledgments}{6}{section*.14}\protected@file@percent }
-\bibcite{Ang23}{{2}{2023}{{Ang et~al\mbox  {.}}}{{}}}
-\bibcite{Boursin22}{{3}{2022}{{Boursin et~al\mbox  {.}}}{{}}}
-\bibcite{goodfellow2014generativeadversarialnetworks}{{4}{2014}{{Goodfellow et~al\mbox  {.}}}{{}}}
-\bibcite{ho2020denoising}{{5}{2020}{{Ho et~al\mbox  {.}}}{{}}}
-\bibcite{kingma2022vae}{{6}{2022}{{Kingma and Welling}}{{}}}
-\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Fidelity metrics by model and channel (lower $\downarrow $ is better). Channels O, H, L, C correspond to Open, High, Low, Close. Part 1: MDD and MD.}}{7}{table.caption.7}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Fidelity metrics (Part 2): Standard Deviation Difference (SDD) by model and channel.}}{7}{table.caption.8}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Fidelity metrics (Part 3): Kurtosis Difference (KD) and AutoCorrelation Difference (ACD).}}{7}{table.caption.9}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{References}{7}{section*.16}\protected@file@percent }
-\bibcite{lee2022vrnngan}{{7}{2022}{{Lee et~al\mbox  {.}}}{{}}}
-\bibcite{Leznik21}{{8}{2021}{{Leznik et~al\mbox  {.}}}{{}}}
-\bibcite{Lin21}{{9}{2021}{{Lin et~al\mbox  {.}}}{{}}}
-\bibcite{Potluru24}{{10}{2024}{{Potluru et~al\mbox  {.}}}{{}}}
-\bibcite{qi2025gan_financial}{{11}{2025}{{Qi}}{{}}}
-\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Diversity metrics by model and channel (higher $\uparrow $ is better). Best value in each column bolded.}}{8}{table.caption.10}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Stylized facts by model and channel. Differences are real minus synthetic (lower $\downarrow $ is better). Part 1: Heavy Tails and Autocorrelation.}}{8}{table.caption.11}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces Stylized facts (Part 2): Volatility Clustering difference by model and channel.}}{8}{table.caption.12}\protected@file@percent }
-\bibcite{rezende2014stochastic}{{12}{2014}{{Rezende et~al\mbox  {.}}}{{}}}
-\bibcite{Stenger24}{{13}{2024}{{Stenger et~al\mbox  {.}}}{{}}}
-\bibcite{Takahashi24}{{14}{2024}{{Takahashi and Mizuno}}{{}}}
-\bibcite{Tanaka25}{{15}{2025}{{Tanaka et~al\mbox  {.}}}{{}}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Stonk Bench Shortcomings}{6}{subsection.6.2}\protected@file@percent }
+\newlabel{subsub:shortcomings}{{6.2}{6}{Stonk Bench Shortcomings}{subsection.6.2}{}}
+\citation{Takahashi24}
+\citation{Potluru24}
+\citation{Stenger24}
+\bibstyle{ACM-Reference-Format}
+\bibdata{StonkBench}
+\bibcite{histdata}{{1}{2019}{{his}}{{}}}
+\bibcite{acciaio2024vae}{{2}{2024}{{Acciaio et~al\mbox  {.}}}{{}}}
+\bibcite{Ang23}{{3}{2023}{{Ang et~al\mbox  {.}}}{{}}}
+\bibcite{Boursin22}{{4}{2022}{{Boursin et~al\mbox  {.}}}{{}}}
+\bibcite{Desai21}{{5}{2021}{{Desai et~al\mbox  {.}}}{{}}}
+\bibcite{goodfellow2014generativeadversarialnetworks}{{6}{2014}{{Goodfellow et~al\mbox  {.}}}{{}}}
+\bibcite{kingma2022vae}{{7}{2022}{{Kingma and Welling}}{{}}}
+\bibcite{lee2022vrnngan}{{8}{2022}{{Lee et~al\mbox  {.}}}{{}}}
+\bibcite{Leznik21}{{9}{2021}{{Leznik et~al\mbox  {.}}}{{}}}
+\bibcite{Lin21}{{10}{2021}{{Lin et~al\mbox  {.}}}{{}}}
+\bibcite{Potluru24}{{11}{2024}{{Potluru et~al\mbox  {.}}}{{}}}
+\bibcite{qi2025gan_financial}{{12}{2025}{{Qi}}{{}}}
+\bibcite{rezende2014stochastic}{{13}{2014}{{Rezende et~al\mbox  {.}}}{{}}}
+\bibcite{Stenger24}{{14}{2024}{{Stenger et~al\mbox  {.}}}{{}}}
+\bibcite{Takahashi24}{{15}{2024}{{Takahashi and Mizuno}}{{}}}
 \bibcite{Wang20}{{16}{2020}{{Wang et~al\mbox  {.}}}{{}}}
-\bibcite{wang24denoiser}{{17}{2024}{{Wang and Ventre}}{{}}}
+\bibcite{Wiese2020}{{17}{2020}{{Wiese et~al\mbox  {.}}}{{}}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Future Research Directions}{7}{subsection.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.1}Remaining progress}{7}{subsubsection.6.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.2}Beyond the project}{7}{subsubsection.6.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{Acknowledgments}{7}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{References}{7}{section*.10}\protected@file@percent }
 \newlabel{tocindent-1}{0pt}
 \newlabel{tocindent0}{0pt}
 \newlabel{tocindent1}{6.25499pt}
@@ -143,12 +146,9 @@
 \newlabel{tocindent3}{18.198pt}
 \newlabel{tocindent4}{0pt}
 \newlabel{tocindent5}{0pt}
-\@writefile{toc}{\contentsline {section}{\numberline {A}Preprocessing Diagnostics}{9}{appendix.A}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {A.1}Channel-wise Distributions}{9}{subsection.A.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {A.2}Autocorrelation Analyses}{9}{subsection.A.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {B}Embedding Visualizations}{9}{appendix.B}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Histograms and Q--Q plots of real vs. synthetic returns per channel. Replace with generated figures from \texttt  {VisualAssessmentEvaluator}.}}{10}{figure.caption.17}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces ACF/PACF of returns and absolute returns for real vs. synthetic data.}}{10}{figure.caption.18}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces t-SNE/UMAP embeddings of window-level features; color-coded real vs. synthetic for overlap assessment.}}{10}{figure.caption.19}\protected@file@percent }
-\newlabel{TotPages}{{10}{10}{}{page.10}{}}
-\gdef \@abspage@last{10}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Preprocessing Diagnostics}{8}{appendix.A}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.1}Channel-wise Distributions}{8}{subsection.A.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.2}Autocorrelation Analyses}{8}{subsection.A.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {B}Embedding Visualizations}{8}{appendix.B}\protected@file@percent }
+\newlabel{TotPages}{{8}{8}{}{page.8}{}}
+\gdef \@abspage@last{8}
