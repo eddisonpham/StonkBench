@@ -157,7 +157,7 @@ class QuantGAN(DeepLearningModel):
         seq_len: int = None,
         nz: int = 3,  # Noise dimension (embedding dimension)
         clip_value: float = 0.01,
-        learning_rate: float = 0.0002,
+        learning_rate: float = 1e-5,
         device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     ):
         super().__init__()
@@ -184,6 +184,11 @@ class QuantGAN(DeepLearningModel):
         
         # Store training data statistics for filtering
         self.training_log_returns = None
+        
+        # Store best parameters for model selection
+        self.best_state_dict = None
+        self.best_val_gen_loss = float('inf')
+        self._best_model_loaded = False
     
     def _init_networks(self):
         """Initialize networks if not already initialized."""
@@ -249,7 +254,7 @@ class QuantGAN(DeepLearningModel):
         # Reshape back to original shape
         return data_scaled1_inv.reshape(original_shape)
     
-    def fit(self, data_loader, num_epochs: int = 50, *args, **kwargs):
+    def fit(self, data_loader, num_epochs: int = 50, valid_loader=None, *args, **kwargs):
         """
         Train QuantGAN model using WGAN-style training.
         
@@ -257,6 +262,7 @@ class QuantGAN(DeepLearningModel):
             data_loader: DataLoader providing batches of shape (batch_size, seq_length)
                         Assumes data is already log returns.
             num_epochs: Number of training epochs
+            valid_loader: Optional DataLoader for validation set
         """
         all_batches = []
         for batch, _ in data_loader:
@@ -271,7 +277,7 @@ class QuantGAN(DeepLearningModel):
             print(f"Inferred sequence length: {self.seq_len}")
         self.training_log_returns = all_data.squeeze()
 
-        print("Preprocessing data...")
+        print("Preprocessing training data...")
         all_data_preprocessed = self._preprocess_data(all_data.squeeze()) 
         self.scalers_fitted = True
         all_data_tensor = torch.tensor(all_data_preprocessed, dtype=torch.float32)
@@ -289,8 +295,38 @@ class QuantGAN(DeepLearningModel):
         dataset = PreprocessedDataset(all_data_tensor)
         train_loader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True)
         
+        # Preprocess validation data if provided
+        valid_loader_preprocessed = None
+        if valid_loader is not None:
+            print("Preprocessing validation data...")
+            all_val_batches = []
+            for batch, _ in valid_loader:
+                batch = batch.to(self.device)
+                if batch.dim() == 2:
+                    batch = batch.unsqueeze(-1)
+                all_val_batches.append(batch.cpu().numpy())
+            all_val_data = np.concatenate(all_val_batches, axis=0)
+            # Use already fitted scalers
+            original_shape = all_val_data.shape
+            val_data_flat = all_val_data.flatten().reshape(-1, 1)
+            val_scaled1 = self.standard_scaler1.transform(val_data_flat)
+            val_gaussianized = self.gaussianize.transform(val_scaled1)
+            val_scaled2 = self.standard_scaler2.transform(val_gaussianized)
+            val_data_preprocessed = val_scaled2.reshape(original_shape)
+            val_data_tensor = torch.tensor(val_data_preprocessed, dtype=torch.float32)
+            val_dataset = PreprocessedDataset(val_data_tensor)
+            valid_loader_preprocessed = torch.utils.data.DataLoader(val_dataset, batch_size=32, shuffle=False)
+        
         self._init_networks()
         self._init_optimizers()
+        
+        # Initialize best_state_dict with current model states
+        self.best_state_dict = {
+            'generator': {k: v.cpu().clone() for k, v in self.generator.state_dict().items()},
+            'discriminator': {k: v.cpu().clone() for k, v in self.discriminator.state_dict().items()}
+        }
+        self.best_val_gen_loss = float('inf')
+        self._best_model_loaded = False
         
         print(f"Training QuantGAN for {num_epochs} epochs...")
         self.generator.train()
@@ -319,7 +355,50 @@ class QuantGAN(DeepLearningModel):
                 gen_loss.backward()
                 self.optimizer_g.step()
             
-            print(f'Epoch {epoch+1}/{num_epochs}, Discriminator Loss: {disc_loss.item():.8f}, Generator Loss: {gen_loss.item():.8f}')
+            # Compute validation generator loss if validation set is provided
+            if valid_loader_preprocessed is not None:
+                self.generator.eval()
+                self.discriminator.eval()
+                val_gen_loss_total = 0.0
+                val_num = 0
+                with torch.no_grad():
+                    for val_data in valid_loader_preprocessed:
+                        real_val = self._prepare_batch(val_data)
+                        batch_size, _, seq_len = real_val.size()
+                        noise_val = torch.randn(batch_size, self.nz, seq_len, device=self.device)
+                        fake_val = self.generator(noise_val)
+                        val_gen_loss = -torch.mean(self.discriminator(fake_val))
+                        val_gen_loss_total += val_gen_loss.item() * batch_size
+                        val_num += batch_size
+                avg_val_gen_loss = val_gen_loss_total / val_num
+                
+                # Save best model based on validation generator loss
+                if avg_val_gen_loss < self.best_val_gen_loss:
+                    self.best_val_gen_loss = avg_val_gen_loss
+                    self.best_state_dict = {
+                        'generator': {k: v.cpu().clone() for k, v in self.generator.state_dict().items()},
+                        'discriminator': {k: v.cpu().clone() for k, v in self.discriminator.state_dict().items()}
+                    }
+                
+                self.generator.train()
+                self.discriminator.train()
+                print(f'Epoch {epoch+1}/{num_epochs}, Discriminator Loss: {disc_loss.item():.8f}, Generator Loss: {gen_loss.item():.8f}, Val Gen Loss: {avg_val_gen_loss:.8f}')
+            else:
+                # Fall back to training generator loss if no validation set
+                if gen_loss.item() < self.best_val_gen_loss:
+                    self.best_val_gen_loss = gen_loss.item()
+                    self.best_state_dict = {
+                        'generator': {k: v.cpu().clone() for k, v in self.generator.state_dict().items()},
+                        'discriminator': {k: v.cpu().clone() for k, v in self.discriminator.state_dict().items()}
+                    }
+                print(f'Epoch {epoch+1}/{num_epochs}, Discriminator Loss: {disc_loss.item():.8f}, Generator Loss: {gen_loss.item():.8f}')
+        
+        # Restore best model at the end
+        if self.best_state_dict is not None:
+            self.generator.load_state_dict(self.best_state_dict['generator'])
+            self.discriminator.load_state_dict(self.best_state_dict['discriminator'])
+            self._best_model_loaded = True
+            print(f'Best model restored with validation generator loss {self.best_val_gen_loss:.8f}')
         
         print('QuantGAN training complete!')
     
@@ -343,6 +422,12 @@ class QuantGAN(DeepLearningModel):
         
         if not self.scalers_fitted:
             raise RuntimeError("Preprocessing scalers must be fitted before generating samples.")
+        
+        # Ensure best model is loaded
+        if not self._best_model_loaded and self.best_state_dict is not None:
+            self.generator.load_state_dict(self.best_state_dict['generator'])
+            self.discriminator.load_state_dict(self.best_state_dict['discriminator'])
+            self._best_model_loaded = True
         
         self.generator.eval()
         

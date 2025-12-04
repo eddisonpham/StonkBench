@@ -26,19 +26,19 @@ def resolve_paths(cfg: dict, base_path: Path) -> dict:
                 cfg[k] = str(base_path / v)
     return cfg
 
-def replace_ticker_in_cfg(cfg_dict, ticker_value):
+def replace_index_in_cfg(cfg_dict, index_value):
     """
-    Replace '${ticker}' in all string values in the given config dict with the provided ticker_value.
+    Replace '${index}' in all string values in the given config dict with the provided index_value.
     """
     for k, v in cfg_dict.items():
         if isinstance(v, dict):
-            replace_ticker_in_cfg(v, ticker_value)
+            replace_index_in_cfg(v, index_value)
         elif isinstance(v, str):
-            cfg_dict[k] = v.replace('${ticker}', ticker_value)
-    if 'ticker' in cfg_dict:
-        cfg_dict['ticker'] = ticker_value
+            cfg_dict[k] = v.replace('${index}', index_value)
+    if 'index' in cfg_dict:
+        cfg_dict['index'] = index_value
 
-def get_dataset_cfgs(ticker=None):
+def get_dataset_cfgs(index=None):
     """
     Get the dataset configurations from the dataset_cfgs.yaml file.
     """
@@ -47,11 +47,11 @@ def get_dataset_cfgs(ticker=None):
     with open(cfg_file, 'r') as f:
         dataset_cfgs = yaml.load(f, Loader=yaml.FullLoader)
 
-    if ticker is None:
-        ticker = dataset_cfgs['nonparametric_dataset_cfg'].get('ticker', 'AAPL')
+    if index is None:
+        index = dataset_cfgs['nonparametric_dataset_cfg'].get('index', 'spxusd')
     
-    replace_ticker_in_cfg(dataset_cfgs['nonparametric_dataset_cfg'], ticker)
-    replace_ticker_in_cfg(dataset_cfgs['parametric_dataset_cfg'], ticker)
+    replace_index_in_cfg(dataset_cfgs['nonparametric_dataset_cfg'], index)
+    replace_index_in_cfg(dataset_cfgs['parametric_dataset_cfg'], index)
 
     dataset_cfgs = resolve_paths(dataset_cfgs, project_root)
     return dataset_cfgs['nonparametric_dataset_cfg'], dataset_cfgs['parametric_dataset_cfg']

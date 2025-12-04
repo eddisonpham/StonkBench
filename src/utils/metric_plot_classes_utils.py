@@ -134,7 +134,7 @@ class StylizedFactsPlot(MetricPlot):
         super().__init__(data, output_dir, figsize, dpi)
         self.stylized_facts = [
             'excess_kurtosis', 'autocorr_returns', 'volatility_clustering',
-            'leverage_effect', 'long_memory_volatility'
+            'long_memory_volatility'
         ]
 
     def plot(self) -> None:
@@ -257,3 +257,167 @@ class CombinedVisualizationPlot(MetricPlot):
                 warnings.warn(
                     f"Failed to create combined visualization for '{model}': {e}"
                 )
+
+
+class UtilityPlot(MetricPlot):
+    """
+    Plot utility-based evaluation metrics for deep hedging models.
+    Visualizes both augmented testing and algorithm comparison results.
+    """
+    
+    def __init__(self, data: Dict[str, Any], output_dir: Path, figsize: Tuple[int, int] = (14, 8), dpi: int = 300):
+        """
+        Initialize utility plot.
+        
+        Args:
+            data: Dictionary with structure {model_name: {augmented_testing: {...}, algorithm_comparison: {...}}}
+            output_dir: Directory to save plots
+            figsize: Figure size
+            dpi: DPI for saved plots
+        """
+        super().__init__(data, output_dir, figsize, dpi)
+    
+    def plot(self) -> None:
+        """Generate all utility evaluation plots."""
+        # Plot augmented testing metrics
+        self._plot_augmented_testing()
+        # Plot algorithm comparison metrics
+        self._plot_algorithm_comparison()
+    
+    def _plot_augmented_testing(self) -> None:
+        """Plot augmented testing evaluation metrics."""
+        # Extract augmented testing data
+        augmented_data = {}
+        for model in self.models:
+            model_data = self.data.get(model, {})
+            if 'augmented_testing' in model_data:
+                augmented_data[model] = model_data['augmented_testing']
+        
+        if not augmented_data:
+            warnings.warn("No augmented testing data found. Skipping augmented testing plots.")
+            return
+        
+        # Get all hedger names from first model
+        first_model = list(augmented_data.keys())[0]
+        hedger_names = list(augmented_data[first_model].keys())
+        
+        # Metrics to plot
+        score_metrics = ['mse_mean', 'mse_p95', 'mse_p05', 'mse_qvar', 'mse_cov']
+        
+        # Create subplots for each metric
+        n_metrics = len(score_metrics)
+        n_cols = 3
+        n_rows = (n_metrics + n_cols - 1) // n_cols
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(18, 6 * n_rows), dpi=self.dpi)
+        axes = axes.flatten() if n_metrics > 1 else [axes]
+        
+        for i, metric in enumerate(score_metrics):
+            ax = axes[i]
+            # Collect data: {model: {hedger: value}}
+            plot_data = {model: {} for model in augmented_data.keys()}
+            
+            for model in augmented_data.keys():
+                for hedger in hedger_names:
+                    hedger_data = augmented_data[model].get(hedger, {})
+                    if 'score' in hedger_data and metric in hedger_data['score']:
+                        plot_data[model][hedger] = hedger_data['score'][metric]
+                    else:
+                        plot_data[model][hedger] = np.nan
+            
+            # Create grouped bar chart
+            x = np.arange(len(augmented_data.keys()))
+            width = 0.8 / len(hedger_names)
+            
+            for j, hedger in enumerate(hedger_names):
+                values = [plot_data[model].get(hedger, np.nan) for model in augmented_data.keys()]
+                offset = (j - len(hedger_names) / 2 + 0.5) * width
+                bars = ax.bar(x + offset, values, width, label=hedger, alpha=0.8)
+                # Add value labels
+                for bar, val in zip(bars, values):
+                    if not np.isnan(val):
+                        height = bar.get_height()
+                        ax.text(bar.get_x() + bar.get_width()/2., height,
+                               f'{val:.3f}', ha='center', va='bottom', fontsize=8)
+            
+            ax.set_xlabel('Models', fontsize=12)
+            ax.set_ylabel('MSE', fontsize=12)
+            ax.set_title(f'Augmented Testing: {metric.replace("_", " ").title()}', fontsize=14, fontweight='bold')
+            ax.set_xticks(x)
+            ax.set_xticklabels(augmented_data.keys(), rotation=45, ha='right', fontsize=10)
+            ax.legend(fontsize=9, loc='upper left')
+            ax.grid(True, alpha=0.3)
+        
+        # Remove extra subplots
+        for j in range(n_metrics, len(axes)):
+            fig.delaxes(axes[j])
+        
+        plt.tight_layout()
+        plt.savefig(self.output_dir / 'utility_augmented_testing.png', bbox_inches='tight', dpi=self.dpi)
+        plt.close()
+    
+    def _plot_algorithm_comparison(self) -> None:
+        """Plot algorithm comparison evaluation metrics."""
+        # Extract algorithm comparison data
+        algorithm_data = {}
+        for model in self.models:
+            model_data = self.data.get(model, {})
+            if 'algorithm_comparison' in model_data:
+                algorithm_data[model] = model_data['algorithm_comparison']
+        
+        if not algorithm_data:
+            warnings.warn("No algorithm comparison data found. Skipping algorithm comparison plots.")
+            return
+        
+        # Get all hedger names from first model
+        first_model = list(algorithm_data.keys())[0]
+        hedger_names = list(algorithm_data[first_model].keys())
+        
+        # Plot score vectors (4 components)
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12), dpi=self.dpi)
+        axes = axes.flatten()
+        
+        score_labels = [
+            'Real Test Hedger Comparison\n(mse_mean + mse_p95 + mse_p05)',
+            'Temporal Structure Preservation\n(mse_qvar)',
+            'Correlation Structure Preservation\n(mse_cov)',
+            'Synthetic Test Hedger Comparison\n(mse_mean + mse_p95 + mse_p05)'
+        ]
+        
+        for i, (label, ax) in enumerate(zip(score_labels, axes)):
+            # Collect data for this score component
+            plot_data = {model: {} for model in algorithm_data.keys()}
+            
+            for model in algorithm_data.keys():
+                for hedger in hedger_names:
+                    hedger_data = algorithm_data[model].get(hedger, {})
+                    if 'score_vector' in hedger_data and len(hedger_data['score_vector']) > i:
+                        plot_data[model][hedger] = hedger_data['score_vector'][i]
+                    else:
+                        plot_data[model][hedger] = np.nan
+            
+            # Create grouped bar chart
+            x = np.arange(len(algorithm_data.keys()))
+            width = 0.8 / len(hedger_names)
+            
+            for j, hedger in enumerate(hedger_names):
+                values = [plot_data[model].get(hedger, np.nan) for model in algorithm_data.keys()]
+                offset = (j - len(hedger_names) / 2 + 0.5) * width
+                bars = ax.bar(x + offset, values, width, label=hedger, alpha=0.8)
+                # Add value labels
+                for bar, val in zip(bars, values):
+                    if not np.isnan(val):
+                        height = bar.get_height()
+                        ax.text(bar.get_x() + bar.get_width()/2., height,
+                               f'{val:.3f}', ha='center', va='bottom', fontsize=8)
+            
+            ax.set_xlabel('Models', fontsize=12)
+            ax.set_ylabel('Score', fontsize=12)
+            ax.set_title(label, fontsize=12, fontweight='bold')
+            ax.set_xticks(x)
+            ax.set_xticklabels(algorithm_data.keys(), rotation=45, ha='right', fontsize=10)
+            ax.legend(fontsize=9, loc='upper left')
+            ax.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.savefig(self.output_dir / 'utility_algorithm_comparison.png', bbox_inches='tight', dpi=self.dpi)
+        plt.close()

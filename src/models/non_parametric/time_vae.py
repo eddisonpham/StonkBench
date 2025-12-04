@@ -101,8 +101,8 @@ class TimeVAE(DeepLearningModel):
         seq_len: int,
         input_dim: int,
         latent_dim: int = 10,
-        hidden_dim: int = 128,
-        lr: float = 1e-4,
+        hidden_dim: int = 30,
+        lr: float = 1e-5,
         kl_anneal_epochs: int = 100,
         kl_weight_start: float = 0.0,
         kl_weight_end: float = 1.0,
@@ -142,7 +142,8 @@ class TimeVAE(DeepLearningModel):
 
         # Store best parameters inside the class
         self.best_state_dict = None
-        self.best_recon = float('inf')
+        self.best_val_loss = float('inf')
+        self._best_model_loaded = False
 
     def forward(self, x):
         mu, log_var = self.encoder(x)
@@ -150,8 +151,13 @@ class TimeVAE(DeepLearningModel):
         x_hat = self.decoder(z)
         return x_hat, mu, log_var
 
-    def fit(self, data_loader: DataLoader, num_epochs: int = 200, verbose: bool = True):
-        """Train TimeVAE and save the best parameters based on reconstruction loss only."""
+    def fit(self, data_loader: DataLoader, num_epochs: int = 200, valid_loader: DataLoader = None, verbose: bool = True):
+        """Train TimeVAE and save the best parameters based on validation total loss (or training loss if no validation set)."""
+        # Initialize best_state_dict with current model state
+        self.best_state_dict = {k: v.cpu().clone() for k, v in self.state_dict().items()}
+        self.best_val_loss = float('inf')
+        self._best_model_loaded = False
+        
         for epoch in range(1, num_epochs + 1):
             kl_weight = self.kl_ramp(epoch)
             self.train()
@@ -178,18 +184,43 @@ class TimeVAE(DeepLearningModel):
             avg_recon = total_recon / num
             avg_kl = total_kl / num
 
-            # Save best parameters internally
-            if avg_recon < self.best_recon:
-                self.best_recon = avg_recon
-                self.best_state_dict = {k: v.cpu().clone() for k, v in self.state_dict().items()}
-
-            print(f"Epoch {epoch:03d}: Training loss {avg_loss:.5g}, recon {avg_recon:.5g}, KL {avg_kl:.5g}")
+            # Compute validation loss if validation set is provided
+            if valid_loader is not None:
+                self.eval()
+                val_total_loss, val_num = 0.0, 0
+                with torch.no_grad():
+                    for batch in valid_loader:
+                        x = batch[0].float().to(self.device)
+                        if x.dim() == 2:
+                            x = x.unsqueeze(-1)
+                        x_hat, mu, log_var = self(x)
+                        val_loss = self.loss_module(x, x_hat, mu, log_var, kl_weight, return_parts=False)
+                        val_total_loss += val_loss.item() * x.size(0)
+                        val_num += x.size(0)
+                avg_val_loss = val_total_loss / val_num
+                
+                # Save best parameters based on validation loss
+                if avg_val_loss < self.best_val_loss:
+                    self.best_val_loss = avg_val_loss
+                    self.best_state_dict = {k: v.cpu().clone() for k, v in self.state_dict().items()}
+                
+                if verbose:
+                    print(f"Epoch {epoch:03d}: Train loss {avg_loss:.5g} (recon {avg_recon:.5g}, KL {avg_kl:.5g}), Val loss {avg_val_loss:.5g}")
+            else:
+                # Fall back to training loss if no validation set
+                if avg_loss < self.best_val_loss:
+                    self.best_val_loss = avg_loss
+                    self.best_state_dict = {k: v.cpu().clone() for k, v in self.state_dict().items()}
+                
+                if verbose:
+                    print(f"Epoch {epoch:03d}: Training loss {avg_loss:.5g}, recon {avg_recon:.5g}, KL {avg_kl:.5g}")
 
         # Restore best parameters at the end
         if self.best_state_dict is not None:
             self.load_state_dict(self.best_state_dict)
+            self._best_model_loaded = True
             if verbose:
-                print(f"Best model restored with reconstruction loss {self.best_recon:.5g}")
+                print(f"Best model restored with validation loss {self.best_val_loss:.5g}")
 
         if verbose:
             print(f"Training completed for {num_epochs} epochs.")
@@ -207,6 +238,11 @@ class TimeVAE(DeepLearningModel):
         Returns:
             torch.Tensor: Generated series of shape (R, l)
         """
+        # Ensure best model is loaded
+        if not self._best_model_loaded and self.best_state_dict is not None:
+            self.load_state_dict(self.best_state_dict)
+            self._best_model_loaded = True
+        
         self.eval()
         if seed is not None:
             torch.manual_seed(seed)

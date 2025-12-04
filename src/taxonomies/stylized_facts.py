@@ -10,7 +10,6 @@ Implemented stylized facts and their metrics:
 - Absence of Linear Autocorrelations: Measured as the average autocorrelation of raw returns at nonzero lags.
 - Volatility Clustering: Measured as the average autocorrelation of squared returns at short lags.
 - Long Memory in Volatility: Estimated as the decay exponent (beta) of autocorrelation in absolute returns.
-- Leverage Effect: Measured as the mean contemporaneous correlation between past returns and future squared returns.
 
 All metrics are computed as averages across sample time series.
 """

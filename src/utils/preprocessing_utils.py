@@ -7,7 +7,7 @@ import os
 import random
 import pandas as pd
 import torch
-from statsmodels.tsa.stattools import pacf
+from statsmodels.tsa.stattools import acf
 from torch.utils.data import Dataset, DataLoader
 
 from src.utils.display_utils import (
@@ -114,18 +114,17 @@ def create_dataloaders(
 
 def find_length(data):
     """
-    Find the time series sample length using PACF.
-    Picks the lag > 0 with the maximum PACF value.
+    Find the time series sample length using ACF.
+    Picks the lag > 0 with the maximum ACF value.
     """
-    series = data[:min(20000, len(data))]
-    nobs = len(series)
+    nobs = len(data)
     nlags = min(200, nobs // 10)
-    pacf_vals = pacf(series, nlags=nlags, method='yw')
-    pacf_vals = torch.from_numpy(pacf_vals)
-    desired_length = int(torch.argmax(pacf_vals[1:]) + 1)
-    print(f"Desired time series sample length (lag with max PACF >0): {desired_length}")
-    print(f"PACF at that lag: {pacf_vals[desired_length]}")
+    acf_vals = torch.from_numpy(acf(data, nlags=nlags)[1:])
+    desired_length = int(torch.argmax(acf_vals) + 1)
+    print(f"Desired time series sample length (lag with max ACF >0): {desired_length}")
+    print(f"ACF at that lag: {acf_vals[desired_length]}")
     return desired_length
+
 
 def sliding_window_view(data: torch.Tensor, window_size: int, stride: int = 1) -> torch.Tensor:
     """
@@ -204,7 +203,7 @@ def preprocess_data(cfg, supress_cfg_message=False):
     where *_initial are initial values for reconstructing prices from log returns.
     """
     if not supress_cfg_message:
-        show_with_start_divider(f"Preprocessing data for {cfg.get('ticker')}")
+        show_with_start_divider(f"Preprocessing data for {cfg.get('index')}")
     
     ori_data_path = cfg.get('original_data_path')
     seq_length = cfg.get('seq_length', None)
@@ -217,7 +216,7 @@ def preprocess_data(cfg, supress_cfg_message=False):
         raise FileNotFoundError(f"File {ori_data_path} does not exist.")
 
     df = pd.read_csv(ori_data_path)
-    original_prices = df['Close'].values
+    original_prices = df[cfg.get('index')].values
     original_prices = torch.from_numpy(original_prices)
 
     scaler = LogReturnTransformation()
