@@ -125,6 +125,11 @@ def visualize_tsne(ori_data, gen_data, result_path):
     plt.close()
 
 def visualize_distribution(ori_data, gen_data, result_path):
+    ori_flat = ori_data.flatten()
+    gen_flat = gen_data.flatten()
+    ori_min, ori_max = np.min(ori_flat), np.max(ori_flat)
+    gen_min, gen_max = np.min(gen_flat), np.max(gen_flat)
+    print(f"Original range: [{ori_min:.4f}, {ori_max:.4f}]  Generated range: [{gen_min:.4f}, {gen_max:.4f}]")
     sns.set(style="whitegrid", context="paper", font_scale=1.2)
     plt.figure(figsize=(5, 6))
     colors = ['#1f77b4', '#ff7f0e']

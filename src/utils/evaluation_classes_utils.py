@@ -211,48 +211,28 @@ class UtilityEvaluator(TaxonomyEvaluator):
             batch_size=self.batch_size,
             learning_rate=self.learning_rate
         )
-        
-        hedger_classes = {
-            "Feedforward_L-1": FeedforwardLayers,
-            "Feedforward_Time": FeedforwardTime,
-            "RNN": RNN,
-            "LSTM": LSTM,
-            "BlackScholes": BlackScholes,
-            "DeltaGamma": DeltaGamma,
-            "LinearRegression": LinearRegression,
-            "XGBoost": XGBoost
-        }
-        
-        augmented_results = {}
-        for hedger_name, hedger_class in hedger_classes.items():
-            print(f"[UtilityEvaluator] Evaluating {hedger_name} for augmented testing...")
-            try:
-                results = augmented_evaluator.evaluate(hedger_class)
-                augmented_results[hedger_name] = results
-            except Exception as e:
-                print(f"Warning: Augmented testing evaluation failed for {hedger_name}: {e}")
-                augmented_results[hedger_name] = {"error": str(e)}
+
+        try:
+            augmented_results = augmented_evaluator.evaluate()
+        except Exception as e:
+            print(f"Warning: Augmented testing evaluation failed: {e}")
+            augmented_results = {"error": str(e)}
         
         # Run Algorithm Comparison Evaluation
         print("[UtilityEvaluator] Running Algorithm Comparison Evaluation...")
         algorithm_evaluator = AlgorithmComparisonEvaluator(
             real_train_log_returns=self.real_train_log_returns,
-            real_val_log_returns=self.real_val_log_returns,
             real_test_log_returns=self.real_test_log_returns,
             synthetic_train_log_returns=self.synthetic_train_log_returns,
-            synthetic_val_log_returns=self.synthetic_val_log_returns,
-            synthetic_test_log_returns=self.synthetic_test_log_returns,
             real_train_initial=self.real_train_initial,
-            real_val_initial=self.real_val_initial,
             real_test_initial=self.real_test_initial,
             synthetic_train_initial=self.synthetic_train_initial,
-            synthetic_val_initial=self.synthetic_val_initial,
-            synthetic_test_initial=self.synthetic_test_initial,
             seq_length=self.seq_length,
             num_epochs=self.num_epochs,
             batch_size=self.batch_size,
             learning_rate=self.learning_rate
         )
+
         
         try:
             algorithm_comparison_results = algorithm_evaluator.evaluate()

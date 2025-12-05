@@ -101,8 +101,8 @@ class TimeVAE(DeepLearningModel):
         seq_len: int,
         input_dim: int,
         latent_dim: int = 10,
-        hidden_dim: int = 30,
-        lr: float = 1e-5,
+        hidden_dim: int = 60,
+        lr: float = 1e-3,
         kl_anneal_epochs: int = 100,
         kl_weight_start: float = 0.0,
         kl_weight_end: float = 1.0,
@@ -151,7 +151,7 @@ class TimeVAE(DeepLearningModel):
         x_hat = self.decoder(z)
         return x_hat, mu, log_var
 
-    def fit(self, data_loader: DataLoader, num_epochs: int = 200, valid_loader: DataLoader = None, verbose: bool = True):
+    def fit(self, data_loader: DataLoader, num_epochs: int = 40, valid_loader: DataLoader = None, verbose: bool = True):
         """Train TimeVAE and save the best parameters based on validation total loss (or training loss if no validation set)."""
         # Initialize best_state_dict with current model state
         self.best_state_dict = {k: v.cpu().clone() for k, v in self.state_dict().items()}

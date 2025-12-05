@@ -126,10 +126,7 @@ class UnifiedEvaluator:
         print(f"Training {model_name}...")
         if isinstance(model, DeepLearningModel):
             num_epochs = fit_kwargs.get('num_epochs', 10) if fit_kwargs else 10
-            if valid_loader is not None:
-                model.fit(train_data, num_epochs=num_epochs, valid_loader=valid_loader)
-            else:
-                model.fit(train_data, num_epochs=num_epochs)
+            model.fit(train_data)
         else:
             model.fit(train_data)
 
@@ -199,7 +196,7 @@ class UnifiedEvaluator:
         real_val_initial: torch.Tensor,
         real_test_initial: torch.Tensor,
         generation_length: int,
-        num_epochs: int = 2,
+        num_epochs: int = 40,
         batch_size: int = 128,
         learning_rate: float = 1e-3
     ) -> Dict[str, Any]:
@@ -298,10 +295,23 @@ class UnifiedEvaluator:
         torch.manual_seed(seed)
         np.random.seed(seed)
         
+        # Data reduction ratio: reduce train/val/test sizes by this amount (0.9 = 90% of original, i.e., 10% reduction)
+        data_reduction_ratio = 0.05
+
         # Preprocess parametric data
         train_data_para, valid_data_para, test_data_para, _, _, _ = preprocess_data(
             self.parametric_dataset_cfgs
         )
+
+        # Reduce dataset sizes by taking the LAST portion (not random sampling)
+        train_size = int(train_data_para.shape[0] * data_reduction_ratio)
+        valid_size = int(valid_data_para.shape[0] * data_reduction_ratio)
+        test_size = int(test_data_para.shape[0] * data_reduction_ratio)
+
+        # Take the LAST portion of each dataset
+        train_data_para = train_data_para[-train_size:] if train_size > 0 else train_data_para
+        valid_data_para = valid_data_para[-valid_size:] if valid_size > 0 else valid_data_para
+        test_data_para = test_data_para[-test_size:] if test_size > 0 else test_data_para
 
         print(f"  - Parametric train data shape: {train_data_para.shape}")
         print(f"  - Parametric valid data shape: {valid_data_para.shape}")
@@ -310,26 +320,8 @@ class UnifiedEvaluator:
         # Preprocess non-parametric data
         # Override seq_length in config if specified
         non_para_cfg = self.non_parametric_dataset_cfgs.copy()
-        if self.seq_length is not None:
-            non_para_cfg['seq_length'] = self.seq_length
-            print(f"  - Using specified sequence length: {self.seq_length}")
-        elif 'seq_length' not in non_para_cfg or non_para_cfg['seq_length'] is None:
-            # Use autocorrelation method to find length
-            print("  - Determining sequence length using autocorrelation...")
-            # Get log returns first
-            from src.utils.preprocessing_utils import LogReturnTransformation
-            import pandas as pd
-            df = pd.read_csv(non_para_cfg.get('original_data_path'))
-            original_prices = df[non_para_cfg.get('index')].values
-            original_prices = torch.from_numpy(original_prices)
-            scaler = LogReturnTransformation()
-            log_returns, _ = scaler.transform(original_prices)
-            self.seq_length = find_length(log_returns.numpy())
-            non_para_cfg['seq_length'] = self.seq_length
-            print(f"  - Determined sequence length: {self.seq_length}")
-        else:
-            self.seq_length = non_para_cfg['seq_length']
-            print(f"  - Using sequence length from config: {self.seq_length}")
+        non_para_cfg['seq_length'] = self.seq_length
+        print(f"  - Using specified sequence length: {self.seq_length}")
 
         (
             train_data_non_para,
@@ -339,7 +331,20 @@ class UnifiedEvaluator:
             valid_initial_non_para,
             test_initial_non_para
         ) = preprocess_data(non_para_cfg)
-        
+
+        # Reduce dataset sizes by taking the LAST portion (not random sampling)
+        train_size = int(train_data_non_para.shape[0] * data_reduction_ratio)
+        valid_size = int(valid_data_non_para.shape[0] * data_reduction_ratio)
+        test_size = int(test_data_non_para.shape[0] * data_reduction_ratio)
+
+        # Take the LAST portion of each dataset (ensure initial values stay in sync with data)
+        train_data_non_para = train_data_non_para[-train_size:] if train_size > 0 else train_data_non_para
+        valid_data_non_para = valid_data_non_para[-valid_size:] if valid_size > 0 else valid_data_non_para
+        test_data_non_para = test_data_non_para[-test_size:] if test_size > 0 else test_data_non_para
+        train_initial_non_para = train_initial_non_para[-train_size:] if train_size > 0 else train_initial_non_para
+        valid_initial_non_para = valid_initial_non_para[-valid_size:] if valid_size > 0 else valid_initial_non_para
+        test_initial_non_para = test_initial_non_para[-test_size:] if test_size > 0 else test_initial_non_para
+
         train_loader_non_para, valid_loader_non_para, test_loader_non_para = create_dataloaders(
             train_data_non_para,
             valid_data_non_para,
@@ -354,18 +359,18 @@ class UnifiedEvaluator:
         )
 
         generation_length = train_data_non_para.shape[1]
-        print(f"  - Non-parametric train data shape: {train_data_non_para.shape}")
-        print(f"  - Non-parametric valid data shape: {valid_data_non_para.shape}")
-        print(f"  - Non-parametric test data shape: {test_data_non_para.shape}")
+        print(f"  - Non-parametric train data shape: {train_data_non_para.shape} (reduced by 10%)")
+        print(f"  - Non-parametric valid data shape: {valid_data_non_para.shape} (reduced by 10%)")
+        print(f"  - Non-parametric test data shape: {test_data_non_para.shape} (reduced by 10%)")
         print(f"  - Generation length: {generation_length}")
 
         # Initialize parametric models
         parametric_models = {}
-        # parametric_models["GBM"] = GeometricBrownianMotion()
-        # parametric_models["OU Process"] = OUProcess()
-        # parametric_models["MJD"] = MertonJumpDiffusion()
-        # parametric_models["GARCH11"] = GARCH11()
-        # parametric_models["DEJD"] = DoubleExponentialJumpDiffusion()
+        parametric_models["GBM"] = GeometricBrownianMotion()
+        parametric_models["OU Process"] = OUProcess()
+        parametric_models["MJD"] = MertonJumpDiffusion()
+        parametric_models["GARCH11"] = GARCH11()
+        parametric_models["DEJD"] = DoubleExponentialJumpDiffusion()
         parametric_models["BlockBootstrap"] = BlockBootstrap(block_size=generation_length)
 
         non_parametric_models = {}
@@ -381,7 +386,7 @@ class UnifiedEvaluator:
 
         generation_kwargs_para = {
             'num_samples': num_samples,
-            'generation_length': generation_length,
+            'generation_length': self.seq_length,
             'seed': seed
         }
         for model_name, model in parametric_models.items():
@@ -400,7 +405,7 @@ class UnifiedEvaluator:
             utility_num_samples = max(num_samples, 1000)
             utility_generation_kwargs = {
                 'num_samples': utility_num_samples,
-                'generation_length': generation_length,
+                'generation_length': self.seq_length,
                 'seed': seed
             }
             generated_data = model.generate(**utility_generation_kwargs)
@@ -416,10 +421,10 @@ class UnifiedEvaluator:
                 real_train_initial=train_initial_non_para,
                 real_val_initial=valid_initial_non_para,
                 real_test_initial=test_initial_non_para,
-                generation_length=generation_length,
-                num_epochs=1,
-                batch_size=batch_size,
-                learning_rate=1e-5
+                generation_length=self.seq_length,
+                num_epochs=40,
+                batch_size=64,
+                learning_rate=1e-3
             )
             results['utility'] = utility_results
             
@@ -434,7 +439,7 @@ class UnifiedEvaluator:
 
         generation_kwargs_non_para = {
             'num_samples': num_samples,
-            'generation_length': generation_length,
+            'generation_length': self.seq_length,
             'seed': seed
         }
         fit_kwargs_non_para = {'num_epochs': num_epochs}
@@ -454,7 +459,7 @@ class UnifiedEvaluator:
             utility_num_samples = max(num_samples, 1000)
             utility_generation_kwargs = {
                 'num_samples': utility_num_samples,
-                'generation_length': generation_length,
+                'generation_length': self.seq_length,
                 'seed': seed 
             }
             generated_data = model.generate(**utility_generation_kwargs)
@@ -470,10 +475,10 @@ class UnifiedEvaluator:
                 real_train_initial=train_initial_non_para,
                 real_val_initial=valid_initial_non_para,
                 real_test_initial=test_initial_non_para,
-                generation_length=generation_length,
-                num_epochs=1,
-                batch_size=batch_size,
-                learning_rate=1e-5
+                generation_length=self.seq_length,
+                num_epochs=40,
+                batch_size=64,
+                learning_rate=1e-3
             )
             results['utility'] = utility_results
             
@@ -494,7 +499,7 @@ class UnifiedEvaluator:
         show_with_end_divider("EVALUATION COMPLETE")
         print(f"Results saved to: {results_file}")
         print(f"Experiment: {self.experiment_name}")
-        print(f"Sequence length used: {generation_length}")
+        print(f"Sequence length used: {self.seq_length}")
 
         return all_results
 
@@ -563,7 +568,6 @@ def main():
         batch_size=args.batch_size,
         seed=args.seed
     )
-
 
 if __name__ == "__main__":
     main()
