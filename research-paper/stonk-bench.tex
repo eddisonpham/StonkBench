@@ -4,7 +4,7 @@
   \providecommand\BibTeX{{%
     Bib\TeX}}}
 
-% \setcopyright{acmlicensed}
+\setcopyright{acmlicensed}
 \copyrightyear{2025}
 \acmYear{2025}
 % \acmDOI{XXXXXXX.XXXXXXX}
@@ -94,24 +94,6 @@ and fat tails.
   methods vary widely across studies, making it difficult to 
   compare different approaches objectively and determine their 
   relative strengths and weaknesses.
-
-  Our research addresses this gap by introducing a comprehensive 
-  benchmark framework that encompasses:
-  \begin{itemize}
-      \item Statistical fidelity measures for comparing synthetic 
-      and real FTS
-      \item Privacy preservation metrics to ensure sensitive 
-      financial information remains protected
-      \item Utility metrics that assess the practical value of 
-      synthetic data in downstream tasks
-      \item Performance evaluation across multiple SDGFTS models 
-      and datasets
-  \end{itemize}
-
-  By analyzing the results from our MLflow experiments and 
-  applying our unified benchmark, we aim to provide clear 
-  guidelines for evaluating SDGFTS models and establish a 
-  standard for future research in this domain.
 
   \subsection{Limitations in the SDGFTS Literature}
     Among other things, we observed that there is currently no 
@@ -264,7 +246,7 @@ and fat tails.
     included in our benchmark.
 
 
-  \subsection{Classical Stochastic (Parametric) Methods}
+  \subsection{Classical Stochastic (Parametric) Methods}\label{sub:parametric-methods}
     Parametric models assume a specific functional form for the 
     data-generating process, characterised by a finite set of 
     parameters. These models are interpretable and analytically 
@@ -357,8 +339,8 @@ and fat tails.
       \end{enumerate}
 
 
-  \subsection{Deep Learning Methods}
-    Non-parametric models, in this context, refer to generative 
+  \subsection{Deep Learning Methods}\label{sub:deep-learning-methods}
+    Deep learning models, in this context, refer to generative 
     (often implicit) models that do not assume a fixed parametric 
     form for the underlying data-generating process. Instead, they 
     learn latent structures directly from data through flexible 
@@ -372,8 +354,10 @@ and fat tails.
     the cost of increased data requirements, more intensive 
     hyperparameter tuning, and higher computational demands. 
 
-    We categorize these approaches into three major families of deep generative models: 
-    Generative Adversarial Networks (GANs), Variational Autoencoders (VAEs), and Diffusion Models.
+    We categorize these approaches into two major families of
+    deep generative models, considered in this paper: 
+    Generative Adversarial Networks (GANs)
+    and Variational Autoencoders (VAEs).
     
 
   %   \subsubsection{Diffusion Models}
@@ -417,7 +401,7 @@ and fat tails.
   %     improve downstream predictability and reduce noise in 
   %     financial signals \cite{wang24denoiser}.
     \subsubsection{Variational Autoencoders (VAEs)}
-    Variational Autoencoders \cite{kingma2022vae, 
+    VAEs \cite{kingma2022vae, 
     rezende2014stochastic} are latent-variable generative models 
     that posit a probabilistic encoder \(q_\phi(z \mid x)\) and 
     decoder \(p_\theta(x \mid z)\). One maximizes the evidence 
@@ -455,7 +439,7 @@ and fat tails.
     \end{enumerate}
     
     \subsubsection{Generative Adversarial Networks (GANs)}
-    Generative Adversarial Networks 
+    GANs
     \cite{goodfellow2014generativeadversarialnetworks} approach 
     generation as a two-player game between a generator \(G\) and 
     a discriminator \(D\). The discriminator is trained to 
@@ -499,11 +483,12 @@ and fat tails.
       \cite{Wiese2020}.
     \end{enumerate}
   \subsection{Miscellaneous}
-  This section consists of models that are classified as neither 
-  parametric nor non-parametric.
+  This section consists of models that does not fall in the 
+  classification of §\ref{sub:parametric-methods} or §
+  \ref{sub:deep-learning-methods}.
   \begin{enumerate}[label=\textbf{[A\arabic*]}, resume]
         \item \label{alg:blockbootstrap2} \textbf{Block Bootstrap 
-        (non-parametric).} 
+        (Resampling Method).} 
         A resampling technique that preserves short-range 
         dependence by sampling contiguous blocks of returns. 
         Although not parametric, it is included here for 
