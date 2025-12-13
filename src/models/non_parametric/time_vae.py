@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import time
 
 from src.models.base.base_model import DeepLearningModel
 
@@ -151,7 +152,7 @@ class TimeVAE(DeepLearningModel):
         x_hat = self.decoder(z)
         return x_hat, mu, log_var
 
-    def fit(self, data_loader: DataLoader, num_epochs: int = 40, valid_loader: DataLoader = None, verbose: bool = True):
+    def fit(self, data_loader: DataLoader, num_epochs: int = 25, valid_loader: DataLoader = None, verbose: bool = True):
         """Train TimeVAE and save the best parameters based on validation total loss (or training loss if no validation set)."""
         # Initialize best_state_dict with current model state
         self.best_state_dict = {k: v.cpu().clone() for k, v in self.state_dict().items()}
@@ -159,11 +160,13 @@ class TimeVAE(DeepLearningModel):
         self._best_model_loaded = False
         
         for epoch in range(1, num_epochs + 1):
+            epoch_start_time = time.time()
             kl_weight = self.kl_ramp(epoch)
             self.train()
             total_loss, total_recon, total_kl, num = 0.0, 0.0, 0.0, 0
 
-            for batch in data_loader:
+            for batch_idx, batch in enumerate(data_loader, 1):
+                batch_start_time = time.time()
                 x = batch[0].float().to(self.device)
                 if x.dim() == 2:
                     x = x.unsqueeze(-1)
@@ -179,6 +182,9 @@ class TimeVAE(DeepLearningModel):
                 total_recon += recon.item() * bsize
                 total_kl += kl.item() * bsize
                 num += bsize
+                batch_time = time.time() - batch_start_time
+                if verbose:
+                    print(f"  Epoch {epoch:03d} | Batch {batch_idx}/{len(data_loader)} | Train batch time: {batch_time:.2f}s")
 
             avg_loss = total_loss / num
             avg_recon = total_recon / num
@@ -204,16 +210,18 @@ class TimeVAE(DeepLearningModel):
                     self.best_val_loss = avg_val_loss
                     self.best_state_dict = {k: v.cpu().clone() for k, v in self.state_dict().items()}
                 
+                epoch_time = time.time() - epoch_start_time
                 if verbose:
-                    print(f"Epoch {epoch:03d}: Train loss {avg_loss:.5g} (recon {avg_recon:.5g}, KL {avg_kl:.5g}), Val loss {avg_val_loss:.5g}")
+                    print(f"Epoch {epoch:03d}: Train loss {avg_loss:.5g} (recon {avg_recon:.5g}, KL {avg_kl:.5g}), Val loss {avg_val_loss:.5g} | Time: {epoch_time:.2f}s")
             else:
                 # Fall back to training loss if no validation set
                 if avg_loss < self.best_val_loss:
                     self.best_val_loss = avg_loss
                     self.best_state_dict = {k: v.cpu().clone() for k, v in self.state_dict().items()}
                 
+                epoch_time = time.time() - epoch_start_time
                 if verbose:
-                    print(f"Epoch {epoch:03d}: Training loss {avg_loss:.5g}, recon {avg_recon:.5g}, KL {avg_kl:.5g}")
+                    print(f"Epoch {epoch:03d}: Training loss {avg_loss:.5g}, recon {avg_recon:.5g}, KL {avg_kl:.5g} | Time: {epoch_time:.2f}s")
 
         # Restore best parameters at the end
         if self.best_state_dict is not None:

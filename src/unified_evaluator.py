@@ -294,24 +294,37 @@ class UnifiedEvaluator:
         # Set random seeds
         torch.manual_seed(seed)
         np.random.seed(seed)
-        
-        # Data reduction ratio: reduce train/val/test sizes by this amount (0.9 = 90% of original, i.e., 10% reduction)
-        data_reduction_ratio = 0.05
+
+        # Data reduction ratio: we will randomly sample this fraction from each set
+        data_reduction_ratio = 0.24
 
         # Preprocess parametric data
         train_data_para, valid_data_para, test_data_para, _, _, _ = preprocess_data(
             self.parametric_dataset_cfgs
         )
 
-        # Reduce dataset sizes by taking the LAST portion (not random sampling)
+        # Randomly sample from each dataset (no overlap needed since splits are already disjoint)
+        def random_subset(data, n, axis=0, always_return_tensor=True):
+            """Returns a random subset of n rows from data (either np.ndarray or torch.Tensor)."""
+            if n <= 0 or n >= data.shape[axis]:
+                return data
+            if isinstance(data, np.ndarray):
+                idx = np.random.choice(data.shape[axis], size=n, replace=False)
+                idx.sort()
+                return data[idx]
+            elif isinstance(data, torch.Tensor):
+                idx = torch.randperm(data.shape[axis])[:n].sort()[0]
+                return data.index_select(axis, idx)
+            else:
+                raise TypeError("Unsupported data type for random_subset")
+        
         train_size = int(train_data_para.shape[0] * data_reduction_ratio)
         valid_size = int(valid_data_para.shape[0] * data_reduction_ratio)
         test_size = int(test_data_para.shape[0] * data_reduction_ratio)
 
-        # Take the LAST portion of each dataset
-        train_data_para = train_data_para[-train_size:] if train_size > 0 else train_data_para
-        valid_data_para = valid_data_para[-valid_size:] if valid_size > 0 else valid_data_para
-        test_data_para = test_data_para[-test_size:] if test_size > 0 else test_data_para
+        train_data_para = random_subset(train_data_para, train_size)
+        valid_data_para = random_subset(valid_data_para, valid_size)
+        test_data_para = random_subset(test_data_para, test_size)
 
         print(f"  - Parametric train data shape: {train_data_para.shape}")
         print(f"  - Parametric valid data shape: {valid_data_para.shape}")
@@ -332,18 +345,27 @@ class UnifiedEvaluator:
             test_initial_non_para
         ) = preprocess_data(non_para_cfg)
 
-        # Reduce dataset sizes by taking the LAST portion (not random sampling)
         train_size = int(train_data_non_para.shape[0] * data_reduction_ratio)
         valid_size = int(valid_data_non_para.shape[0] * data_reduction_ratio)
         test_size = int(test_data_non_para.shape[0] * data_reduction_ratio)
 
-        # Take the LAST portion of each dataset (ensure initial values stay in sync with data)
-        train_data_non_para = train_data_non_para[-train_size:] if train_size > 0 else train_data_non_para
-        valid_data_non_para = valid_data_non_para[-valid_size:] if valid_size > 0 else valid_data_non_para
-        test_data_non_para = test_data_non_para[-test_size:] if test_size > 0 else test_data_non_para
-        train_initial_non_para = train_initial_non_para[-train_size:] if train_size > 0 else train_initial_non_para
-        valid_initial_non_para = valid_initial_non_para[-valid_size:] if valid_size > 0 else valid_initial_non_para
-        test_initial_non_para = test_initial_non_para[-test_size:] if test_size > 0 else test_initial_non_para
+        # Randomly sample from data and their corresponding initial values (keep sync!)
+        def split_data_and_initial(data, initial, n):
+            if n <= 0 or n >= data.shape[0]:
+                return data, initial
+            idx = np.random.choice(data.shape[0], size=n, replace=False)
+            idx.sort()
+            if isinstance(data, np.ndarray):
+                return data[idx], initial[idx]
+            elif isinstance(data, torch.Tensor):
+                idx_torch = torch.tensor(idx, dtype=torch.long, device=data.device)
+                return data.index_select(0, idx_torch), initial.index_select(0, idx_torch)
+            else:
+                raise TypeError("Unsupported data type in split_data_and_initial")
+
+        train_data_non_para, train_initial_non_para = split_data_and_initial(train_data_non_para, train_initial_non_para, train_size)
+        valid_data_non_para, valid_initial_non_para = split_data_and_initial(valid_data_non_para, valid_initial_non_para, valid_size)
+        test_data_non_para, test_initial_non_para = split_data_and_initial(test_data_non_para, test_initial_non_para, test_size)
 
         train_loader_non_para, valid_loader_non_para, test_loader_non_para = create_dataloaders(
             train_data_non_para,
@@ -359,28 +381,29 @@ class UnifiedEvaluator:
         )
 
         generation_length = train_data_non_para.shape[1]
-        print(f"  - Non-parametric train data shape: {train_data_non_para.shape} (reduced by 10%)")
-        print(f"  - Non-parametric valid data shape: {valid_data_non_para.shape} (reduced by 10%)")
-        print(f"  - Non-parametric test data shape: {test_data_non_para.shape} (reduced by 10%)")
+        print(f"  - Non-parametric train data shape: {train_data_non_para.shape} (random sample, {data_reduction_ratio*100:.1f}%)")
+        print(f"  - Non-parametric valid data shape: {valid_data_non_para.shape} (random sample, {data_reduction_ratio*100:.1f}%)")
+        print(f"  - Non-parametric test data shape: {test_data_non_para.shape} (random sample, {data_reduction_ratio*100:.1f}%)")
         print(f"  - Generation length: {generation_length}")
 
         # Initialize parametric models
         parametric_models = {}
-        parametric_models["GBM"] = GeometricBrownianMotion()
-        parametric_models["OU Process"] = OUProcess()
-        parametric_models["MJD"] = MertonJumpDiffusion()
-        parametric_models["GARCH11"] = GARCH11()
-        parametric_models["DEJD"] = DoubleExponentialJumpDiffusion()
-        parametric_models["BlockBootstrap"] = BlockBootstrap(block_size=generation_length)
+        # parametric_models["GBM"] = GeometricBrownianMotion()
+        # parametric_models["OU Process"] = OUProcess()
+        # parametric_models["MJD"] = MertonJumpDiffusion()
+        # parametric_models["GARCH11"] = GARCH11()
+        # parametric_models["DEJD"] = DoubleExponentialJumpDiffusion()
+        # parametric_models["BlockBootstrap"] = BlockBootstrap(block_size=generation_length)
 
         non_parametric_models = {}
-        non_parametric_models["QuantGAN"] = QuantGAN(
-            seq_len=generation_length,
-        )
+
         non_parametric_models["TimeVAE"] = TimeVAE(
             seq_len=generation_length,
             input_dim=1
         )
+        # non_parametric_models["QuantGAN"] = QuantGAN(
+        #     seq_len=generation_length,
+        # )
 
         all_results = {}
 
@@ -437,6 +460,7 @@ class UnifiedEvaluator:
             
             all_results[model_name] = results
 
+
         generation_kwargs_non_para = {
             'num_samples': num_samples,
             'generation_length': self.seq_length,
@@ -490,7 +514,6 @@ class UnifiedEvaluator:
             print(f"Updated metrics.json with utility results for {model_name}")
             
             all_results[model_name] = results
-
         # Save complete results
         results_file = self.results_dir / "complete_evaluation.json"
         with open(results_file, 'w') as f:
