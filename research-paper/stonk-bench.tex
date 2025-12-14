@@ -238,7 +238,7 @@ and fat tails.
       have been extensively used in financial institutions for 
       their interpretability and theoretical foundations. 
 
-      We also evaluate modern non-parametric approaches, 
+      We also evaluate modern deep learning approaches, 
       particularly deep learning-based models that learn the data 
       distribution directly from observations without assuming a 
       specific form. These include generative adversarial 
@@ -266,14 +266,13 @@ and fat tails.
       future research in time series SDG as a whole.
 
 \section{Overview of Synthetic FTS Methods}
-    We categorize synthetic financial time series generation 
-    methods into two main families: classical parametric 
-    (stochastic) models, which rely on explicit assumptions about 
-    the data-generating process, and modern non-parametric (deep 
-    learning) models, which learn complex dependencies directly 
-    from data without predefined functional forms. The following 
-    subsections provide a detailed overview of the methods 
-    included in our benchmark.
+  We categorize synthetic financial time series generation methods into
+  two main families: classical stochastic (parametric) models, which
+  rely on explicit assumptions about the data-generating process, and
+  modern deep learning (deep learning) models, which learn complex
+  dependencies directly from data without predefined functional forms.
+  The following subsections provide a detailed overview of the methods
+  included in our benchmark.
 
 
   \subsection{Classical Stochastic (Parametric) Methods}
@@ -567,7 +566,10 @@ and fat tails.
         where \(\alpha=0.1\) and \(\beta=0.1\). This ensures that 
         parametric models fit parameters directly to contiguous 
         historical data.
-        \item For non-parametric models, overlapping sliding windows 
+
+        \item To address research question \ref{rq:1}, we 
+        experiment with varying training sequence lengths \(L\).
+        For deep learning models, overlapping sliding windows 
         \(\mathcal{W} \in \mathbb{R}^{R \times L \times N}\) with 
         stride 1 are extracted. Unlike TSGBench, which employs an 
         autocorrelation-based hard-coded window of 125 (often 
@@ -591,7 +593,7 @@ and fat tails.
         proper evaluation, consistent with TSGBench.
     \end{itemize}
 
-    \subsubsection{Data loaders.} For non-parametric models, 
+    \subsubsection{Data loaders.} For deep learning models, 
     mini-batches are generated from the windowed data 
     \(\mathcal{W}\) using independent fixed seeds for training, 
     validation, and test sets, enabling reproducible epoch-wise 
@@ -599,7 +601,7 @@ and fat tails.
     and test sets maintain sequential ordering. To ensure fair 
     comparison, parametric models generate sequences of identical 
     length \(L\) and matching sample count to the windowed data 
-    used by non-parametric models.
+    used by deep learning models.
 
 
   \subsection{Statistical Evaluation Measures}
