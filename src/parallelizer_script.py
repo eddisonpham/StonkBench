@@ -1,7 +1,7 @@
 import subprocess
 import os
 
-seq_lengths = [300]
+seq_lengths = [52,60,120,180,240,300]
 
 def run_eval(seq_len):
     cmd = [
@@ -15,7 +15,7 @@ def run_eval(seq_len):
 
 if __name__ == "__main__":
     # Number of parallel processes set to 3, or less if not enough CPUs or sequence lengths
-    max_processes = min(4, len(seq_lengths), os.cpu_count())
+    max_processes = min(6, len(seq_lengths), os.cpu_count())
     print(f"Running up to {max_processes} processes in parallel")
     processes = []
     seq_idx = 0

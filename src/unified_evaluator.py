@@ -124,25 +124,46 @@ class UnifiedEvaluator:
         evaluation_results: Dict[str, Any] = {}
 
         print(f"Training {model_name}...")
-        if isinstance(model, DeepLearningModel):
-            num_epochs = fit_kwargs.get('num_epochs', 10) if fit_kwargs else 10
-            model.fit(train_data)
+        # --- For QuantGAN, skip training/generation and load from file ---
+        is_quantgan = model_name.lower() == "quantgan"
+        loaded_gen_numpy = None
+        loaded_gen_torch = None
+        if is_quantgan:
+            length = generation_kwargs.get('generation_length', self.seq_length)
+            # Find output file (assume outputs folder is at project root)
+            outputs_path = project_root / "outputs"
+            quantgan_fname = outputs_path / f"QuantGAN_fakes_{length}.pt"
+            if not quantgan_fname.exists():
+                raise FileNotFoundError(f"Could not find QuantGAN fake data at: {quantgan_fname}")
+            print(f"Loading QuantGAN generated data from: {quantgan_fname}")
+            loaded_gen_torch = torch.load(quantgan_fname)
+            if loaded_gen_torch.shape[0] > num_samples:
+                loaded_gen_torch = loaded_gen_torch[:num_samples]
+            loaded_gen_numpy = loaded_gen_torch.cpu().numpy()
+            # Runtime evaluation is not meaningful, but to keep result fields:
+            runtime_results = {'generation_time_sec': None}
+            evaluation_results.update(runtime_results)
+            generated_data = loaded_gen_numpy
         else:
-            model.fit(train_data)
+            if isinstance(model, DeepLearningModel):
+                num_epochs = fit_kwargs.get('num_epochs', 10) if fit_kwargs else 10
+                model.fit(train_data)
+            else:
+                model.fit(train_data)
 
-        print(f"\nGenerating {num_samples} samples...")
-        runtime_evaluator = RuntimeEvaluator(
-            generate_func=model.generate,
-            generation_kwargs=generation_kwargs
-        )
-        runtime_results = runtime_evaluator.evaluate()
-        evaluation_results.update(runtime_results)
+            print(f"\nGenerating {num_samples} samples...")
+            runtime_evaluator = RuntimeEvaluator(
+                generate_func=model.generate,
+                generation_kwargs=generation_kwargs
+            )
+            runtime_results = runtime_evaluator.evaluate()
+            evaluation_results.update(runtime_results)
 
-        generated_data = model.generate(**generation_kwargs)
+            generated_data = model.generate(**generation_kwargs)
+            if isinstance(generated_data, torch.Tensor):
+                generated_data = generated_data.cpu().numpy()
 
         # Convert to numpy if needed
-        if isinstance(generated_data, torch.Tensor):
-            generated_data = generated_data.cpu().numpy()
         if isinstance(real_data, torch.Tensor):
             real_data = real_data.cpu().numpy()
         else:
@@ -388,7 +409,7 @@ class UnifiedEvaluator:
 
         # Initialize parametric models
         parametric_models = {}
-        # parametric_models["GBM"] = GeometricBrownianMotion()
+        parametric_models["GBM"] = GeometricBrownianMotion()
         # parametric_models["OU Process"] = OUProcess()
         # parametric_models["MJD"] = MertonJumpDiffusion()
         # parametric_models["GARCH11"] = GARCH11()
@@ -397,13 +418,18 @@ class UnifiedEvaluator:
 
         non_parametric_models = {}
 
-        non_parametric_models["TimeVAE"] = TimeVAE(
-            seq_len=generation_length,
-            input_dim=1
-        )
+        # --- Patch for QuantGAN: This will not instantiate the model, but "fake" as if it is present ---
+        # non_parametric_models["TimeVAE"] = TimeVAE(
+        #     seq_len=generation_length,
+        #     input_dim=1
+        # )
+        # Instead of : 
         # non_parametric_models["QuantGAN"] = QuantGAN(
         #     seq_len=generation_length,
         # )
+
+        # So we just put a `"QuantGAN": None` as a placeholder for our logic in evaluate_model
+        non_parametric_models["QuantGAN"] = None
 
         all_results = {}
 
@@ -435,21 +461,21 @@ class UnifiedEvaluator:
             if isinstance(generated_data, torch.Tensor):
                 generated_data = generated_data.cpu().numpy()
             
-            utility_results = self.evaluate_utility(
-                model_name=model_name,
-                generated_data=generated_data,
-                real_train_log_returns=train_data_non_para,
-                real_val_log_returns=valid_data_non_para,
-                real_test_log_returns=test_data_non_para,
-                real_train_initial=train_initial_non_para,
-                real_val_initial=valid_initial_non_para,
-                real_test_initial=test_initial_non_para,
-                generation_length=self.seq_length,
-                num_epochs=40,
-                batch_size=64,
-                learning_rate=1e-3
-            )
-            results['utility'] = utility_results
+            # utility_results = self.evaluate_utility(
+            #     model_name=model_name,
+            #     generated_data=generated_data,
+            #     real_train_log_returns=train_data_non_para,
+            #     real_val_log_returns=valid_data_non_para,
+            #     real_test_log_returns=test_data_non_para,
+            #     real_train_initial=train_initial_non_para,
+            #     real_val_initial=valid_initial_non_para,
+            #     real_test_initial=test_initial_non_para,
+            #     generation_length=self.seq_length,
+            #     num_epochs=40,
+            #     batch_size=64,
+            #     learning_rate=1e-3
+            # )
+            # results['utility'] = utility_results
             
             # Update metrics.json file with utility results
             model_dir = self.results_dir / model_name
@@ -460,7 +486,6 @@ class UnifiedEvaluator:
             
             all_results[model_name] = results
 
-
         generation_kwargs_non_para = {
             'num_samples': num_samples,
             'generation_length': self.seq_length,
@@ -468,6 +493,7 @@ class UnifiedEvaluator:
         }
         fit_kwargs_non_para = {'num_epochs': num_epochs}
         for model_name, model in non_parametric_models.items():
+            # Only valid for QuantGAN patch -- handle loading the generated data from file 
             results = self.evaluate_model(
                 model=model,
                 model_name=model_name,
@@ -480,16 +506,19 @@ class UnifiedEvaluator:
             )
             
             print(f"\nRunning utility evaluation for {model_name}...")
+            # --- Instead of model.generate, re-use loaded QuantGAN data for utility too ---
+            length = self.seq_length
+            outputs_path = project_root / "outputs"
+            quantgan_fname = outputs_path / f"QuantGAN_fakes_{length}.pt"
+            if not quantgan_fname.exists():
+                raise FileNotFoundError(f"Could not find QuantGAN fake data at: {quantgan_fname}")
+            loaded_gen_torch = torch.load(quantgan_fname)
             utility_num_samples = max(num_samples, 1000)
-            utility_generation_kwargs = {
-                'num_samples': utility_num_samples,
-                'generation_length': self.seq_length,
-                'seed': seed 
-            }
-            generated_data = model.generate(**utility_generation_kwargs)
-            if isinstance(generated_data, torch.Tensor):
-                generated_data = generated_data.cpu().numpy()
-            
+            # If more than needed, take only first utility_num_samples
+            if loaded_gen_torch.shape[0] > utility_num_samples:
+                loaded_gen_torch = loaded_gen_torch[:utility_num_samples]
+            generated_data = loaded_gen_torch.cpu().numpy()
+
             utility_results = self.evaluate_utility(
                 model_name=model_name,
                 generated_data=generated_data,
