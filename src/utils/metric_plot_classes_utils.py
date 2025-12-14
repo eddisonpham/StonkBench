@@ -13,6 +13,20 @@ import re
 from PIL import Image
 
 
+def scientific_fmt(x, precision=3):
+    """Helper to format small/large numbers in scientific notation, otherwise fixed point."""
+    try:
+        x = float(x)
+    except Exception:
+        return str(x)
+    if x == 0 or np.isnan(x):
+        return f"{x:.{precision}f}"
+    absx = abs(x)
+    if absx < 1e-3 or absx > 1e4:
+        return f"{x:.{precision}e}"
+    else:
+        return f"{x:.{precision}f}"
+
 class MetricPlot:
     """
     Base class for all metric plots.
@@ -42,32 +56,36 @@ class MetricPlot:
         for bar, value in zip(bars, values):
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height,
-                   f'{value:.3f}', ha='center', va='bottom', fontsize=fontsize, fontweight='bold')
+                   scientific_fmt(value), ha='center', va='bottom', fontsize=fontsize, fontweight='bold')
 
 class PerformancePlot(MetricPlot):
     """Plot performance metrics (generation time)."""
-    
+
     def plot(self) -> None:
         """
         Generate a bar plot for generation time/performance metrics.
+        Uses key(s) of the form 'generation_time_*_samples'.
         """
         fig, ax = plt.subplots(figsize=self.figsize, dpi=self.dpi)
-        
+
         times = []
         generation_keys = []
         for model in self.models:
             model_dict = self.data.get(model, {})
-            gen_keys = [k for k in model_dict.keys() if "generation_time" in k and "_samples" in k]
+            # Only keys that match generation_time_*_samples pattern should count
+            gen_keys = [k for k in model_dict.keys() if k.startswith("generation_time_") and k.endswith("_samples")]
+            print(f"Generation keys for model {model}: {gen_keys}")
             if not gen_keys:
                 raise KeyError(f"No 'generation_time_*_samples' key found for model '{model}'. Available keys: {model_dict.keys()}")
+            # If multiple, take the first (usually only one)
             gen_key = gen_keys[0]
             val = model_dict[gen_key]
             times.append(float(val))
             generation_keys.append(gen_key)
-        
+
         bars = ax.bar(self.models, times, color=sns.color_palette("husl", len(self.models)))
-        ax.set_ylabel('Generation Time (seconds)')
         count_label = generation_keys[0].replace("generation_time_", "").replace("_samples", "")
+        ax.set_ylabel('Generation Time (seconds)')
         ax.set_title(f'Model Performance: Generation Time ({count_label} samples)')
         ax.tick_params(axis='x', rotation=45)
 
@@ -157,6 +175,15 @@ class StylizedFactsPlot(MetricPlot):
         ax.set_xticklabels(models_with_metric, rotation=45, ha='right', fontsize=10)
         ax.legend(fontsize=11)
         ax.grid(True, alpha=0.3)
+        # Add value labels for both
+        for bar, value in zip(bars1, real_values):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height, scientific_fmt(value),
+                    ha='center', va='bottom', fontsize=9, fontweight='bold')
+        for bar, value in zip(bars2, synth_values):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height, scientific_fmt(value),
+                    ha='center', va='bottom', fontsize=9, fontweight='bold')
         return bars1, bars2
 
     def _plot_diff_bar(self, ax, models_with_metric, diff_values, fact_name):
@@ -172,7 +199,7 @@ class StylizedFactsPlot(MetricPlot):
         for bar, value in zip(bars, diff_values):
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height,
-                    f'{value:.3f}', ha='center', va='bottom' if height >= 0 else 'top',
+                    scientific_fmt(value), ha='center', va='bottom' if height >= 0 else 'top',
                     fontsize=9, fontweight='bold')
 
     def _plot_single_stylized_fact(self, fact_name: str) -> None:
@@ -411,7 +438,7 @@ class UtilityPlot(MetricPlot):
             if not np.isnan(rank):
                 width = bar.get_width()
                 ax.text(width, bar.get_y() + bar.get_height()/2.,
-                       f'{rank:.2f}', ha='left' if width < max(ranks_sorted) / 2 else 'right',
+                       scientific_fmt(rank, precision=2), ha='left' if width < max(ranks_sorted) / 2 else 'right',
                        va='center', fontsize=10, fontweight='bold')
         
         plt.tight_layout()
@@ -453,13 +480,13 @@ class UtilityPlot(MetricPlot):
         ax.grid(True, alpha=0.3, axis='y')
         ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
         
-                # Add value labels
+        # Add value labels
         for bar, val in zip(bars, corr_values):
-                    if not np.isnan(val):
-                        height = bar.get_height()
-                        ax.text(bar.get_x() + bar.get_width()/2., height,
-                       f'{val:.3f}', ha='center', va='bottom' if height >= 0 else 'top',
-                       fontsize=10, fontweight='bold')
+            if not np.isnan(val):
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height,
+                        scientific_fmt(val), ha='center', va='bottom' if height >= 0 else 'top',
+                        fontsize=10, fontweight='bold')
         
         plt.tight_layout()
         plt.savefig(self.output_dir / 'utility_algorithm_comparison.png', bbox_inches='tight', dpi=self.dpi)
@@ -472,7 +499,7 @@ class SequenceLengthComparisonPlot:
     Creates line plots, rank-order plots, and variance plots for metrics across different sequence lengths.
     """
     
-    def __init__(self, all_seq_data: Dict[str, Dict[str, Any]], output_dir: Path, 
+    def __init__(self, all_seq_data: Dict[str, Dict[str, Any]], output_dir: Path, num_samples: int = 1000,
                  figsize: Tuple[int, int] = (10, 6), dpi: int = 300):
         """
         Initialize sequence length comparison plot.
@@ -488,7 +515,7 @@ class SequenceLengthComparisonPlot:
         self.output_dir.mkdir(exist_ok=True, parents=True)
         self.figsize = figsize
         self.dpi = dpi
-        
+        self.num_samples = num_samples
         # Extract sequence lengths from folder names
         self.seq_lengths = []
         for seq_name in sorted(all_seq_data.keys()):
@@ -545,7 +572,7 @@ class SequenceLengthComparisonPlot:
         metrics.extend(['excess_kurtosis', 'autocorr_returns', 'volatility_clustering', 'long_memory_volatility'])
         
         # Performance
-        metrics.append('generation_time_sec')
+        metrics.append(f'generation_time_{self.num_samples}_samples')
         
         # Utility
         metrics.append('spearman_correlation')
@@ -600,7 +627,10 @@ class SequenceLengthComparisonPlot:
                 
                 if valid_values:
                     ax.plot(valid_seq_lengths, valid_values, marker='o', label=model, linewidth=2, markersize=6)
-            
+                    # Value labels at each point (scientific notation for small/large)
+                    for xval, yval in zip(valid_seq_lengths, valid_values):
+                        ax.text(xval, yval, scientific_fmt(yval), fontsize=8, ha='center', va='bottom')
+
             ax.set_xlabel('Sequence Length (K)', fontsize=12)
             ax.set_ylabel('Metric Value', fontsize=12)
             ax.set_title(f'{metric.replace("_", " ").title()}: Sensitivity to Sequence Length', 
@@ -723,11 +753,11 @@ class SequenceLengthComparisonPlot:
             ax.invert_yaxis()
             ax.grid(True, alpha=0.3, axis='x')
             
-            # Add value labels
+            # Add value labels in scientific format
             for bar, var in zip(bars, variances):
                 width = bar.get_width()
                 ax.text(width, bar.get_y() + bar.get_height()/2.,
-                       f'{var:.4f}', ha='left', va='center', fontsize=9, fontweight='bold')
+                       scientific_fmt(var, precision=4), ha='left', va='center', fontsize=9, fontweight='bold')
             
             plt.tight_layout()
             plt.savefig(output_dir / f'{metric}_variance.png', bbox_inches='tight', dpi=self.dpi)

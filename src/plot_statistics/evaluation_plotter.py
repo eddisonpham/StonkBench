@@ -10,8 +10,7 @@ from typing import Dict, Any
 sys.path.append(str(Path(__file__).parent.parent))
 
 from utils.metric_plot_utils import (
-    find_sequence_folders, load_evaluation_data, load_all_sequence_data, 
-    create_output_directory
+    find_sequence_folders, load_evaluation_data, load_all_sequence_data
 )
 from utils.metric_plot_classes_utils import (
     PerformancePlot, DistributionPlot, SimilarityPlot, 
@@ -118,7 +117,7 @@ def main():
         
         print("\nAll plots generated successfully!")
         print(f"Plots saved to: {output_base_dir}")
-        
+
     except Exception as e:
         print(f"Error generating plots: {str(e)}")
         import traceback
