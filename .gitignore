@@ -15,5 +15,5 @@ mlruns/
 *.txt
 *.pkl
 
-results
-evaluation_plots
+results/*
+evaluation_plots/*

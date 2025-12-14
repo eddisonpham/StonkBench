@@ -9,6 +9,7 @@ import seaborn as sns
 from pathlib import Path
 from typing import Dict, Any, List, Tuple, Optional
 import warnings
+import re
 from PIL import Image
 
 
@@ -270,7 +271,7 @@ class UtilityPlot(MetricPlot):
         Initialize utility plot.
         
         Args:
-            data: Dictionary with structure {model_name: {augmented_testing: {...}, algorithm_comparison: {...}}}
+            data: Dictionary with structure {model_name: {utility: {augmented_testing: {...}, algorithm_comparison: {...}}}}
             output_dir: Directory to save plots
             figsize: Figure size
             dpi: DPI for saved plots
@@ -290,69 +291,131 @@ class UtilityPlot(MetricPlot):
         augmented_data = {}
         for model in self.models:
             model_data = self.data.get(model, {})
-            if 'augmented_testing' in model_data:
-                augmented_data[model] = model_data['augmented_testing']
+            utility_data = model_data.get('utility', {})
+            if 'augmented_testing' in utility_data:
+                augmented_data[model] = utility_data['augmented_testing']
         
         if not augmented_data:
             warnings.warn("No augmented testing data found. Skipping augmented testing plots.")
             return
         
-        # Get all hedger names from first model
+        # Get all hedger names and training regimes from first model
         first_model = list(augmented_data.keys())[0]
         hedger_names = list(augmented_data[first_model].keys())
+        training_regimes = ['real_train', 'mixed_train']
         
-        # Metrics to plot
-        score_metrics = ['mse_mean', 'mse_p95', 'mse_p05', 'mse_qvar', 'mse_cov']
-        
-        # Create subplots for each metric
-        n_metrics = len(score_metrics)
-        n_cols = 3
-        n_rows = (n_metrics + n_cols - 1) // n_cols
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(18, 6 * n_rows), dpi=self.dpi)
-        axes = axes.flatten() if n_metrics > 1 else [axes]
-        
-        for i, metric in enumerate(score_metrics):
-            ax = axes[i]
-            # Collect data: {model: {hedger: value}}
-            plot_data = {model: {} for model in augmented_data.keys()}
-            
-            for model in augmented_data.keys():
-                for hedger in hedger_names:
+        # Collect mean values: {model: {hedger_regime: mean_value}}
+        mean_values = {}
+        for model in augmented_data.keys():
+            mean_values[model] = {}
+            for hedger in hedger_names:
+                for regime in training_regimes:
                     hedger_data = augmented_data[model].get(hedger, {})
-                    if 'score' in hedger_data and metric in hedger_data['score']:
-                        plot_data[model][hedger] = hedger_data['score'][metric]
-                    else:
-                        plot_data[model][hedger] = np.nan
-            
-            # Create grouped bar chart
-            x = np.arange(len(augmented_data.keys()))
-            width = 0.8 / len(hedger_names)
-            
-            for j, hedger in enumerate(hedger_names):
-                values = [plot_data[model].get(hedger, np.nan) for model in augmented_data.keys()]
-                offset = (j - len(hedger_names) / 2 + 0.5) * width
-                bars = ax.bar(x + offset, values, width, label=hedger, alpha=0.8)
-                # Add value labels
-                for bar, val in zip(bars, values):
-                    if not np.isnan(val):
-                        height = bar.get_height()
-                        ax.text(bar.get_x() + bar.get_width()/2., height,
-                               f'{val:.3f}', ha='center', va='bottom', fontsize=8)
-            
-            ax.set_xlabel('Models', fontsize=12)
-            ax.set_ylabel('MSE', fontsize=12)
-            ax.set_title(f'Augmented Testing: {metric.replace("_", " ").title()}', fontsize=14, fontweight='bold')
-            ax.set_xticks(x)
-            ax.set_xticklabels(augmented_data.keys(), rotation=45, ha='right', fontsize=10)
-            ax.legend(fontsize=9, loc='upper left')
-            ax.grid(True, alpha=0.3)
+                    regime_data = hedger_data.get(regime, {})
+                    mean_val = regime_data.get('mean', np.nan)
+                    key = f"{hedger}_{regime}"
+                    mean_values[model][key] = mean_val
         
-        # Remove extra subplots
-        for j in range(n_metrics, len(axes)):
-            fig.delaxes(axes[j])
+        # Compute ranks (lower mean is better, so rank 1 = best)
+        rank_matrix = {}
+        column_keys = [f"{h}_{r}" for h in hedger_names for r in training_regimes]
+        
+        for col_key in column_keys:
+            # Get values for this column across all models
+            values = [mean_values[model].get(col_key, np.nan) for model in augmented_data.keys()]
+            # Filter out NaN values for ranking
+            valid_indices = [i for i, v in enumerate(values) if not np.isnan(v)]
+            valid_values = [values[i] for i in valid_indices]
+            
+            if len(valid_values) == 0:
+                continue
+            
+            # Rank: lower mean = better rank (rank 1 is best)
+            sorted_indices = sorted(range(len(valid_values)), key=lambda i: valid_values[i])
+            ranks = [0] * len(values)
+            for rank, orig_idx in enumerate(sorted_indices, 1):
+                ranks[valid_indices[orig_idx]] = rank
+            # For NaN values, assign worst rank
+            max_rank = len(valid_values)
+            for i, v in enumerate(values):
+                if np.isnan(v):
+                    ranks[i] = max_rank + 1
+            
+            # Store ranks for this column
+            for i, model in enumerate(augmented_data.keys()):
+                if model not in rank_matrix:
+                    rank_matrix[model] = {}
+                rank_matrix[model][col_key] = ranks[i]
+        
+        # Create heatmap data
+        models_list = list(augmented_data.keys())
+        heatmap_data = []
+        for model in models_list:
+            row = [rank_matrix.get(model, {}).get(col_key, np.nan) for col_key in column_keys]
+            heatmap_data.append(row)
+        heatmap_data = np.array(heatmap_data)
+        
+        # Plot 1: Utility rank heatmap
+        fig, ax = plt.subplots(figsize=(max(16, len(column_keys) * 1.5), max(8, len(models_list) * 0.8)), dpi=self.dpi)
+        
+        # Create heatmap
+        sns.heatmap(
+            heatmap_data,
+            annot=True,
+            fmt='.0f',
+            cmap='RdYlGn_r',  # Reversed: green=good (low rank), red=bad (high rank)
+            cbar_kws={'label': 'Rank (1=best)'},
+            xticklabels=[key.replace('_', '\n') for key in column_keys],
+            yticklabels=models_list,
+            ax=ax,
+            vmin=1,
+            vmax=heatmap_data.max() if not np.isnan(heatmap_data).all() else 10
+        )
+        ax.set_title('Utility Rank Heatmap: Generative Model Performance Across Hedgers and Training Regimes', 
+                    fontsize=14, fontweight='bold', pad=20)
+        ax.set_xlabel('Hedger × Training Regime', fontsize=12)
+        ax.set_ylabel('Generative Model', fontsize=12)
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+        plt.savefig(self.output_dir / 'utility_rank_heatmap.png', bbox_inches='tight', dpi=self.dpi)
+        plt.close()
+        
+        # Plot 2: Consensus utility rank bar chart
+        # Average ranks across all hedger+regime combinations
+        consensus_ranks = {}
+        for model in models_list:
+            ranks_for_model = [rank_matrix.get(model, {}).get(col_key) for col_key in column_keys 
+                             if not np.isnan(rank_matrix.get(model, {}).get(col_key, np.nan))]
+            if ranks_for_model:
+                consensus_ranks[model] = np.mean(ranks_for_model)
+            else:
+                consensus_ranks[model] = np.nan
+        
+        # Sort by consensus rank (best first)
+        sorted_models = sorted(consensus_ranks.items(), key=lambda x: x[1] if not np.isnan(x[1]) else float('inf'))
+        
+        fig, ax = plt.subplots(figsize=self.figsize, dpi=self.dpi)
+        models_sorted = [m[0] for m in sorted_models]
+        ranks_sorted = [m[1] for m in sorted_models]
+        
+        bars = ax.barh(models_sorted, ranks_sorted, color=sns.color_palette("RdYlGn_r", len(models_sorted)))
+        ax.set_xlabel('Average Rank (lower is better)', fontsize=12)
+        ax.set_ylabel('Generative Model', fontsize=12)
+        ax.set_title('Consensus Utility Rank: Overall Performance Across All Hedgers and Training Regimes', 
+                    fontsize=14, fontweight='bold')
+        ax.invert_yaxis()  # Best (lowest rank) at top
+        ax.grid(True, alpha=0.3, axis='x')
+        
+        # Add value labels
+        for i, (bar, rank) in enumerate(zip(bars, ranks_sorted)):
+            if not np.isnan(rank):
+                width = bar.get_width()
+                ax.text(width, bar.get_y() + bar.get_height()/2.,
+                       f'{rank:.2f}', ha='left' if width < max(ranks_sorted) / 2 else 'right',
+                       va='center', fontsize=10, fontweight='bold')
         
         plt.tight_layout()
-        plt.savefig(self.output_dir / 'utility_augmented_testing.png', bbox_inches='tight', dpi=self.dpi)
+        plt.savefig(self.output_dir / 'utility_consensus_rank.png', bbox_inches='tight', dpi=self.dpi)
         plt.close()
     
     def _plot_algorithm_comparison(self) -> None:
@@ -361,63 +424,311 @@ class UtilityPlot(MetricPlot):
         algorithm_data = {}
         for model in self.models:
             model_data = self.data.get(model, {})
-            if 'algorithm_comparison' in model_data:
-                algorithm_data[model] = model_data['algorithm_comparison']
+            utility_data = model_data.get('utility', {})
+            if 'algorithm_comparison' in utility_data:
+                algorithm_data[model] = utility_data['algorithm_comparison']
         
         if not algorithm_data:
             warnings.warn("No algorithm comparison data found. Skipping algorithm comparison plots.")
             return
         
-        # Get all hedger names from first model
-        first_model = list(algorithm_data.keys())[0]
-        hedger_names = list(algorithm_data[first_model].keys())
+        # Extract spearman_correlation for each model
+        spearman_corrs = {}
+        for model in algorithm_data.keys():
+            corr = algorithm_data[model].get('spearman_correlation', np.nan)
+            spearman_corrs[model] = corr
         
-        # Plot score vectors (4 components)
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12), dpi=self.dpi)
-        axes = axes.flatten()
+        # Create bar chart
+        fig, ax = plt.subplots(figsize=self.figsize, dpi=self.dpi)
         
-        score_labels = [
-            'Real Test Hedger Comparison\n(mse_mean + mse_p95 + mse_p05)',
-            'Temporal Structure Preservation\n(mse_qvar)',
-            'Correlation Structure Preservation\n(mse_cov)',
-            'Synthetic Test Hedger Comparison\n(mse_mean + mse_p95 + mse_p05)'
-        ]
+        models_list = list(spearman_corrs.keys())
+        corr_values = [spearman_corrs[model] for model in models_list]
         
-        for i, (label, ax) in enumerate(zip(score_labels, axes)):
-            # Collect data for this score component
-            plot_data = {model: {} for model in algorithm_data.keys()}
-            
-            for model in algorithm_data.keys():
-                for hedger in hedger_names:
-                    hedger_data = algorithm_data[model].get(hedger, {})
-                    if 'score_vector' in hedger_data and len(hedger_data['score_vector']) > i:
-                        plot_data[model][hedger] = hedger_data['score_vector'][i]
-                    else:
-                        plot_data[model][hedger] = np.nan
-            
-            # Create grouped bar chart
-            x = np.arange(len(algorithm_data.keys()))
-            width = 0.8 / len(hedger_names)
-            
-            for j, hedger in enumerate(hedger_names):
-                values = [plot_data[model].get(hedger, np.nan) for model in algorithm_data.keys()]
-                offset = (j - len(hedger_names) / 2 + 0.5) * width
-                bars = ax.bar(x + offset, values, width, label=hedger, alpha=0.8)
+        bars = ax.bar(models_list, corr_values, color=sns.color_palette("husl", len(models_list)))
+        ax.set_xlabel('Generative Model', fontsize=12)
+        ax.set_ylabel('Spearman Correlation', fontsize=12)
+        ax.set_title('Algorithm Comparison: Spearman Correlation Between Real and Synthetic Hedger Rankings', 
+                    fontsize=14, fontweight='bold')
+        ax.tick_params(axis='x', rotation=45)
+        ax.grid(True, alpha=0.3, axis='y')
+        ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+        
                 # Add value labels
-                for bar, val in zip(bars, values):
+        for bar, val in zip(bars, corr_values):
                     if not np.isnan(val):
                         height = bar.get_height()
                         ax.text(bar.get_x() + bar.get_width()/2., height,
-                               f'{val:.3f}', ha='center', va='bottom', fontsize=8)
-            
-            ax.set_xlabel('Models', fontsize=12)
-            ax.set_ylabel('Score', fontsize=12)
-            ax.set_title(label, fontsize=12, fontweight='bold')
-            ax.set_xticks(x)
-            ax.set_xticklabels(algorithm_data.keys(), rotation=45, ha='right', fontsize=10)
-            ax.legend(fontsize=9, loc='upper left')
-            ax.grid(True, alpha=0.3)
+                       f'{val:.3f}', ha='center', va='bottom' if height >= 0 else 'top',
+                       fontsize=10, fontweight='bold')
         
         plt.tight_layout()
         plt.savefig(self.output_dir / 'utility_algorithm_comparison.png', bbox_inches='tight', dpi=self.dpi)
+        plt.close()
+
+
+class SequenceLengthComparisonPlot:
+    """
+    Plot sequence length comparison metrics.
+    Creates line plots, rank-order plots, and variance plots for metrics across different sequence lengths.
+    """
+    
+    def __init__(self, all_seq_data: Dict[str, Dict[str, Any]], output_dir: Path, 
+                 figsize: Tuple[int, int] = (10, 6), dpi: int = 300):
+        """
+        Initialize sequence length comparison plot.
+        
+        Args:
+            all_seq_data: Dictionary with structure {seq_name: {model_name: metrics_dict}}
+            output_dir: Directory to save plots
+            figsize: Figure size
+            dpi: DPI for saved plots
+        """
+        self.all_seq_data = all_seq_data
+        self.output_dir = output_dir
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        self.figsize = figsize
+        self.dpi = dpi
+        
+        # Extract sequence lengths from folder names
+        self.seq_lengths = []
+        for seq_name in sorted(all_seq_data.keys()):
+            match = re.match(r"seq_(\d+)", seq_name)
+            if match:
+                self.seq_lengths.append(int(match.group(1)))
+        
+        self.seq_lengths.sort()
+        
+        # Get all models (should be consistent across sequence lengths)
+        if all_seq_data:
+            first_seq = list(all_seq_data.keys())[0]
+            self.models = list(all_seq_data[first_seq].keys())
+        else:
+            self.models = []
+        
+        plt.style.use('seaborn-v0_8-whitegrid')
+        sns.set_palette("husl")
+    
+    def _extract_metric_value(self, model_data: Dict[str, Any], metric_name: str) -> float:
+        """
+        Extract metric value from model data, handling different structures.
+        Returns np.nan if not found.
+        """
+        if metric_name in model_data:
+            value = model_data[metric_name]
+            if isinstance(value, dict):
+                # For stylized facts, use 'diff' value
+                return float(value.get('diff', np.nan))
+            elif isinstance(value, (int, float)):
+                return float(value)
+            else:
+                return np.nan
+        
+        # Check nested in utility
+        if metric_name == 'spearman_correlation':
+            utility_data = model_data.get('utility', {})
+            algo_comp = utility_data.get('algorithm_comparison', {})
+            return float(algo_comp.get('spearman_correlation', np.nan))
+        
+        return np.nan
+    
+    def _get_all_metrics(self) -> List[str]:
+        """Get list of all metrics to plot."""
+        metrics = []
+        
+        # Distribution metrics
+        metrics.extend(['mdd', 'md', 'sdd', 'sd', 'kd'])
+        
+        # Similarity metrics
+        metrics.extend(['icd_euclidean', 'icd_dtw'])
+        
+        # Stylized facts (using diff)
+        metrics.extend(['excess_kurtosis', 'autocorr_returns', 'volatility_clustering', 'long_memory_volatility'])
+        
+        # Performance
+        metrics.append('generation_time_sec')
+        
+        # Utility
+        metrics.append('spearman_correlation')
+        
+        return metrics
+    
+    def plot(self) -> None:
+        """Generate all sequence length comparison plots."""
+        # Create separate folders for each plot type
+        line_plots_dir = self.output_dir / 'line_plots'
+        rank_plots_dir = self.output_dir / 'rank_order_plots'
+        variance_plots_dir = self.output_dir / 'variance_plots'
+        
+        line_plots_dir.mkdir(exist_ok=True)
+        rank_plots_dir.mkdir(exist_ok=True)
+        variance_plots_dir.mkdir(exist_ok=True)
+        
+        metrics = self._get_all_metrics()
+        
+        # Collect data for all metrics
+        metric_data = {}
+        for metric in metrics:
+            metric_data[metric] = {}
+            for model in self.models:
+                values = []
+                for seq_name in sorted(self.all_seq_data.keys()):
+                    model_data = self.all_seq_data[seq_name].get(model, {})
+                    value = self._extract_metric_value(model_data, metric)
+                    values.append(value)
+                metric_data[metric][model] = values
+        
+        # Generate line plots
+        self._plot_line_plots(metric_data, line_plots_dir)
+        
+        # Generate rank-order plots
+        self._plot_rank_order(metric_data, rank_plots_dir)
+        
+        # Generate variance plots
+        self._plot_variance(metric_data, variance_plots_dir)
+    
+    def _plot_line_plots(self, metric_data: Dict[str, Dict[str, List[float]]], output_dir: Path) -> None:
+        """Plot line plots: metric value vs sequence length, one line per model."""
+        for metric, model_values in metric_data.items():
+            fig, ax = plt.subplots(figsize=self.figsize, dpi=self.dpi)
+            
+            for model in self.models:
+                values = model_values.get(model, [])
+                # Filter out NaN values for plotting
+                valid_indices = [i for i, v in enumerate(values) if not np.isnan(v)]
+                valid_seq_lengths = [self.seq_lengths[i] for i in valid_indices]
+                valid_values = [values[i] for i in valid_indices]
+                
+                if valid_values:
+                    ax.plot(valid_seq_lengths, valid_values, marker='o', label=model, linewidth=2, markersize=6)
+            
+            ax.set_xlabel('Sequence Length (K)', fontsize=12)
+            ax.set_ylabel('Metric Value', fontsize=12)
+            ax.set_title(f'{metric.replace("_", " ").title()}: Sensitivity to Sequence Length', 
+                        fontsize=14, fontweight='bold')
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
+            ax.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            plt.savefig(output_dir / f'{metric}_line_plot.png', bbox_inches='tight', dpi=self.dpi)
+            plt.close()
+    
+    def _plot_rank_order(self, metric_data: Dict[str, Dict[str, List[float]]], output_dir: Path) -> None:
+        """Plot rank-order plots showing how model rankings change across sequence lengths."""
+        for metric, model_values in metric_data.items():
+            # Compute ranks for each sequence length
+            rank_matrix = []
+            for seq_idx in range(len(self.seq_lengths)):
+                # Get values for this sequence length across all models
+                values_at_seq = []
+                model_list_at_seq = []
+                for model in self.models:
+                    values = model_values.get(model, [])
+                    if seq_idx < len(values) and not np.isnan(values[seq_idx]):
+                        values_at_seq.append(values[seq_idx])
+                        model_list_at_seq.append(model)
+                
+                if not values_at_seq:
+                    continue
+                
+                # Rank models: for most metrics, lower is better (mdd, md, sdd, sd, kd, icd_euclidean, icd_dtw)
+                # For spearman_correlation, higher is better
+                if metric == 'spearman_correlation':
+                    # Higher is better
+                    sorted_indices = sorted(range(len(values_at_seq)), key=lambda i: -values_at_seq[i])
+                else:
+                    # Lower is better
+                    sorted_indices = sorted(range(len(values_at_seq)), key=lambda i: values_at_seq[i])
+                
+                ranks = [0] * len(values_at_seq)
+                for rank, orig_idx in enumerate(sorted_indices, 1):
+                    ranks[orig_idx] = rank
+                
+                rank_matrix.append({
+                    'seq_length': self.seq_lengths[seq_idx],
+                    'ranks': ranks,
+                    'models': model_list_at_seq
+                })
+            
+            if not rank_matrix:
+                continue
+            
+            # Create heatmap-style plot
+            # Get all models that appear in any sequence length
+            all_models_in_ranks = set()
+            for rm in rank_matrix:
+                all_models_in_ranks.update(rm['models'])
+            all_models_in_ranks = sorted(all_models_in_ranks)
+            
+            # Build heatmap data
+            heatmap_data = []
+            for model in all_models_in_ranks:
+                row = []
+                for rm in rank_matrix:
+                    if model in rm['models']:
+                        model_idx = rm['models'].index(model)
+                        row.append(rm['ranks'][model_idx])
+                    else:
+                        row.append(np.nan)
+                heatmap_data.append(row)
+            
+            fig, ax = plt.subplots(figsize=(max(10, len(rank_matrix) * 1.5), max(8, len(all_models_in_ranks) * 0.8)), 
+                                  dpi=self.dpi)
+            
+            seq_labels = [rm['seq_length'] for rm in rank_matrix]
+            sns.heatmap(
+                np.array(heatmap_data),
+                annot=True,
+                fmt='.0f',
+                cmap='RdYlGn_r',  # Reversed: green=best (rank 1), red=worst
+                cbar_kws={'label': 'Rank (1=best)'},
+                xticklabels=seq_labels,
+                yticklabels=all_models_in_ranks,
+                ax=ax
+            )
+            
+            ax.set_xlabel('Sequence Length (K)', fontsize=12)
+            ax.set_ylabel('Model', fontsize=12)
+            ax.set_title(f'{metric.replace("_", " ").title()}: Model Rankings Across Sequence Lengths', 
+                        fontsize=14, fontweight='bold')
+            plt.xticks(rotation=0)
+            plt.tight_layout()
+            plt.savefig(output_dir / f'{metric}_rank_order.png', bbox_inches='tight', dpi=self.dpi)
+            plt.close()
+    
+    def _plot_variance(self, metric_data: Dict[str, Dict[str, List[float]]], output_dir: Path) -> None:
+        """Plot variance across sequence lengths for each model–metric pair."""
+        for metric, model_values in metric_data.items():
+            variances = []
+            model_names = []
+            
+            for model in self.models:
+                values = model_values.get(model, [])
+                # Filter out NaN values
+                valid_values = [v for v in values if not np.isnan(v)]
+                if len(valid_values) > 1:
+                    var = np.var(valid_values)
+                    variances.append(var)
+                    model_names.append(model)
+            
+            if not variances:
+                continue
+            
+            fig, ax = plt.subplots(figsize=self.figsize, dpi=self.dpi)
+            
+            bars = ax.barh(model_names, variances, color=sns.color_palette("husl", len(model_names)))
+            ax.set_xlabel('Variance Across Sequence Lengths', fontsize=12)
+            ax.set_ylabel('Model', fontsize=12)
+            ax.set_title(f'{metric.replace("_", " ").title()}: Variance Across Sequence Lengths', 
+                        fontsize=14, fontweight='bold')
+            ax.invert_yaxis()
+            ax.grid(True, alpha=0.3, axis='x')
+            
+            # Add value labels
+            for bar, var in zip(bars, variances):
+                width = bar.get_width()
+                ax.text(width, bar.get_y() + bar.get_height()/2.,
+                       f'{var:.4f}', ha='left', va='center', fontsize=9, fontweight='bold')
+            
+            plt.tight_layout()
+            plt.savefig(output_dir / f'{metric}_variance.png', bbox_inches='tight', dpi=self.dpi)
         plt.close()
