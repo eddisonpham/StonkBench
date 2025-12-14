@@ -571,16 +571,21 @@ and fat tails.
         experiment with varying training sequence lengths \(L\).
         For deep learning models, overlapping sliding windows 
         \(\mathcal{W} \in \mathbb{R}^{R \times L \times N}\) with 
-        stride 1 are extracted. Unlike TSGBench, which employs an 
+        stride 1 are extracted.
+        Specifically, we consider the following lengths:
+
+        \item Unlike TSGBench, which employs an 
         autocorrelation-based hard-coded window of 125 (often 
         yielding a size of 1 for stock data due to fast 
-        autocorrelation decay \cite{Takahashi24}), the window length \(L\) is 
+        autocorrelation decay \cite{Takahashi24}), the window length 
+        \(L\) is 
         determined via the partial autocorrelation function (PACF). 
         Specifically, PACF is computed for each channel up to 
         \(\lfloor 10\log_{10} n \rfloor\) lags, and the lag 
         corresponding to the maximum significant PACF peak across 
-        channels is selected, resulting in \(L=13\). This approach 
+        channels is selected, resulting in \(L=52\). This approach 
         captures relevant temporal dependencies within the data.
+  
         \item The dataset is split into train, validation, and test 
         sets while preserving temporal order to prevent future 
         information from leaking into the past. Only the training 
