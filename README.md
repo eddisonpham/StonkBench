@@ -1,4 +1,4 @@
-# Unified Benchmark for Synthetic Data Generation in Financial Time Series (SDGFTS)
+# StonkBench: Unified Benchmark for Synthetic Data Generation in Financial Time Series (SDGFTS)
 
 > A unified, reproducible benchmark for evaluating synthetic time series generators in finance. All results, metrics, and experiment outputs are automatically saved and organized.
 
