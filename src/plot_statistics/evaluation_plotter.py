@@ -1,126 +1,65 @@
 """
-Main plotting class for evaluation results.
+Main plotting script for evaluation results.
+
+This script generates all paper figures by coordinating the PaperFigureGenerator.
 """
 
 import sys
 from pathlib import Path
 import shutil
-from typing import Dict, Any
+import traceback
 
-sys.path.append(str(Path(__file__).parent.parent))
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
-from utils.metric_plot_utils import (
-    find_sequence_folders, load_evaluation_data, load_all_sequence_data
-)
-from utils.metric_plot_classes_utils import (
-    PerformancePlot, DistributionPlot, SimilarityPlot, 
-    StylizedFactsPlot, CombinedVisualizationPlot, UtilityPlot,
-    SequenceLengthComparisonPlot
-)
+from src.plot_statistics.paper_figures import PaperFigureGenerator
 
-class EvaluationPlotter:
+
+def clear_output_directory(output_dir: Path) -> None:
     """
-    Comprehensive plotting class for evaluation results.
-    """
+    Clear all contents of the output directory.
     
-    def __init__(self, data: Dict[str, Any], output_dir: Path, eval_results_dir: str = None):
-        """
-        Initialize the plotter with evaluation data.
-        """
-        self.data = data
-        self.output_dir = output_dir
-        self.output_dir.mkdir(exist_ok=True, parents=True)
-        
-        self.performance_plot = PerformancePlot(data, self.output_dir)
-        self.distribution_plot = DistributionPlot(data, self.output_dir)
-        self.similarity_plot = SimilarityPlot(data, self.output_dir)
-        self.stylized_facts_plot = StylizedFactsPlot(data, self.output_dir)
-        self.combined_visualization_plot = CombinedVisualizationPlot(data, self.output_dir, eval_results_dir=eval_results_dir)
-        
-        # Add utility plot if utility data exists
-        if any('utility' in model_data for model_data in data.values()):
-            self.utility_plot = UtilityPlot(data, self.output_dir)
+    Args:
+        output_dir: Directory to clear.
+    """
+    if not output_dir.exists():
+        return
+    
+    for item in output_dir.iterdir():
+        if item.is_dir():
+            shutil.rmtree(item)
         else:
-            self.utility_plot = None
-        
-    def generate_all_plots(self) -> None:
-        """Generate all plots using the unified plot classes."""
-
-        print("Generating combined visualization plot...")
-        self.combined_visualization_plot.plot()
-        
-        print("Generating performance metrics plot...")
-        self.performance_plot.plot()
-        
-        print("Generating distribution metrics plot...")
-        self.distribution_plot.plot()
-        
-        print("Generating similarity metrics plot...")
-        self.similarity_plot.plot()
-        
-        print("Generating stylized facts plots...")
-        self.stylized_facts_plot.plot()
-        
-        if self.utility_plot:
-            print("Generating utility plots...")
-            self.utility_plot.plot()
-        
-        print(f"All plots saved to {self.output_dir}")
+            item.unlink()
 
 
 def main():
     """Main function to generate all evaluation plots."""
     try:
-        print("Finding sequence folders...")
-        seq_folders = find_sequence_folders()
-        print(f"Found {len(seq_folders)} sequence folders: {[Path(f).name for f in seq_folders]}")
+        print("=" * 80)
+        print("Generating Paper Figures")
+        print("=" * 80)
         
         output_base_dir = Path("evaluation_plots")
         output_base_dir.mkdir(exist_ok=True)
         
         # Clear output directory
-        print(f"Clearing contents of '{output_base_dir}' before generating new plots...")
-        for item in output_base_dir.iterdir():
-            if item.is_dir():
-                shutil.rmtree(item)
-            else:
-                item.unlink()
+        print(f"\nClearing contents of '{output_base_dir}' before generating new plots...")
+        clear_output_directory(output_base_dir)
         
-        # Process each sequence folder
-        for seq_folder in seq_folders:
-            seq_name = Path(seq_folder).name
-            print(f"\nProcessing {seq_name}...")
-            
-            print(f"Loading evaluation data for {seq_name}...")
-            data = load_evaluation_data(seq_folder)
-            print(f"Loaded data for {len(data)} models: {list(data.keys())}")
-            
-            # Create output directory for this sequence length
-            seq_output_dir = output_base_dir / seq_name
-            seq_output_dir.mkdir(exist_ok=True, parents=True)
-            
-            print(f"Initializing plotter for {seq_name}...")
-            plotter = EvaluationPlotter(data, seq_output_dir, eval_results_dir=seq_folder)
-            
-            print(f"Generating all plots for {seq_name}...")
-            plotter.generate_all_plots()
+        # Generate paper figures
+        generator = PaperFigureGenerator(
+            results_dir="results", 
+            output_dir=str(output_base_dir)
+        )
+        generator.generate_all_figures()
         
-        # Generate sequence length comparison plots
-        print("\nGenerating sequence length comparison plots...")
-        all_seq_data = load_all_sequence_data(exclude_seq_52=True)
-        if len(all_seq_data) > 1:  # Only if we have multiple sequence lengths
-            seq_comp_output_dir = output_base_dir / "sequence_length_comparison"
-            seq_comp_output_dir.mkdir(exist_ok=True, parents=True)
-            seq_comparison_plot = SequenceLengthComparisonPlot(all_seq_data, seq_comp_output_dir)
-            seq_comparison_plot.plot()
-            print(f"Sequence length comparison plots saved to {seq_comp_output_dir}")
-        
-        print("\nAll plots generated successfully!")
-        print(f"Plots saved to: {output_base_dir}")
+        print("\n" + "=" * 80)
+        print("All figures generated successfully!")
+        print(f"Figures saved to: {output_base_dir}")
+        print("=" * 80)
 
     except Exception as e:
         print(f"Error generating plots: {str(e)}")
-        import traceback
         traceback.print_exc()
         sys.exit(1)
 

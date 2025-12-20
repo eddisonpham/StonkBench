@@ -13,7 +13,7 @@ from src.taxonomies.fidelity import (
     calculate_mdd, calculate_md, calculate_sdd, calculate_sd, calculate_kd, visualize_tsne, visualize_distribution
 )
 from src.taxonomies.stylized_facts import (
-    excess_kurtosis, autocorr_returns, volatility_clustering, long_memory_volatility
+    autocorr_returns, volatility_clustering, long_memory_volatility
 )
 from src.taxonomies.utility import (
     AugmentedTestingEvaluator,
@@ -85,7 +85,6 @@ class RuntimeEvaluator(TaxonomyEvaluator):
 class StylizedFactsEvaluator(TaxonomyEvaluator):
     def evaluate(self) -> Dict[str, Any]:
         fact_functions = {
-            "excess_kurtosis": excess_kurtosis,
             "autocorr_returns": autocorr_returns,
             "volatility_clustering": volatility_clustering,
             "long_memory_volatility": long_memory_volatility
