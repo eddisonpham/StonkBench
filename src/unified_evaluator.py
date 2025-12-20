@@ -184,7 +184,7 @@ class UnifiedEvaluator:
 
         evaluators = [
             FidelityEvaluator(real_data, generated_data),
-            # DiversityEvaluator(real_data, generated_data),
+            DiversityEvaluator(real_data, generated_data),
             StylizedFactsEvaluator(real_data, generated_data),
             VisualAssessmentEvaluator(real_data, generated_data, model_dir)
         ]
@@ -410,11 +410,11 @@ class UnifiedEvaluator:
         # Initialize parametric models
         parametric_models = {}
         parametric_models["GBM"] = GeometricBrownianMotion()
-        # parametric_models["OU Process"] = OUProcess()
-        # parametric_models["MJD"] = MertonJumpDiffusion()
-        # parametric_models["GARCH11"] = GARCH11()
-        # parametric_models["DEJD"] = DoubleExponentialJumpDiffusion()
-        # parametric_models["BlockBootstrap"] = BlockBootstrap(block_size=generation_length)
+        parametric_models["OU Process"] = OUProcess()
+        parametric_models["MJD"] = MertonJumpDiffusion()
+        parametric_models["GARCH11"] = GARCH11()
+        parametric_models["DEJD"] = DoubleExponentialJumpDiffusion()
+        parametric_models["BlockBootstrap"] = BlockBootstrap(block_size=generation_length)
 
         non_parametric_models = {}
 
@@ -461,21 +461,21 @@ class UnifiedEvaluator:
             if isinstance(generated_data, torch.Tensor):
                 generated_data = generated_data.cpu().numpy()
             
-            # utility_results = self.evaluate_utility(
-            #     model_name=model_name,
-            #     generated_data=generated_data,
-            #     real_train_log_returns=train_data_non_para,
-            #     real_val_log_returns=valid_data_non_para,
-            #     real_test_log_returns=test_data_non_para,
-            #     real_train_initial=train_initial_non_para,
-            #     real_val_initial=valid_initial_non_para,
-            #     real_test_initial=test_initial_non_para,
-            #     generation_length=self.seq_length,
-            #     num_epochs=40,
-            #     batch_size=64,
-            #     learning_rate=1e-3
-            # )
-            # results['utility'] = utility_results
+            utility_results = self.evaluate_utility(
+                model_name=model_name,
+                generated_data=generated_data,
+                real_train_log_returns=train_data_non_para,
+                real_val_log_returns=valid_data_non_para,
+                real_test_log_returns=test_data_non_para,
+                real_train_initial=train_initial_non_para,
+                real_val_initial=valid_initial_non_para,
+                real_test_initial=test_initial_non_para,
+                generation_length=self.seq_length,
+                num_epochs=40,
+                batch_size=64,
+                learning_rate=1e-3
+            )
+            results['utility'] = utility_results
             
             # Update metrics.json file with utility results
             model_dir = self.results_dir / model_name
