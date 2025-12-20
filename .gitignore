@@ -24,4 +24,4 @@ cache/*
 
 notebooks/sanity_check_dl
 
-outputs/*
+outputs/
