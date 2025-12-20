@@ -23,3 +23,5 @@ testing_files/*
 cache/*
 
 notebooks/sanity_check_dl
+
+outputs/*
