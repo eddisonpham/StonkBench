@@ -17,3 +17,7 @@ mlruns/
 
 results/*
 evaluation_plots/*
+
+testing_files/*
+
+cache/*
