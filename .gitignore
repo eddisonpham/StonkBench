@@ -1,6 +1,36 @@
 .env
 venv/
 
+# LaTeX intermediate and auxiliary files
+*.aux
+*.lof
+*.lot
+*.log
+*.out
+*.toc
+*.fmt
+*.fot
+*.cb
+*.cb2
+*.bbl
+*.blg
+*.idx
+*.ind
+*.ilg
+*.inx
+*.synctex
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.run.xml
+*.xdv
+*.dvi
+*.ps
+*.pdfsync
+*.nav
+*.snm
+*.vrb
+
 # Ignore Python cache
 __pycache__/
 *.pyc
@@ -13,5 +43,4 @@ mlruns/
 *.txt
 *.pkl
 
-results
 evaluation_plots
