@@ -2,7 +2,7 @@
 %%% Do NOT edit. File created by BibTeX with style
 %%% ACM-Reference-Format-Journals [18-Jan-2012].
 
-\begin{thebibliography}{17}
+\begin{thebibliography}{23}
 
 %%% ====================================================================
 %%% NOTE TO THE USER: you can override these defaults by providing
@@ -59,11 +59,29 @@ Retrieved Dec 1, 2025 from \tempurl}
 \tempurl}
 
 
+\bibitem[Allen et~al\mbox{.}(2025)]%
+        {Allen2024}
+\bibfield{author}{\bibinfo{person}{David~E. Allen}, \bibinfo{person}{Leonard Mushunje}, {and} \bibinfo{person}{Shelton Peiris}.} \bibinfo{year}{2025}\natexlab{}.
+\newblock \showarticletitle{GANs and synthetic financial data: calculating VaR*}.
+\newblock \bibinfo{journal}{\emph{Applied Economics}} \bibinfo{volume}{57}, \bibinfo{number}{37} (\bibinfo{year}{2025}), \bibinfo{pages}{5680--5695}.
+\newblock
+\showeprint{https://doi.org/10.1080/00036846.2024.2365456}
+\href{https://doi.org/10.1080/00036846.2024.2365456}{doi:\nolinkurl{10.1080/00036846.2024.2365456}}
+
+
 \bibitem[Ang et~al\mbox{.}(2023)]%
         {Ang23}
 \bibfield{author}{\bibinfo{person}{Yihao Ang}, \bibinfo{person}{Qiang Huang}, \bibinfo{person}{Yifan Bao}, \bibinfo{person}{Anthony K.~H. Tung}, {and} \bibinfo{person}{Zhiyong Huang}.} \bibinfo{year}{2023}\natexlab{}.
 \newblock \showarticletitle{TSGBench: Time Series Generation Benchmark}.
 \newblock \bibinfo{journal}{\emph{Proc. {VLDB} Endow.}} \bibinfo{volume}{17}, \bibinfo{number}{3} (\bibinfo{year}{2023}), \bibinfo{pages}{305--318}.
+\newblock
+
+
+\bibitem[Arjovsky et~al\mbox{.}(2017)]%
+        {Arjovsky17}
+\bibfield{author}{\bibinfo{person}{Martin Arjovsky}, \bibinfo{person}{Soumith Chintala}, {and} \bibinfo{person}{L{\'e}on Bottou}.} \bibinfo{year}{2017}\natexlab{}.
+\newblock \showarticletitle{Wasserstein Generative Adversarial Networks}.
+\newblock \bibinfo{journal}{\emph{Proceedings of the 34th International Conference on Machine Learning}}  \bibinfo{volume}{70} (\bibinfo{year}{2017}), \bibinfo{pages}{214--223}.
 \newblock
 
 
@@ -79,6 +97,16 @@ Retrieved Dec 1, 2025 from \tempurl}
 \tempurl}
 
 
+\bibitem[Cont(2001)]%
+        {Cont01}
+\bibfield{author}{\bibinfo{person}{R. Cont}.} \bibinfo{year}{2001}\natexlab{}.
+\newblock \showarticletitle{Empirical properties of asset returns: stylized facts and statistical issues}.
+\newblock \bibinfo{journal}{\emph{Quantitative Finance}} \bibinfo{volume}{1}, \bibinfo{number}{2} (\bibinfo{year}{2001}), \bibinfo{pages}{223--236}.
+\newblock
+\showeprint{https://doi.org/10.1080/713665670}
+\href{https://doi.org/10.1080/713665670}{doi:\nolinkurl{10.1080/713665670}}
+
+
 \bibitem[Desai et~al\mbox{.}(2021)]%
         {Desai21}
 \bibfield{author}{\bibinfo{person}{Abhyuday Desai}, \bibinfo{person}{Cynthia Freeman}, \bibinfo{person}{Zuhui Wang}, {and} \bibinfo{person}{Ian Beaver}.} \bibinfo{year}{2021}\natexlab{}.
@@ -91,8 +119,30 @@ Retrieved Dec 1, 2025 from \tempurl}
 \tempurl}
 
 
+\bibitem[Durbin(1960)]%
+        {Durbin60}
+\bibfield{author}{\bibinfo{person}{J. Durbin}.} \bibinfo{year}{1960}\natexlab{}.
+\newblock \showarticletitle{The Fitting of Time-Series Models}.
+\newblock \bibinfo{journal}{\emph{Revue de l'Institut International de Statistique / Review of the International Statistical Institute}} \bibinfo{volume}{28}, \bibinfo{number}{3} (\bibinfo{year}{1960}), \bibinfo{pages}{233--244}.
+\newblock
+\showISSN{03731138}
+\urldef\tempurl%
+\url{http://www.jstor.org/stable/1401322}
+\showURL{%
+\tempurl}
+
+
+\bibitem[Fecamp et~al\mbox{.}(2021)]%
+        {Fecamp20}
+\bibfield{author}{\bibinfo{person}{Simon Fecamp}, \bibinfo{person}{Joseph Mikael}, {and} \bibinfo{person}{Xavier Warin}.} \bibinfo{year}{2021}\natexlab{}.
+\newblock \showarticletitle{Deep learning for discrete-time hedging in incomplete markets}.
+\newblock \bibinfo{journal}{\emph{The Journal of Computational Finance}} (\bibinfo{date}{01} \bibinfo{year}{2021}).
+\newblock
+\href{https://doi.org/10.21314/JCF.2021.006}{doi:\nolinkurl{10.21314/JCF.2021.006}}
+
+
 \bibitem[Goodfellow et~al\mbox{.}(2014)]%
-        {goodfellow2014generativeadversarialnetworks}
+        {Goodfellow14}
 \bibfield{author}{\bibinfo{person}{Ian~J. Goodfellow}, \bibinfo{person}{Jean Pouget-Abadie}, \bibinfo{person}{Mehdi Mirza}, \bibinfo{person}{Bing Xu}, \bibinfo{person}{David Warde-Farley}, \bibinfo{person}{Sherjil Ozair}, \bibinfo{person}{Aaron Courville}, {and} \bibinfo{person}{Yoshua Bengio}.} \bibinfo{year}{2014}\natexlab{}.
 \newblock \bibinfo{title}{Generative Adversarial Networks}.
 \newblock
@@ -116,7 +166,7 @@ Retrieved Dec 1, 2025 from \tempurl}
 
 
 \bibitem[Lee et~al\mbox{.}(2022)]%
-        {lee2022vrnngan}
+        {Lee22}
 \bibfield{author}{\bibinfo{person}{J. Lee} {et~al\mbox{.}}} \bibinfo{year}{2022}\natexlab{}.
 \newblock \showarticletitle{VRNNGAN: A Recurrent VAE-GAN Framework for Synthetic Time-Series Generation}. In \bibinfo{booktitle}{\emph{Conference}}.
 \newblock
@@ -140,6 +190,18 @@ Retrieved Dec 1, 2025 from \tempurl}
 \href{https://doi.org/10.1145/3419394.3423643}{doi:\nolinkurl{10.1145/3419394.3423643}}
 
 
+\bibitem[Lu and Sester(2025)]%
+        {Lu25}
+\bibfield{author}{\bibinfo{person}{Chung~I Lu} {and} \bibinfo{person}{Julian Sester}.} \bibinfo{year}{2025}\natexlab{}.
+\newblock \bibinfo{title}{Generative modelling of financial time series with structured noise and MMD-based signature learning}.
+\newblock
+\showeprint[arxiv]{2407.19848}~[q-fin.MF]
+\urldef\tempurl%
+\url{https://arxiv.org/abs/2407.19848}
+\showURL{%
+\tempurl}
+
+
 \bibitem[Potluru et~al\mbox{.}(2024)]%
         {Potluru24}
 \bibfield{author}{\bibinfo{person}{Vamsi~K. Potluru}, \bibinfo{person}{Daniel Borrajo}, \bibinfo{person}{Andrea Coletta}, \bibinfo{person}{Niccolo Dalmasso}, \bibinfo{person}{Yousef El-Laham}, \bibinfo{person}{Elizabeth Fons}, \bibinfo{person}{Mohsen Ghassemi}, \bibinfo{person}{Sriram Gopalakrishnan}, \bibinfo{person}{Vikesh Gosai}, \bibinfo{person}{Eleonora Kreacic}, \bibinfo{person}{Ganapathy Mani}, \bibinfo{person}{Saheed Obitayo}, \bibinfo{person}{Deepak Paramanand}, \bibinfo{person}{Natraj Raman}, \bibinfo{person}{Mikhail Solonin}, \bibinfo{person}{Srijan Sood}, \bibinfo{person}{Svitlana Vyetrenko}, \bibinfo{person}{Haibei Zhu}, \bibinfo{person}{Manuela Veloso}, {and} \bibinfo{person}{Tucker Balch}.} \bibinfo{year}{2024}\natexlab{}.
@@ -153,7 +215,7 @@ Retrieved Dec 1, 2025 from \tempurl}
 
 
 \bibitem[Qi(2025)]%
-        {qi2025gan_financial}
+        {Qi25}
 \bibfield{author}{\bibinfo{person}{Feng Qi}.} \bibinfo{year}{2025}\natexlab{}.
 \newblock \showarticletitle{GAN-Based Financial Data Generation and Prediction: Improving The Authenticity and Prediction Ability of Financial Statements}.
 \newblock \bibinfo{journal}{\emph{Informatica}} (\bibinfo{year}{2025}).

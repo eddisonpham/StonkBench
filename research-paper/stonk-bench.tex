@@ -180,7 +180,7 @@ and fat tails.
       the performance of synthetic financial time series generation as an
       extension of existing work like Allen et al. \cite{Allen2024}.
       The selected training sequence lengths are described in 
-      §\ref{subsub:model-specific}.
+      §\ref{sec:model-specific}.
 
     \item \label{rq:2} \textbf{Is there a trade-off between certain
       metrics or categories of metrics in SDGFTS?}
@@ -469,10 +469,10 @@ and fat tails.
     \end{enumerate}
     
     \subsubsection{Generative Adversarial Networks (GANs)}
-    GANs
-    \cite{Goodfellow14} approach 
+    GANs models approach 
     generation as a two-player game between a generator \(G\) and 
-    a discriminator \(D\). The discriminator is trained to 
+    a discriminator \(D\) \cite{Goodfellow14}. The discriminator 
+    is trained to 
     maximize the probability of correctly classifying real data 
     and generated data, with loss
     \[
@@ -487,7 +487,7 @@ and fat tails.
     \]
     Many GAN variants, such as Wasserstein GAN or Least Squares 
     GAN, modify these loss functions to promote more stable 
-    training and address issues like mode collapse.
+    training and address issues like mode collapse \cite{Goodfellow14} .
     
     In financial data synthesis, GANs have been widely used to 
     generate realistic synthetic time series. For example, 
@@ -525,6 +525,14 @@ and fat tails.
         completeness and baseline comparison.
       \end{enumerate}
 
+      \begin{figure*}[h]
+        \centering
+        \includegraphics[width=\textwidth,keepaspectratio]{../results/stonk_bench_architecture.png}
+        \caption{Stonk Bench system architecture overview.}
+        \Description{Diagram illustrating the complete Stonk Bench pipeline including data preprocessing, model evaluation, and benchmark framework components.}
+        \label{fig:stonk_bench_architecture}
+      \end{figure*}
+
 
 \section{Stonk Bench Architecture}
   \subsection{Datasets and Preprocessing}
@@ -540,7 +548,7 @@ and fat tails.
       time series with \(N=1\) channel(s) and length 
       \(L\).
 
-    \subsubsection{Transformations.}\label{subsub:transformations}
+    \subsubsection{Transformations.}\label{sec:transformations}
       Raw prices are converted to log-returns per channel via
 
       \[ r_t = \log S_t - \log S_{t-1} = \log(S_t / S_{t-1}) \,, 
@@ -552,7 +560,7 @@ and fat tails.
       and removal of the first order integration (random walk) 
       commonly exhibited in price series \cite{Takahashi24}.
 
-    \subsubsection{Sequence lengths specification}
+    \subsubsection{Sequence lengths specification}\label{sec:sequence_length}
       To address research question \ref{rq:1}, we 
         experiment with varying training sequence lengths \(L\).
         For deep learning models, overlapping sliding windows 
@@ -586,14 +594,14 @@ and fat tails.
         channels is selected, resulting in \(L=52\). This approach 
         captures relevant temporal dependencies within the data.
 
-    \subsubsection{Model-specific preprocessing.}\label{subsub:model-specific}
+    \subsubsection{Model-specific preprocessing.}\label{sec:model-specific}
     The preprocessing follows the general TSGBench framework,
     with the following adaptations:
 
     \begin{itemize}
         \item Log returns are used directly instead of TSGBench's 
         min-max normalization for the reasons outlined in 
-        §\ref{subsub:transformations}. 
+        §\ref{sec:transformations}. 
         \item For parametric models, the transformed series is 
         divided into contiguous training, validation, and test 
         segments with ratios \((1-\alpha-\beta):\alpha:\beta\), 
@@ -640,8 +648,8 @@ and fat tails.
         \item \label{metric:mdd} \textbf{Marginal Distribution 
         Difference (MDD):}  
         To measure the distance between empirical marginal distributions
-        of real vs. synthetic data, we use the 1-Wasserstein distance
-        (a.k.a. Earth Mover's Distance). This was chosen over the 
+        of real versus synthetic data, we use the 1-Wasserstein distance
+        (a.k.a. Earth Mover's distance). This was chosen over the 
         popular Kullback-Leibler divergence or the derivatives
         Jensen-Shannon divergence due to its better numerical stability
         and ability tocapture distributional differences even when
@@ -686,13 +694,13 @@ and fat tails.
           
           \end{enumerate}
           
-          \subsubsection{Visualization Methods}
+          \subsubsection{Visualization Methods} \label{sec:visualization_methods}
           Visual tools complement numeric metrics for face-validity and 
           communication \cite{Ang23}.
           \begin{enumerate}[label=\textbf{[M\arabic*]}, resume]
           \item \label{metric:tsne} \textbf{t-SNE:}  
           2D embeddings of window-level features for real 
-          vs. synthetic overlap and cluster structure.
+          versus synthetic overlap and cluster structure.
           
           \item \label{metric:dist} \textbf{Distribution:}  
           Histograms of returns to visualize empirical 
@@ -732,7 +740,7 @@ and fat tails.
           Generation efficiency is crucial for practical applications,
           especially in high-frequency trading or real-time risk
           management, where rapid data synthesis is required.
-          Thus, we include the following efficiency metric.
+          Thus, we include the following efficiency metric \cite{Stenger24}.
           \begin{enumerate}[label=\textbf{[M\arabic*]}, resume]
           \item \label{metric:gentime} \textbf{Generation Time:}  
           Wall-clock time to generate \(S\) samples:
@@ -742,7 +750,7 @@ and fat tails.
           \]
           \end{enumerate}
           
-          \subsubsection{Stylized Facts Measures}
+          \subsubsection{Stylized Facts Measures} \label{sec:stylized-facts}
           Canonical stylized facts:
           
           \begin{enumerate}[label=\textbf{[M\arabic*]}, resume]
@@ -761,7 +769,7 @@ and fat tails.
           \]
           
           \item \label{metric:volclustering} \textbf{Volatility 
-          Clustering:}  
+          Clustering (VC):}  
           Lag-1 autocorrelation of squared or absolute returns measures 
           volatility clustering, a stylized fact where large price movements 
           tend to cluster in time \cite{Cont01}:
@@ -883,6 +891,36 @@ and fat tails.
       a \textit{deep hedger}—which jointly learns the optimal 
       trading strategy and corresponding premium through 
       end-to-end training \cite{Fecamp20}.
+
+      \begin{figure}[h]
+        \centering
+        \includegraphics[width=0.3\textwidth,keepaspectratio]{../results/deep_hedger_architecture.png}
+        \caption{Architecture overview of the (deep) hedger evaluation framework, 
+        illustrating the flow from data preparation through model training to 
+        performance evaluation.}
+        \Description{Diagram showing the complete pipeline of the deep hedger 
+        architecture including data splits, model training, and evaluation steps.}
+        \label{fig:deep_hedger_architecture}
+      \end{figure}
+    
+  \begin{figure*}[h]
+      \centering
+      \includegraphics[width=\textwidth,height=8cm, keepaspectratio]
+      {../results/main_experiment/figure_1_per_metric_heatmaps/figure_1_all_taxonomies_ranknorm_heatmap.png}
+      \caption{Normalized ranking heatmap across all evaluation 
+      taxonomies.
+      For diversity metrics, a score of (1) indicates
+      highest metric value (most diverse), while for other metrics,
+      a score of (1) indicates lowest metric value (best performance).
+      Raw minimum and maximum values are provided for each metric on 
+      top of each respective column.
+      (Specification: sequence length based on
+      maximum significant PACF lag)}
+      \Description{The heatmap displays the normalized rankings of various
+      models across different evaluation metrics.}
+      \label{fig:heatmap_all_taxonomies}
+  \end{figure*}
+  
     \subsubsection{(Deep) hedger Architecture}
       \begin{table}[h]
         \centering
@@ -943,7 +981,7 @@ and fat tails.
       \( \mathcal{M}_{TS} \) is useful for training a (deep) hedger.
 
       \subsubsection{Augmented Testing}
-      \label{subsubsec:augmented-testing}
+      \label{sec:augmented-testing}
       To better evaluate the performance of (deep) hedgers trained 
       on synthetic data, we train our (deep) hedger \( A \) on a 
       new dataset \( D_{aug} \) that combines both real training 
@@ -958,8 +996,9 @@ and fat tails.
       allows us to assess whether synthetic data provides additional 
       value when combined with real training data.
 
+
       \subsubsection{Algorithm Comparison}
-      \label{subsubsec:algorithm-comparison}
+      \label{sec:algorithm-comparison}
       Another extension is to compare multiple (deep) hedger 
       algorithms to determine the degree to which each algorithm 
       performs equally on generated data relative to other algorithms, 
@@ -986,6 +1025,7 @@ and fat tails.
           r_S &= 1 - \frac{6 \sum_{i=1}^{n} ( \mathrm{rank}(s_r^i) 
           - \mathrm{rank}(s_g^i) )^2}{n(n^2 - 1)},
         \end{aligned}
+        \label{eq:Spearman}
       \end{equation}
       where \( \mathrm{rank}(s_r^i) \) and 
       \( \mathrm{rank}(s_g^i) \) denote the ranks of scores 
@@ -998,285 +1038,324 @@ and fat tails.
       that the synthetic data is suitable for algorithm evaluation 
       and comparison.
 
-      We have considered the following deep hedger algorithms:
-      \begin{enumerate}[label=\textbf{[H\arabic*]}]
-        \item \label{hedger:feedforwardlag} \textbf{Feedforward Layers
-        Neural 
-        Network (FLNN).} A standard multi-layer perceptron with 
-        fully connected layers, ReLU activations, and dropout for 
-        regularization.
-
-        \item \label{hedger:feedforward} \textbf{Feedforward Time
-        Neural Network (FTNN).} A feed-forward neural network designed 
-          to process time series data by accepting lagged observations 
-          as input features. This architecture uses fully connected 
-          layers with ReLU activations and dropout for regularization, 
-          enabling it to learn non-linear relationships between past 
-          and future values without explicit recurrence.
-        
-        \item \label{hedger:lstm} \textbf{Long Short-Term Memory 
-        (LSTM).} A recurrent neural network architecture designed 
-        to capture temporal dependencies in sequential data, 
-        particularly effective for time series tasks.
-        
-        \item \label{hedger:rnn} \textbf{Recurrent Neural Network (RNN).}
-        An attention-based architecture that models long-range 
-        dependencies in sequences without relying on recurrence, 
-        utilizing self-attention mechanisms to enhance performance 
-        on sequential data.
-      
-      \end{enumerate}
-    
-    We also considered the following (non-deep) hedging models:
-    \begin{enumerate}[label=\textbf{[H\arabic*]}, resume]
-      \item \label{hedger:black-scholes} \textbf{Black-Scholes 
-      Delta Hedging (BSD).} A classical hedging strategy based on the 
-      Black-Scholes option pricing model, which computes the 
-      delta of the option to determine the optimal hedge ratio.
-
-      \item \label{hedger:binomial} \textbf{Binomial Delta-Gamma Hedging (BDG).}
-      A discrete-time hedging strategy that uses a binomial tree
-      model to compute both delta and gamma of the option, allowing
-      for more accurate hedging in the presence of non-linear price
-      movements.
-
-      \item \label{hedger:lreg} \textbf{Linear Regression Hedging (LR).} 
-      A hedging strategy that uses linear regression to estimate 
-      the hedge ratios based on historical data.
-
-      \item \label{hedger:xgboost} \textbf{XGBoost Hedging (XGB).}
-      A machine learning-based hedging strategy that employs
-      gradient boosting decision trees to learn optimal hedge ratios
-      from historical data.  
-    \end{enumerate} 
+      The (deep) hedger algorithms \( \mathcal{A}_n \) considered in 
+      this benchmark can be found in appendix 
+      \ref{appendix:deep-hedger-algorithms}.
 
       \subsubsection{(Deep) hedger Portfolio Evaluation}
       We evaluate the suite of hedger algorithms trained on 
       synthetic and real data using the portfolio replication error 
       or replication loss metric \cite{Boursin22}.
 
+
+
 \section{Results and Analysis}
-  \subsection{Statistical Evaluation Results}
-    We present a concise, comprehensive evaluation of the synthetic
-    financial time series produced by each model. The analysis covers
-    marginal and second-order statistics, temporal dependencies,
-    diversity measures, stylized-facts verification, and generation
-    efficiency. Results are reported on the minute-level closing price
-    and summarized in the tables and figures that follow: fidelity
-    metrics, diversity metrics, stylized-fact comparisons, and
-    generation-time measurements. Best-performing entries are
-    highlighted where appropriate and comparative discussion appears
-    in the subsequent analysis subsections.
+  We present a concise, comprehensive evaluation of the synthetic
+  financial time series produced by each model. The analysis covers
+  marginal and second-order statistics, temporal dependencies,
+  diversity measures, stylized-facts verification, and generation
+  efficiency. Results are reported on the minute-level closing price
+  and summarized in the tables and figures that follow: fidelity
+  metrics, diversity metrics, stylized-fact comparisons, and
+  generation-time measurements. Best-performing entries are
+  highlighted where appropriate and comparative discussion appears
+  in the subsequent analysis subsections.
 
-\begin{comment}    
-  \begin{table*}[h]
-    \centering
-    \caption{Fidelity metrics by model and channel 
-    (lower $\downarrow$ is better). Channels O, H, L, C 
-    correspond to Open, High, Low, Close. Part 1: MDD and MD.}
-    \begin{tabular}{l|cccc|cccc}
-      \toprule
-      & \multicolumn{4}{c|}{MDD $\downarrow$} 
-      & \multicolumn{4}{c}{MD $\downarrow$} \\
-      Model & O & H & L & C & O & H & L & C \\
-      \midrule
-      GBM & 4.35 & 4.48 & 4.48 & 3.41 
-          & 0.0010 & 0.0004 & 0.0005 & 0.0014 \\
-      OU\_Process & 4.31 & 4.48 & 4.43 & 3.37 
-          & 0.0010 & 0.0003 & 0.0005 & 0.0014 \\
-      MJD & 3.74 & 3.89 & 3.86 & 2.87 
-          & 0.0014 & 0.0004 & 0.0004 & 0.0004 \\
-      GARCH11 & \textbf{2.60} & \textbf{2.47} & 2.88 
-          & \textbf{1.92} & \textbf{0.0000} & \textbf{0.0001} 
-          & \textbf{0.0001} & \textbf{0.0001} \\
-      DEJD & 2.79 & \textbf{2.38} & \textbf{2.55} & 2.17 
-          & 0.0015 & 0.0009 & 0.0018 & 0.0011 \\
-      BlockBootstrap & 2.82 & 2.75 & 2.78 & 2.20 
-          & 0.0014 & 0.0005 & 0.0003 & 0.0007 \\
-      TimeGAN & 4.83 & 5.04 & 5.31 & 3.85 
-          & 0.0029 & 0.0025 & 0.0038 & 0.0022 \\
-      QuantGAN & 3.87 & 3.64 & 4.28 & 2.50 
-          & 0.0053 & 0.0006 & 0.0077 & 0.0030 \\
-      TimeVAE & 9.98 & 9.77 & 10.42 & 8.35 
-          & 0.0014 & 0.0019 & 0.0021 & 0.0022 \\
-      Takahashi & 5.63 & 5.42 & 5.66 & 4.37 
-          & 0.0508 & 0.0827 & 0.1241 & 0.0713 \\
-      \bottomrule
-    \end{tabular}
-  \end{table*}
+  In §\ref{sec:stats_results} and §\ref{sec:hedger_results}, results
+  displayed and analysis are presented based on SDGFTS traingin with
+  sequenc length determined by the maximum significant PACF lag
+  (§\ref{sec:model-specific}).
 
-  \begin{table*}[h]
-    \centering
-    \caption{Fidelity metrics (Part 2): Standard Deviation 
-    Difference (SDD) by model and channel.}
-    \begin{tabular}{l|cccc}
-      \toprule
-      & \multicolumn{4}{c}{SDD $\downarrow$} \\
-      Model & O & H & L & C \\
-      \midrule
-      GBM & 0.0115 & 0.0108 & 0.0119 & 0.0110 \\
-      OU\_Process & 0.0115 & 0.0107 & 0.0119 & 0.0110 \\
-      MJD & 0.0104 & 0.0115 & 0.0133 & 0.0107 \\
-      GARCH11 & \textbf{0.0004} & 0.0005 & \textbf{0.0020} 
-          & \textbf{0.0012} \\
-      DEJD & 0.0138 & 0.0116 & 0.0160 & 0.0141 \\
-      BlockBootstrap & 0.0102 & \textbf{0.0102} & 0.0108 
-          & 0.0118 \\
-      TimeGAN & 0.0072 & 0.0074 & 0.0084 & 0.0063 \\
-      QuantGAN & 0.0081 & 0.0076 & 0.0112 & 0.0059 \\
-      TimeVAE & 0.0191 & 0.0163 & 0.0178 & 0.0193 \\
-      Takahashi & 1.1989 & 1.2980 & 1.3178 & 1.3779 \\
-      \bottomrule
-    \end{tabular}
-  \end{table*}
 
-  \begin{table*}[h]
-    \centering
-    \caption{Fidelity metrics (Part 3): Kurtosis Difference 
-    (KD) and AutoCorrelation Difference (ACD).}
-    \begin{tabular}{l|cccc|cccc}
-      \toprule
-      & \multicolumn{4}{c|}{KD $\downarrow$} 
-      & \multicolumn{4}{c}{ACD $\downarrow$} \\
-      Model & O & H & L & C & O & H & L & C \\
-      \midrule
-      GBM & 3.64 & 6.09 & 4.03 & 6.18 
-          & 0.159 & 0.175 & 0.235 & 0.269 \\
-      OU\_Process & 3.64 & 6.07 & 4.02 & 6.17 
-          & 0.158 & 0.148 & 0.204 & 0.273 \\
-      MJD & 3.28 & 13.01 & 23.14 & 12.47 
-          & 0.188 & 0.198 & 0.244 & 0.271 \\
-      GARCH11 & 3.50 & \textbf{5.89} & \textbf{3.36} 
-          & \textbf{5.98} & 0.224 & 0.199 & 0.230 & 0.257 \\
-      DEJD & 92.26 & 61.12 & 133.55 & 61.41 
-          & 0.167 & 0.158 & 0.257 & 0.265 \\
-      BlockBootstrap & \textbf{2.20} & 5.27 & 8.33 & 3.69 
-          & 0.177 & 0.181 & 0.172 & \textbf{0.305} \\
-      TimeGAN & 4.99 & 6.73 & 4.92 & 7.32 
-          & 0.345 & 0.390 & 0.445 & 0.327 \\
-      QuantGAN & 3.62 & 6.11 & 4.08 & 7.37 
-          & \textbf{0.154} & 0.225 & 0.272 & 0.357 \\
-      TimeVAE & 5.14 & 3.16 & 3.95 & 7.23 
-          & 2.762 & 3.255 & 3.462 & 1.888 \\
-      Takahashi & 3.12 & 5.48 & 3.42 & 6.84 
-          & 0.216 & \textbf{0.207} & \textbf{0.229} & 0.327 \\
-      \bottomrule
-    \end{tabular}
-  \end{table*}
+  \begin{figure*}[h]
+      \centering
+      \includegraphics[width=\textwidth,height=8cm,keepaspectratio]
+      {../results/main_experiment/figure_2_tsne_distribution/figure_2_tsne_distribution.png}
+      \caption{t-SNE visualization and distribution plots comparing real and synthetic financial time series data across models.
+      (Specification: sequence length based on
+      maximum significant PACF lag)}
+      \Description{t-SNE embeddings and histograms showing the overlap and distributional properties of real versus synthetic data generated by different SDGFTS models.}
+      \label{fig:tsne_distribution}
+  \end{figure*}
 
-  \begin{table*}[h]
-    \centering
-    \caption{Diversity metrics by model and channel 
-    (higher $\uparrow$ is better). Best value in each 
-    column bolded.}
-    \begin{tabular}{l|cccc|cccc}
-      \toprule
-      & \multicolumn{4}{c|}{ICD-ED $\uparrow$} 
-      & \multicolumn{4}{c}{ICD-DTW $\uparrow$} \\
-      Model & O & H & L & C & O & H & L & C \\
-      \midrule
-      GBM & 0.150 & 0.133 & 0.145 & 0.150 
-          & 0.100 & 0.088 & 0.097 & 0.099 \\
-      OU\_Process & 0.150 & 0.133 & 0.145 & 0.149 
-          & 0.100 & 0.088 & 0.096 & 0.100 \\
-      MJD & 0.140 & 0.130 & 0.143 & 0.142 
-          & 0.096 & 0.092 & 0.101 & 0.098 \\
-      GARCH11 & 0.090 & 0.077 & 0.095 & 0.088 
-          & 0.061 & 0.051 & 0.064 & 0.060 \\
-      DEJD & 0.135 & 0.118 & 0.132 & 0.143 
-          & 0.102 & 0.091 & 0.104 & 0.108 \\
-      BlockBootstrap & 0.138 & 0.125 & 0.132 & 0.146 
-          & 0.100 & 0.091 & 0.097 & 0.107 \\
-      TimeGAN & 0.133 & 0.121 & 0.132 & 0.131 
-          & 0.081 & 0.073 & 0.080 & 0.079 \\
-      QuantGAN & 0.137 & 0.122 & 0.146 & 0.130 
-          & 0.092 & 0.081 & 0.097 & 0.086 \\
-      TimeVAE & 0.000 & 0.000 & 0.000 & 0.000 
-          & 0.000 & 0.000 & 0.000 & 0.000 \\
-      Takahashi & \textbf{5.974} & \textbf{6.454} 
-          & \textbf{6.529} & \textbf{6.859}
-          & \textbf{4.078} & \textbf{4.502} 
-          & \textbf{4.503} & \textbf{4.744} \\
-      \bottomrule
-    \end{tabular}
-  \end{table*}
+  \subsection{Statistical Evaluation Results}\label{sec:stats_results}
+    The following 2 sections are basesd on the results summarized in
+    figure \ref{fig:heatmap_all_taxonomies}.
+    \subsubsection{Stylized Facts and Fidelity}
+    The block bootstrap \ref{alg:blockbootstrap2} consistently 
+    achieves the strongest 
+    performance across both distributional metrics and stylized facts. 
+    This outcome is expected: by resampling contiguous blocks from the 
+    training data, the block bootstrap directly inherits empirical 
+    marginal distributions \ref{metric:mdd} and short- to 
+    medium-range dependence 
+    structures. As a result, it naturally preserves key stylized facts 
+    (e.g., heavy tails \ref{metric:kd}, volatility clustering 
+    \ref{metric:volclustering}) as long as they are present within 
+    the chosen block length.
 
-  \begin{table*}[h]
-    \centering
-    \caption{Stylized facts by model and channel. 
-    Differences are real minus synthetic 
-    (lower $\downarrow$ is better). Part 1: Heavy Tails and 
-    Autocorrelation.}
-    \begin{tabular}{l|cccc|cccc}
-      \toprule
-      & \multicolumn{4}{c|}{Heavy Tails (diff) $\downarrow$} 
-      & \multicolumn{4}{c}{Autocorr Raw (diff) $\downarrow$} \\
-      Model & O & H & L & C & O & H & L & C \\
-      \midrule
-      GBM & 0.573 & 0.833 & 0.753 & 0.627 
-          & 0.047 & 0.093 & 0.059 & 0.035 \\
-      OU\_Process & 0.622 & 0.858 & 0.794 & 0.608 
-          & 0.025 & 0.007 & 0.007 & 0.061 \\
-      MJD & \textbf{0.108} & 0.229 & 0.183 & \textbf{0.126} 
-          & 0.065 & 0.073 & 0.057 & 0.041 \\
-      GARCH11 & 0.687 & 0.928 & 0.784 & 0.685 
-          & 0.050 & 0.098 & 0.057 & 0.017 \\
-      DEJD & 0.217 & 0.360 & 0.380 & 0.210 
-          & 0.049 & 0.107 & 0.067 & 0.034 \\
-      BlockBootstrap & 0.207 & \textbf{0.081} & 0.257 & 0.152 
-          & \textbf{0.022} & 0.014 & 0.034 & 0.046 \\
-      TimeGAN & 1.074 & 1.363 & 1.206 & 1.097 
-          & 0.163 & 0.188 & 0.149 & 0.180 \\
-      QuantGAN & 0.387 & 0.615 & 0.630 & 0.387 
-          & 0.046 & 0.095 & 0.069 & \textbf{0.007} \\
-      TimeVAE & 1.225 & 2.307 & 0.277 & 0.962 
-          & 0.491 & 0.267 & 0.415 & 0.512 \\
-      Takahashi & 0.482 & 0.621 & 0.650 & 0.480 
-          & 0.055 & \textbf{0.007} & \textbf{0.030} & 0.046 \\
-      \bottomrule
-    \end{tabular}
-  \end{table*}
+    Among parametric models, GARCH \ref{alg:garch} performs second 
+    best overall. This is
+    consistent with its widespread use in financial time series modeling:
+    GARCH is explicitly designed to capture volatility clustering and
+    volatility persistence. While standard GARCH models do not exhibit
+    true long-memory behavior (in the strict statistical sense), they
+    nonetheless approximate slowly decaying volatility autocorrelations
+    well enough to score favorably on stylized-fact metrics relative to
+    simpler parametric models such as OU process and GBM.
 
-  \begin{table*}[h]
-    \centering
-    \caption{Stylized facts (Part 2): Volatility Clustering 
-    difference by model and channel.}
-    \begin{tabular}{l|cccc}
-      \toprule
-      & \multicolumn{4}{c}{Volatility Clustering 
-        (diff) $\downarrow$} \\
-      Model & O & H & L & C \\
-      \midrule
-      GBM & 0.019 & 0.048 & 0.040 & 0.033 \\
-      OU\_Process & 0.032 & 0.061 & 0.018 & 0.018 \\
-      MJD & 0.038 & 0.023 & 0.030 & 0.013 \\
-      GARCH11 & 0.055 & 0.062 & 0.059 & 0.024 \\
-      DEJD & 0.022 & 0.051 & 0.048 & 0.029 \\
-      BlockBootstrap & 0.017 & 0.014 & 0.028 
-          & \textbf{0.012} \\
-      TimeGAN & 0.014 & 0.015 & \textbf{0.005} & 0.061 \\
-      QuantGAN & \textbf{0.010} & \textbf{0.009} & 0.007 
-          & 0.014 \\
-      TimeVAE & 0.523 & 0.292 & 0.350 & 0.553 \\
-      Takahashi & 0.012 & 0.011 & 0.017 & 0.030 \\
-      \bottomrule
-    \end{tabular}
-  \end{table*}
-\end{comment}    
+    The DEJD \ref{alg:dejd} model underperforms on kurtosis-
+    based metrics \ref{metric:kd} despite its ability to generate fat tails.
+    Although the jump component introduces excess kurtosis relative to pure
+    diffusion processes, the model is not inherently calibrated to
+    reproduce empirical tail thickness precisely. Its weaker performance
+    likely reflects limitations in parameter estimation and
+    mismatch between assumed jump dynamics and the empirical return
+    distribution.
 
-  \subsection{Utility Evaluation Results}
-    Results of the (deep) hedging evaluation (replication error, P\&L
-    distribution, risk-adjusted metrics) can be summarized in tables
-    analogous to the above once computed.
+    Volatility models such as GBM \ref{alg:gbm} and the OU process \ref{alg:ou}
+     perform poorly on
+    stylized facts (§ \ref{sec:stylized-facts}). This result is unsurprising: 
+    both models assume
+    conditionally Gaussian increments with constant (GBM) or mean-reverting
+    (OU) volatility, and therefore cannot reproduce volatility clustering
+    or persistent heteroskedasticity observed in real financial time
+    series.
 
-  \subsection{Comprehensive Model Comparison}
-    Provide radar plots or scorecards that combine normalized metrics
-    (fidelity, diversity, stylized facts, efficiency) into composite
-    ranks per task.
+    A notable result is that QuantGAN performs significantly worse on
+    distributional metrics while capturing stylized facts relatively well.
+    This suggests that the adversarial objective is effective at matching
+    temporal dependence and higher-order dynamics, but less effective at
+    aligning marginal distributions without explicit distributional
+    constraints. TimeVAE performs poorly overall, which is consistent with
+    posterior collapse when trained on log returns—limiting its ability to
+    generate meaningful variability and capture higher-order financial
+    structure.
 
-  \subsection{Ranking Analysis}
-    Discuss trade-offs: fidelity vs. diversity, training time vs.
-    quality, and sensitivity to window length and sample count.
+    \subsubsection{Efficiency}
+
+    Efficiency results largely follow model complexity. GBM, as the
+    simplest model both conceptually and computationally, is the fastest
+    to train and sample from. In contrast, QuantGAN is the slowest by
+    design, reflecting the cost of adversarial training and high-capacity
+    neural architectures.
+
+    \subsubsection{Visualization}
+
+    Figure \ref{fig:tsne_distribution} presents t-SNE embeddings and
+    return distribution plots (see §\ref{sec:visualization_methods}) 
+    for real versus synthetic data across
+    models. The block bootstrap \ref{alg:blockbootstrap2}shows 
+    near-perfect overlap in t-SNE space, reflecting its direct 
+    resampling from real data. QuantGAN \ref{alg:quantgan} and
+    DEJD \ref{alg:dejd} also shows better distribution alignment,
+    but does not full capture the clusters in the t-SNE plots.
+
+    While other parametric models do not capture these clusters fully,
+    they generally corroborate the quantitative findings: GARCH
+    \ref{alg:garch} shows better distributional alignment than GBM
+    \ref{alg:gbm} and OU process \ref{alg:ou}, while TimeVAE
+    \ref{alg:timevae} exhibits the worst overlap and distributional
+    mismatch, as it appears to suffer from posterior collapse.
+
+    \subsubsection{Diveristy metrics}\label{sec:diversity_introduce}
+
+    Diversity alone is ambiguous: high variability does not guarantee
+    realism and may violate structural dependencies. We therefore evaluate
+    diversity jointly with fidelity to ensure variability remains
+    plausible. We revisit this in research question \ref{rq:2} and in
+    §\ref{sec:metric_tradeoffs}.
+    
+    \subsection{Utility Evaluation Results}\label{sec:hedger_results}
+    \begin{figure*}[h]
+      \centering
+      \includegraphics[width=\textwidth,height=8cm,keepaspectratio]
+      {../results/main_experiment/figure_1_per_metric_heatmaps/figure_1_utility_and_algorithm_ranknorm_heatmap.png}
+      \caption{Normalized ranking heatmap for mean replication values
+      of each hedger trained on SDGFTS/real data. Raw minimum and 
+      maximum values are provided for each metric column.
+     (Specification: Augmented datasets and sequence length based on
+      maximum significant PACF lag).}
+      \Description{Heatmap displaying normalized utility metric rankings 
+      and algorithm comparison results across different SDGFTS models.}
+      \label{fig:heatmap_utility_algorithm}
+    \end{figure*}
+
+    As see in Figure \ref{fig:heatmap_utility_algorithm},
+    for the augmented testing \ref{sec:augmented-testing}, we can make the observation that for the
+    hedging models, the neural network models generally perform better
+    than the parametric models in estimating the deltas. This is expected
+    as the neural network models are able to capture the higher-order
+    dynamics of the index series, which the parametric models are not
+    able to capture \cite{Fecamp20}.
+
+    In the augmented-testing setting, with algorithms compared across
+    datasets (see §\ref{sec:algorithm-comparison}), we observe that
+    the rank-normalized values of the
+    heatmaps obtained using QuantGAN \ref{alg:quantgan}
+    and BlockBootstrap \ref{alg:blockbootstrap2}
+     remain highly consistent with those derived from real-only
+    data. In particular, rank-normalized hedging performance under
+    QuantGAN augmentation closely matches the baseline ordering, while
+    BlockBootstrap augmentation yields nearly identical results. This
+    behavior is expected for BlockBootstrap, which preserves empirical
+    dependence structures by construction, and suggests that
+    QuantGAN-generated samples do not distort the hedger-relevant
+    dynamics when mixed with real data. Thus, both augmentation
+    strategies maintain the relative sensitivities and preferences of
+    hedger models observed under real-data training, indicating that
+    these synthetic generators can be used for augmentation without
+    materially altering hedging-based performance assessments.
+
+    For Spearman correlation (see Equation \ref{eq:Spearman}),
+    recommended by Stenger et al., it's important to note that this metric
+    considers only the ranking of model performances, completely ignoring
+    the actual delta values between them \cite{Stenger24}. This can be 
+    problematic: for
+    example, TimeVAE \ref{alg:timevae} \textemdash despite suffering 
+    from mode collapse and generating
+    less realistic outputs \textemdash may still achieve a high Spearman correlation
+    if it preserves the order of model performances, even though the
+    deltas may be substantially off or meaningless. Conversely, QuantGAN,
+    which better captures the structure of financial data, might produce
+    more realistic values but achieve a worse Spearman score if the
+    ranking changes slightly. Thus, relying solely on Spearman
+    correlation can be misleading, as it overlooks the magnitude and
+    quality of differences between models and may obscure meaningful
+    distinctions in model performance.
+  
+  \subsection{\ref{rq:1} Metric Response on Sequence Length Training}
+    We investigate how training sequence length affects evaluation
+    metrics as posed in research question \ref{rq:1}.
+    As previous sections describe how sequence length is determined
+    based on model-specific PACF analysis (§\ref{sec:model-specific})
+    how they affect the Stonk Bench architecture.
+
+    Recall that the sequence lengths considered are 60, 120, 180, 240,
+    and 300 minutes respectively.
+
+  We analyze each metric as the training sequence length varies from
+  60 to 300 minutes.
+
+\subsubsection{Fidelity}
+  Rank-normalized MDD values are essentially invariant to sequence
+  length, which is expected for a marginal distribution metric unless
+  models generate time-varying distributions (not observed here).
+  Skewness differences show minimal variation for GARCH(1,1), GBM, OU,
+  and MJD, suggesting limited sensitivity to sequence length. Modest
+  rank improvements for BlockBootstrap and DEJD likely reflect better
+  capture of asymmetric tail events. Kurtosis differences for GARCH,
+  MJD, OU, and GBM change marginally with sequence length, consistent
+  with limited extreme-tail generation; BlockBootstrap improves with
+  longer sequences by resampling rare extremes. See the fidelity
+  ablation heatmap in Figure~\ref{fig:ablation_fidelity}.
+
+\subsubsection{Diversity}
+  Diversity rankings remain stable across sequence lengths, consistent
+  with largely unchanged marginal distributions. However, the minimum
+  and maximum diversity values increase with sequence length, as longer
+  windows permit greater variability across time steps. See the
+  diversity ablation heatmap in Figure~\ref{fig:ablation_diversity}.
+
+\subsubsection{Efficiency}
+  Maximum generation time increases monotonically with sequence length,
+  while model rankings remain unchanged, reflecting computational
+  complexity rather than algorithmic reordering. See the efficiency
+  ablation heatmap in Figure~\ref{fig:ablation_efficiency}.
+
+\subsubsection{Stylized facts}
+  The maximum values for lag-1 autocorrelation of absolute returns and
+  volatility clustering increase with sequence length, whereas long
+  memory measures tend to decrease. Rankings for QuantGAN,
+  BlockBootstrap, and DEJD are largely preserved across lengths. See
+  the stylized-facts ablation heatmap in
+  Figure~\ref{fig:ablation_stylized_facts}.
+
+\subsubsection{Spearman correlation}
+  Spearman's rank correlation summarizes ordering only and can be
+  misleading when magnitude differences matter; reliance on it alone is
+  therefore discouraged. See the utility correlation comparison in
+  Figure~\ref{fig:ablation_utility_spearman}.
+
+
+  \subsection{\ref{rq:2} Metric Tradeoffs and Interactions}
+  \label{sec:metric_tradeoffs}
+    We dedicate this subsection to answer the research question
+    \ref{rq:2} regarding trade-offs and interactions between different
+    evaluation metrics.
+
+    \subsubsection{Diversity versus Fidelity}
+      As introduced in §\ref{sec:diversity_introduce}, diversity
+      metrics must be interpreted in conjunction with fidelity and
+      stylized-fact metrics. How should we interpret these relationships? 
+      Recall that "difference" here means the discrepancy between real 
+      and synthetic data—the lower the value, the better the model is 
+      matching the real data.
+
+      The MDD \ref{metric:mdd} and SDD \ref{metric:sdd} 
+      both show a notably strong positive correlation with ICD 
+      Euclidean diversity \ref{metric:ed}. For example, MDD has a 
+      Pearson correlation coefficient of \( r = 0.68 \) (p = 0.09), 
+      and STD difference has an even higher \( r = 0.97 \) 
+      (p = 1.90e-4) (see Figure \ref{fig:eclidian_fidelity_diversity}). 
+      This indicates that as the marginal or standard deviation 
+      difference between real and synthetic data increases (i.e., as 
+      fidelity to the real data worsens), the diversity, as measured 
+      by ICD Euclidean, also tends to increase.
+
+      The findings indicate that increased diversity, as measured by ICD 
+      Euclidean, often correlates with reduced fidelity in basic 
+      distributional statistics. This suggests that models generating 
+      more diverse samples may deviate significantly from the real data 
+      distribution, highlighting the necessity of balancing diversity 
+      with fidelity. While some diversity is beneficial for generative 
+      models, excessive diversity can lead to less realistic outputs. 
+      Therefore, it is crucial to evaluate both fidelity and diversity 
+      metrics together when assessing generative time series models.
+
+    \subsubsection{Diversity versus Stylized Facts}
+      Figure \ref{fig:eclidian_stylized_facts_diversity} presents
+      scatter plots illustrating the relationship between ICD Euclidean
+      diversity \ref{metric:ed} and key stylized-fact metrics:
+      ACD \ref{metric:acd}, volatility clustering \ref{metric:volclustering},
+      and LMSD \ref{metric:slow_decay}.
+
+      Volatility clustering shows a weak positive correlation with
+      diversity (p \( \approx \) 0.1). This suggests that more diverse models
+      tend to preserve stronger volatility clustering, indicating
+      that allowing a broader range of sample paths may help retain
+      persistent volatility dynamics, though the evidence is
+      marginal.
+
+      Long memory in volatility is also positively and mildly
+      correlated with diversity. This implies that models producing
+      more varied samples are more likely to exhibit persistent,
+      slowly decaying volatility correlations, consistent with
+      richer temporal dynamics emerging from increased generative
+      flexibility.
+
+    \begin{figure}[h]
+      \centering
+      \includegraphics[width=0.45\textwidth,height=6cm,keepaspectratio]
+      {../results/appendix/figure_6_stylized_facts_vs_diversity/figure_6_icd_euclidean_2x2_grid.png}
+      \caption{Scatter plots showing the relationship between 
+      ICD Euclidean diversity and stylized facts metrics (ACD, 
+      volatility clustering, and LMSD). Each point represents a model, 
+      with trend lines indicating correlation direction and strength.}
+      \Description{Scatter plots illustrating the correlation between 
+      ICD Euclidean diversity and stylized facts metrics (ACD, 
+      volatility clustering, and LMSD)
+      across different models.}
+      \label{fig:eclidian_stylized_facts_diversity}
+    \end{figure}
+
+    \subsubsection{Efficiency versus other metrics}
+      Efficiency, measured by generation time, shows no significant
+      correlation with fidelity, diversity, or stylized-fact metrics.
+      This indicates that faster models do not necessarily compromise
+      on quality or realism, nor do slower models guarantee better
+      performance. Thus, efficiency appears to be largely independent
+      of other evaluation dimensions in this benchmark.
 
 \section{Conclusion and Future Work}
   In our research, we recognize the existing limitations in the
@@ -1366,7 +1445,7 @@ and fat tails.
         on different temporal scales and their ability to capture both
         short-term and long-term dependencies. The most relevant granularities
         that are commonly used in financial analysis and trading strategies
-        are 5-minute, 30-minute, and daily data \cite{Wang20Cont01}.
+        are 5-minute, 30-minute, and daily data \cite{Wang20, Cont01}.
     \end{enumerate}
 
     \subsubsection{Beyond the project} We envision Stonk Bench
@@ -1415,11 +1494,229 @@ and fat tails.
 
 \appendix
 
-\section{Preprocessing Diagnostics}
-  \subsection{Channel-wise Distributions}
+\section{Utility Evaluation Logistics}
+  Detailed procedures for (deep) hedging evaluation, including
+  dataset splits, model architectures, training hyperparameters,
+  and evaluation metrics.
 
-  \subsection{Autocorrelation Analyses}
+  \subsection{Hedging Tasks Specifications}
+    We consider the hedging of a European call option on a single
+    underlying asset \( S_t \) with strike price \( K \) and
+    maturity \( T \). The option payoff at maturity is given by
+    \( g(S_T) = \max(S_T - K, 0) \).
 
-\section{Embedding Visualizations}
+    For each sequence length tested in §\ref{sec:sequence_length},
+    we have set the corresponding option maturity \( T \) to match
+    the length of the generated sequences. For example, if the
+    sequence length is 60 minutes, then the option maturity \( T \)
+    is set to 60 minutes.
+
+  \subsection{Algorithm Comparison Models}\label{appendix:deep-hedger-algorithms}
+    In §\ref{sec:algorithm-comparison}, we described the procedure
+    for comparing multiple (deep) hedger algorithms to evaluate the
+    relative performance preservation on synthetic data versus real
+    data.
+  
+      We have considered the following deep hedger algorithms:
+      \begin{enumerate}[label=\textbf{[H\arabic*]}]
+        \item \label{hedger:feedforwardlag} \textbf{Feedforward Layers
+        Neural 
+        Network (FLNN).} A standard multi-layer perceptron with 
+        fully connected layers, ReLU activations, and dropout for 
+        regularization.
+
+        \item \label{hedger:feedforward} \textbf{Feedforward Time
+        Neural Network (FTNN).} A feed-forward neural network designed 
+          to process time series data by accepting lagged observations 
+          as input features. This architecture uses fully connected 
+          layers with ReLU activations and dropout for regularization, 
+          enabling it to learn non-linear relationships between past 
+          and future values without explicit recurrence.
+        
+        \item \label{hedger:lstm} \textbf{Long Short-Term Memory 
+        (LSTM).} A recurrent neural network architecture designed 
+        to capture temporal dependencies in sequential data, 
+        particularly effective for time series tasks.
+        
+        \item \label{hedger:rnn} \textbf{Recurrent Neural Network (RNN).}
+        An attention-based architecture that models long-range 
+        dependencies in sequences without relying on recurrence, 
+        utilizing self-attention mechanisms to enhance performance 
+        on sequential data.
+      
+      \end{enumerate}
+    
+    We also considered the following (non-deep) hedging models:
+    \begin{enumerate}[label=\textbf{[H\arabic*]}, resume]
+      \item \label{hedger:black-scholes} \textbf{Black-Scholes 
+      Delta Hedging (BSD).} A classical hedging strategy based on the 
+      Black-Scholes option pricing model, which computes the 
+      delta of the option to determine the optimal hedge ratio.
+
+      \item \label{hedger:binomial} \textbf{Binomial Delta-Gamma Hedging (BDG).}
+      A discrete-time hedging strategy that uses a binomial tree
+      model to compute both delta and gamma of the option, allowing
+      for more accurate hedging in the presence of non-linear price
+      movements.
+
+      \item \label{hedger:lreg} \textbf{Linear Regression Hedging (LR).} 
+      A hedging strategy that uses linear regression to estimate 
+      the hedge ratios based on historical data.
+
+      \item \label{hedger:xgboost} \textbf{XGBoost Hedging (XGB).}
+      A machine learning-based hedging strategy that employs
+      gradient boosting decision trees to learn optimal hedge ratios
+      from historical data.  
+    \end{enumerate}
+
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=0.9\textwidth,keepaspectratio]
+  {../results/ablation_studies/figure_3_metric_heatmaps_per_metric/figure_3_fidelity_per_metric_ranknorm.png}
+  \caption{Ablation study: fidelity per-metric rank-normalized heatmap across sequence lengths.}
+  \Description{Heatmap showing fidelity metrics across sequence length ablations.}
+  \label{fig:ablation_fidelity}
+\end{figure*}
+
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=0.9\textwidth,keepaspectratio]
+  {../results/ablation_studies/figure_3_metric_heatmaps_per_metric/figure_3_diversity_per_metric_ranknorm.png}
+  \caption{Ablation study: diversity per-metric rank-normalized heatmap across sequence lengths.}
+  \Description{Heatmap showing diversity metrics across sequence length ablations.}
+  \label{fig:ablation_diversity}
+\end{figure*}
+
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=0.9\textwidth,keepaspectratio]
+  {../results/ablation_studies/figure_3_metric_heatmaps_per_metric/figure_3_stylized-facts_per_metric_ranknorm.png}
+  \caption{Ablation study: stylized-facts per-metric rank-normalized heatmap across sequence lengths.}
+  \Description{Heatmap showing stylized-facts metrics across sequence length ablations.}
+  \label{fig:ablation_stylized_facts}
+\end{figure*}
+
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=0.9\textwidth,keepaspectratio]
+  {../results/ablation_studies/figure_3_metric_heatmaps_per_metric/figure_3_efficiency_per_metric_ranknorm.png}
+  \caption{Ablation study: efficiency per-metric rank-normalized heatmap across sequence lengths.}
+  \Description{Heatmap showing efficiency metrics across sequence length ablations.}
+  \label{fig:ablation_efficiency}
+\end{figure*}
+
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=0.9\textwidth,keepaspectratio]
+  {../results/ablation_studies/figure_3_metric_heatmaps_per_metric/figure_3_utility_spearman_and_mixed_per_seq.png}
+  \caption{Ablation study: utility (Spearman) per-sequence-length comparison across hedger algorithms between real and sythetic data.}
+  \Description{Heatmap or plot showing utility Spearman correlations per sequence length.}
+  \label{fig:ablation_utility_spearman}
+\end{figure*}
+
+      \begin{figure*}[h]
+      \centering
+      \includegraphics[width=\textwidth,height=10cm,keepaspectratio]
+      {../results/appendix/figure_5_fidelity_vs_diversity/figure_5_icd_euclidean_2x3_grid.png}
+      \caption{Scatter plots and linear regression analysis showing the relationship between 
+      fidelity metrics (MDD, MD, SDD, SD, KD, by row) and intra-class Euclidean distance (ICD-ED) 
+      across all SDGFTS models. Each subplot displays the fitted regression line with 
+      corresponding R² value and p-value, indicating the strength and statistical significance 
+      of the linear relationship between fidelity and diversity.}
+      \Description{A heatmap displaying the normalized rankings of diversity metrics for
+      different SDGFTS models, highlighting the performance scores and their implications for model diversity.}
+      \label{fig:eclidian_fidelity_diversity}
+    \end{figure*}
+
+      \begin{figure*}[h]
+      \centering
+      \includegraphics[width=\textwidth,height=10cm,keepaspectratio]
+      {../results/appendix/figure_5_fidelity_vs_diversity/figure_5_icd_dtw_2x3_grid.png}
+      \caption{Scatter plots and linear regression analysis showing the relationship between 
+      fidelity metrics (MDD, MD, SDD, SD, KD, by row) and intra-class DTW distance (ICD-DTW) 
+      across all SDGFTS models. Each subplot displays the fitted regression line with 
+      corresponding R² value and p-value, indicating the strength and statistical significance 
+      of the linear relationship between fidelity and diversity measured by DTW.}
+      \Description{Scatter plots showing the correlation between fidelity metrics and 
+      ICD-DTW diversity across different SDGFTS models.}
+      \label{fig:dtw_fidelity_diversity}
+    \end{figure*}
+
+      \begin{figure*}[h]
+      \centering
+      \includegraphics[width=\textwidth,height=10cm,keepaspectratio]
+      {../results/appendix/figure_6_stylized_facts_vs_diversity/figure_6_icd_dtw_2x2_grid.png}
+      \caption{Scatter plots showing the relationship between stylized facts metrics 
+      (ACD, volatility clustering, and LMSD) and intra-class DTW distance (ICD-DTW) 
+      across all SDGFTS models. Each point represents a model, with trend lines 
+      indicating correlation direction and strength.}
+      \Description{Scatter plots illustrating the correlation between stylized facts 
+      metrics and ICD-DTW diversity across different models.}
+      \label{fig:dtw_stylized_facts_diversity}
+    \end{figure*}
+
+\section{Supplementary t-SNE Visualizations}
+
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=0.9\textwidth,keepaspectratio]
+  {../results/appendix/figure_4_tsne_supplementary/figure_4_seq_60.png}
+  \caption{Supplementary t-SNE visualization for sequence length 60 minutes.}
+  \Description{t-SNE embeddings comparing real and synthetic data for 60-minute sequences.}
+  \label{fig:tsne_seq_60}
+\end{figure*}
+
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=0.9\textwidth,keepaspectratio]
+  {../results/appendix/figure_4_tsne_supplementary/figure_4_seq_120.png}
+  \caption{Supplementary t-SNE visualization for sequence length 120 minutes.}
+  \Description{t-SNE embeddings comparing real and synthetic data for 120-minute sequences.}
+  \label{fig:tsne_seq_120}
+\end{figure*}
+
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=0.9\textwidth,keepaspectratio]
+  {../results/appendix/figure_4_tsne_supplementary/figure_4_seq_180.png}
+  \caption{Supplementary t-SNE visualization for sequence length 180 minutes.}
+  \Description{t-SNE embeddings comparing real and synthetic data for 180-minute sequences.}
+  \label{fig:tsne_seq_180}
+\end{figure*}
+
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=0.9\textwidth,keepaspectratio]
+  {../results/appendix/figure_4_tsne_supplementary/figure_4_seq_240.png}
+  \caption{Supplementary t-SNE visualization for sequence length 240 minutes.}
+  \Description{t-SNE embeddings comparing real and synthetic data for 240-minute sequences.}
+  \label{fig:tsne_seq_240}
+\end{figure*}
+
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=0.9\textwidth,keepaspectratio]
+  {../results/appendix/figure_4_tsne_supplementary/figure_4_seq_300.png}
+  \caption{Supplementary t-SNE visualization for sequence length 300 minutes.}
+  \Description{t-SNE embeddings comparing real and synthetic data for 300-minute sequences.}
+  \label{fig:tsne_seq_300}
+\end{figure*}
+
+\section{Augmented Testing Analysis}
+
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=\textwidth,keepaspectratio]
+  {../results/appendix/figure_7_augmented_testing_delta/figure_7_augmented_testing_2x4_delta.png}
+  \caption{Augmented testing performance comparison showing delta metrics 
+  across different hedger algorithms and SDGFTS models. Each subplot compares 
+  performance when training on real data only versus augmented data 
+  (real + synthetic).}
+  \Description{Grid of plots showing augmented testing delta metrics for 
+  different hedger models and synthetic data generators.}
+  \label{fig:augmented_testing_delta}
+\end{figure*}
+
+
 
 \end{document}
