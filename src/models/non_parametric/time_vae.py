@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import time
 
 from src.models.base.base_model import DeepLearningModel
 
@@ -101,8 +102,8 @@ class TimeVAE(DeepLearningModel):
         seq_len: int,
         input_dim: int,
         latent_dim: int = 10,
-        hidden_dim: int = 128,
-        lr: float = 1e-4,
+        hidden_dim: int = 60,
+        lr: float = 1e-3,
         kl_anneal_epochs: int = 100,
         kl_weight_start: float = 0.0,
         kl_weight_end: float = 1.0,
@@ -140,24 +141,22 @@ class TimeVAE(DeepLearningModel):
         self.kl_ramp = KLRamp(kl_anneal_epochs, kl_weight_start, kl_weight_end)
         self.loss_module = VAELoss(recon_weight, min_kl)
 
-        # Store best parameters inside the class
-        self.best_state_dict = None
-        self.best_recon = float('inf')
-
     def forward(self, x):
         mu, log_var = self.encoder(x)
         z = self.sampler(mu, log_var)
         x_hat = self.decoder(z)
         return x_hat, mu, log_var
 
-    def fit(self, data_loader: DataLoader, num_epochs: int = 200, verbose: bool = True):
-        """Train TimeVAE and save the best parameters based on reconstruction loss only."""
+    def fit(self, data_loader: DataLoader, num_epochs: int = 25, verbose: bool = True):
+        """Train TimeVAE."""
         for epoch in range(1, num_epochs + 1):
+            epoch_start_time = time.time()
             kl_weight = self.kl_ramp(epoch)
             self.train()
             total_loss, total_recon, total_kl, num = 0.0, 0.0, 0.0, 0
 
-            for batch in data_loader:
+            for batch_idx, batch in enumerate(data_loader, 1):
+                batch_start_time = time.time()
                 x = batch[0].float().to(self.device)
                 if x.dim() == 2:
                     x = x.unsqueeze(-1)
@@ -173,37 +172,31 @@ class TimeVAE(DeepLearningModel):
                 total_recon += recon.item() * bsize
                 total_kl += kl.item() * bsize
                 num += bsize
+                batch_time = time.time() - batch_start_time
+                if verbose:
+                    print(f"  Epoch {epoch:03d} | Batch {batch_idx}/{len(data_loader)} | Train batch time: {batch_time:.2f}s")
 
             avg_loss = total_loss / num
             avg_recon = total_recon / num
             avg_kl = total_kl / num
 
-            # Save best parameters internally
-            if avg_recon < self.best_recon:
-                self.best_recon = avg_recon
-                self.best_state_dict = {k: v.cpu().clone() for k, v in self.state_dict().items()}
-
-            print(f"Epoch {epoch:03d}: Training loss {avg_loss:.5g}, recon {avg_recon:.5g}, KL {avg_kl:.5g}")
-
-        # Restore best parameters at the end
-        if self.best_state_dict is not None:
-            self.load_state_dict(self.best_state_dict)
+            epoch_time = time.time() - epoch_start_time
             if verbose:
-                print(f"Best model restored with reconstruction loss {self.best_recon:.5g}")
-
+                print(f"Epoch {epoch:03d}: Train loss {avg_loss:.5g} (recon {avg_recon:.5g}, KL {avg_kl:.5g}) | Time: {epoch_time:.2f}s")
+            
         if verbose:
             print(f"Training completed for {num_epochs} epochs.")
 
     def generate(self, num_samples: int, generation_length: int, seed: int = 42, *args, **kwargs):
         """
         Generate synthetic samples after training.
-        
+
         Args:
             num_samples (int): Number of simulated samples (R).
             generation_length (int): Length of each generated sample.
             seed (int, optional): Random seed for generation. Defaults to 42.
             *args, **kwargs: Optional arguments.
-        
+
         Returns:
             torch.Tensor: Generated series of shape (R, l)
         """

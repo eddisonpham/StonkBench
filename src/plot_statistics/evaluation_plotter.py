@@ -1,97 +1,66 @@
 """
-Main plotting class for evaluation results.
+Main plotting script for evaluation results.
+
+This script generates all paper figures by coordinating the PaperFigureGenerator.
 """
 
 import sys
 from pathlib import Path
 import shutil
-from typing import Dict, Any
+import traceback
 
-sys.path.append(str(Path(__file__).parent.parent))
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
-from utils.metric_plot_utils import find_latest_evaluation_folder, load_evaluation_data, create_output_directory
-from utils.metric_plot_classes_utils import (
-    PerformancePlot, DistributionPlot, SimilarityPlot, 
-    StylizedFactsPlot, CombinedVisualizationPlot
-)
+from src.plot_statistics.paper_figures import PaperFigureGenerator
 
-class EvaluationPlotter:
+
+def clear_output_directory(output_dir: Path) -> None:
     """
-    Comprehensive plotting class for evaluation results.
-    """
+    Clear all contents of the output directory.
     
-    def __init__(self, data: Dict[str, Any], output_dir: str = "evaluation_plots", eval_results_dir: str = None):
-        """
-        Initialize the plotter with evaluation data.
-        """
-        self.data = data
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(exist_ok=True)
-        
-        self.performance_plot = PerformancePlot(data, self.output_dir)
-        self.distribution_plot = DistributionPlot(data, self.output_dir)
-        self.similarity_plot = SimilarityPlot(data, self.output_dir)
-        self.stylized_facts_plot = StylizedFactsPlot(data, self.output_dir)
-        self.combined_visualization_plot = CombinedVisualizationPlot(data, self.output_dir, eval_results_dir=eval_results_dir)
-        
-    def generate_all_plots(self) -> None:
-        """Generate all plots using the unified plot classes."""
-
-        print("Generating combined visualization plot...")
-        self.combined_visualization_plot.plot()
-        
-        print("Generating performance metrics plot...")
-        self.performance_plot.plot()
-        
-        print("Generating distribution metrics plot...")
-        self.distribution_plot.plot()
-        
-        print("Generating similarity metrics plot...")
-        self.similarity_plot.plot()
-        
-        print("Generating stylized facts plots...")
-        self.stylized_facts_plot.plot()
-        
-        print(f"All plots saved to {self.output_dir}")
+    Args:
+        output_dir: Directory to clear.
+    """
+    if not output_dir.exists():
+        return
+    
+    for item in output_dir.iterdir():
+        if item.is_dir():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
 
 
 def main():
     """Main function to generate all evaluation plots."""
     try:
-        print("Finding latest evaluation folder...")
-        latest_folder = find_latest_evaluation_folder()
-        print(f"Latest evaluation folder: {latest_folder}")
+        print("=" * 80)
+        print("Generating Paper Figures")
+        print("=" * 80)
         
-        print("Loading evaluation data...")
-        data = load_evaluation_data(latest_folder)
-        print(f"Loaded data for {len(data)} models: {list(data.keys())}")
+        output_base_dir = Path("evaluation_plots")
+        output_base_dir.mkdir(exist_ok=True)
         
-        output_dir = "evaluation_plots"
-        output_path = Path(output_dir)
-        output_path.mkdir(exist_ok=True)
+        # Clear output directory
+        print(f"\nClearing contents of '{output_base_dir}' before generating new plots...")
+        clear_output_directory(output_base_dir)
+        
+        # Generate paper figures
+        generator = PaperFigureGenerator(
+            results_dir="results", 
+            output_dir=str(output_base_dir)
+        )
+        generator.generate_all_figures()
+        
+        print("\n" + "=" * 80)
+        print("All figures generated successfully!")
+        print(f"Figures saved to: {output_base_dir}")
+        print("=" * 80)
 
-        print(f"Clearing contents of '{output_dir}' before generating new plots...")
-        for item in output_path.iterdir():
-            if item.is_dir():
-                shutil.rmtree(item)
-            else:
-                item.unlink()
-
-        print("Creating output directory...")
-        output_dir_actual = create_output_directory()
-        print(f"Output directory: {output_dir_actual}")
-        
-        print("Initializing plotter...")
-        plotter = EvaluationPlotter(data, output_dir_actual, eval_results_dir=latest_folder)
-        
-        print("Generating all plots...")
-        plotter.generate_all_plots()
-        
-        print("All plots generated successfully!")
-        print(f"Plots saved to: {output_dir_actual}")
-        
     except Exception as e:
         print(f"Error generating plots: {str(e)}")
+        traceback.print_exc()
         sys.exit(1)
 
 

@@ -9,7 +9,6 @@ from __future__ import annotations
 import numpy as np
 from scipy.spatial.distance import pdist
 from dtaidistance import dtw
-import torch
 
 
 def compute_icd_euclidean(data: np.ndarray) -> float:
@@ -31,7 +30,7 @@ def compute_icd_dtw(data: np.ndarray) -> float:
     """
     n_samples, _ = data.shape
     sequences = [data[i, :].astype(np.double) for i in range(n_samples)]
-    dist_matrix = dtw.distance_matrix_fast(sequences, compact=False)
+    dist_matrix = dtw.distance_matrix(sequences, compact=False)
     upper_sum = np.sum(dist_matrix)
     icd = upper_sum / (n_samples * (n_samples - 1))
     return icd

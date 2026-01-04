@@ -1,0 +1,57 @@
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.pytest_cache/
+
+# Virtual environments
+env/
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data and outputs (mounted as volumes)
+cache/
+results/
+evaluation_plots/
+outputs/
+generated_data/
+data/
+mlruns/
+
+# Testing and notebooks
+testing_files/
+notebooks/
+*.ipynb
+
+# Environment files
+.env
+.env.local
+
+# Documentation
+*.md
+!README.md
+
+# Docker files (don't need to copy into container)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Other
+*.csv
+*.pkl
+*.zip
+

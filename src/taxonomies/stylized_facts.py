@@ -6,63 +6,58 @@ Rama Cont, "Empirical properties of asset returns: stylized facts and statistica
 
 Implemented stylized facts and their metrics:
 
-- Heavy Tails: Measured as the average sample excess kurtosis of returns.
 - Absence of Linear Autocorrelations: Measured as the average autocorrelation of raw returns at nonzero lags.
 - Volatility Clustering: Measured as the average autocorrelation of squared returns at short lags.
 - Long Memory in Volatility: Estimated as the decay exponent (beta) of autocorrelation in absolute returns.
-- Leverage Effect: Measured as the mean contemporaneous correlation between past returns and future squared returns.
 
 All metrics are computed as averages across sample time series.
 """
 
 import numpy as np
-from scipy.stats import kurtosis
-from scipy.optimize import curve_fit
-
 
 def autocorr_returns(data, lag=1):
     """
-    Average lag-k autocorrelation of returns across samples.
+    Average lag-k autocorrelation of raw returns across samples.
+    This computes the linear autocorrelation on raw returns to assess the absence of linear dependence.
     data: np.ndarray of shape (n_samples, length)
     """
-    n_samples, n_len = data.shape
     acfs = []
     for sample in data:
         r = sample
         r_mean = r.mean()
-        numerator = np.sum((r[:-lag]-r_mean)*(r[lag:]-r_mean))
-        denominator = np.sum((r-r_mean)**2)
-        acfs.append(numerator / denominator)
-    return np.mean(acfs)
+        numerator = np.sum((r[:-lag] - r_mean) * (r[lag:] - r_mean))
+        denominator = np.sum((r - r_mean) ** 2)
+        acfs.append(numerator / denominator if denominator != 0 else np.nan)
+    acfs = [a for a in acfs if not np.isnan(a)]
+    return np.mean(acfs) if len(acfs) > 0 else np.nan
 
-def excess_kurtosis(data):
+def volatility_clustering(data, max_lag=1):
     """
-    Average excess kurtosis across samples.
+    Average lag-k autocorrelation of *squared* returns across samples and lags 1...max_lag.
+    This captures volatility clustering (persistence in variance), as in the stylized facts literature.
+    data: np.ndarray of shape (n_samples, length)
+    Returns: array of mean autocorrelations for lags 1,...,max_lag (length = max_lag)
     """
-    n_samples = data.shape[0]
-    kurts = [kurtosis(sample, fisher=True, bias=False) for sample in data]
-    return np.mean(kurts)
+    acf_by_lag = []
+    for lag in range(1, max_lag + 1):
+        lag_acfs = []
+        for sample in data:
+            squared_r = sample ** 2
+            m = squared_r.mean()
+            num = np.sum((squared_r[:-lag] - m) * (squared_r[lag:] - m))
+            den = np.sum((squared_r - m) ** 2)
+            lag_acfs.append(num / den if den != 0 else np.nan)
+        lag_acfs = [a for a in lag_acfs if not np.isnan(a)]
+        acf_by_lag.append(np.mean(lag_acfs) if len(lag_acfs) > 0 else np.nan)
 
-def volatility_clustering(data, lag=1):
-    """
-    Average autocorrelation of squared returns across samples.
-    """
-    n_samples, n_len = data.shape
-    acfs = []
-    for sample in data:
-        r2 = sample**2
-        r2_mean = r2.mean()
-        numerator = np.sum((r2[:-lag]-r2_mean)*(r2[lag:]-r2_mean))
-        denominator = np.sum((r2-r2_mean)**2)
-        acfs.append(numerator / denominator)
-    return np.mean(acfs)
+    return np.array(acf_by_lag)
 
-def long_memory_volatility(data, max_lag=100):
+def long_memory_volatility(data, max_lag=52):
     """
     Estimate the long memory of volatility by fitting the power-law decay of the autocorrelation of absolute returns.
     The decay exponent (beta) is estimated for each sample, and the mean is returned.
     """
-    n_samples, n_len = data.shape
+    _, n_len = data.shape
     betas = []
     for sample in data:
         abs_r = np.abs(sample)

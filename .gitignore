@@ -15,5 +15,13 @@ mlruns/
 *.txt
 *.pkl
 
-results
-evaluation_plots
+results/*
+evaluation_plots/*
+
+testing_files/*
+
+cache/*
+
+notebooks/sanity_check_dl
+
+*/**/*.pt

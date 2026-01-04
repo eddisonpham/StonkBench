@@ -173,7 +173,7 @@ class TakahashiDiffusion(DeepLearningModel):
         self.data_std = None
         self.expansion_info = None
         self.coeffs_info_cache = None
-
+        
     def _init_model(self, image_height: int, image_width: int):
         """Initialize UNet2DModel and DDPMScheduler."""
         if self.unet is None:
@@ -203,17 +203,12 @@ class TakahashiDiffusion(DeepLearningModel):
             )
             self.optimizer = optim.Adam(self.unet.parameters(), lr=self.lr)
 
-            # Report total number of trainable parameters for this Takahashi Diffusion UNet
             num_params = sum(p.numel() for p in self.unet.parameters() if p.requires_grad)
             print(f"TakahashiDiffusion UNet trainable parameters: {num_params:,}")
 
     def _preprocess_batch(self, batch: torch.Tensor) -> Tuple[torch.Tensor, dict]:
         """
         Preprocess batch according to takahashi.md specifications.
-        
-        Returns:
-            images: Preprocessed images ready for DDPM (batch_size, 1, H, W)
-            preprocess_info: Dictionary with preprocessing parameters for inverse
         """
         if batch.dim() == 1:
             batch = batch.unsqueeze(0)
@@ -258,13 +253,6 @@ class TakahashiDiffusion(DeepLearningModel):
     def _postprocess_images(self, images: torch.Tensor, preprocess_info: dict) -> torch.Tensor:
         """
         Reverse preprocessing pipeline to recover time series.
-        
-        Args:
-            images: Generated images (batch_size, 1, H, W)
-            preprocess_info: Preprocessing information for inverse transform
-            
-        Returns:
-            time_series: Recovered time series (batch_size, original_length)
         """
         batch_size = images.shape[0]
         recovered_series = []
@@ -312,7 +300,7 @@ class TakahashiDiffusion(DeepLearningModel):
         self._init_model(img_h, img_w)
 
         print(f"Image dimensions: {img_h} x {img_w}")
-        self._init_model(img_h, img_w)
+        
         self.unet.train()
         for epoch in range(num_epochs):
             total_loss = 0.0
@@ -333,7 +321,9 @@ class TakahashiDiffusion(DeepLearningModel):
                 total_loss += loss.item()
                 batch_count += 1
             avg_loss = total_loss / batch_count
+            
             print(f"TakahashiDiffusion epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.6f}")
+        
         self.unet.eval()
 
     @torch.no_grad()
@@ -358,8 +348,9 @@ class TakahashiDiffusion(DeepLearningModel):
 
         torch.manual_seed(seed)
         np.random.seed(seed)
+        
+        self.unet.eval()
 
-        # Use cached preprocessing info
         dummy_info = {
             'coeffs_info': self.coeffs_info_cache,
             'original_start': self.expansion_info[0],
@@ -368,13 +359,11 @@ class TakahashiDiffusion(DeepLearningModel):
             'std': self.data_std
         }
 
-        # Determine image size from cached coeffs info
         target_h, target_w = self.coeffs_info_cache['image_shape']
         generated_images = []
 
         for i in range(num_samples):
             torch.manual_seed(seed + i)
-            # Start from pure noise
             image = torch.randn((1, 1, target_h, target_w), device=self.device)
             self.scheduler.set_timesteps(self.num_steps)
             for t in self.scheduler.timesteps:
@@ -386,7 +375,6 @@ class TakahashiDiffusion(DeepLearningModel):
         preprocess_infos = [dummy_info] * num_samples
         time_series = self._postprocess_images(images_batch, preprocess_infos)
 
-        # Ensure the requested generation length
         if time_series.shape[1] != generation_length:
             if time_series.shape[1] > generation_length:
                 time_series = time_series[:, :generation_length]
