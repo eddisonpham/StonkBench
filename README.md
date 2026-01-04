@@ -4,88 +4,178 @@
 
 ---
 
-## ⚡ Quickstart
+## Quickstart
 
-### 1. Installation
+### Installation
 
-- Python: 3.9 or newer (recommended)
+- Python: 3.11+ (recommended)
 - Install all dependencies:
   ```bash
   pip install -r requirements.txt
   ```
 
-### 2. 📥 Download Dataset
+### Run with Docker Compose (Recommended)
+
+The easiest way to run the complete pipeline is using Docker Compose, which orchestrates all stages from data download to evaluation and plotting.
+
+#### Build the base image
+
+```bash
+docker-compose build base
+```
+
+#### Run the entire pipeline
+
+```bash
+docker-compose up
+```
+
+This command runs all services in dependency order:
+1. **data-download**: Downloads and preprocesses SPXUSD time series data
+2. **generate-data**: Generates synthetic data using both parametric and non-parametric models
+3. **eval**: Evaluates all generated data using the unified evaluator
+4. **plot**: Generates publication-ready figures from evaluation results
+
+#### Run specific services
+
+```bash
+# Run only data download
+docker-compose up data-download
+
+# Run data download and generation only
+docker-compose up data-download generate-data
+
+# Run through evaluation, skip plotting
+docker-compose up data-download generate-data eval
+```
+
+#### Environment variables
+
+Set environment variables via `.env` file or export in your shell:
+
+```bash
+# Set the CUDA device (if using CUDA)
+export CUDA_VISIBLE_DEVICES=0
+```
+
+#### Volume mounts
+
+The following local directories are mapped into containers:
+
+- `./data` → `/data` (raw and processed data)
+- `./generated_data` → `/generated_data` (synthetic data outputs)
+- `./results` → `/results` (evaluation results)
+- `./evaluation_plots` → `/evaluation_plots` (plots and figures)
+- `./configs` → `/app/configs` (read-only configuration files)
+
+### Run Locally (Non-Docker)
+
+#### 1. Download Dataset
 
 Fetch the required dataset:
 ```bash
-python src/data_downloader.py --ticker `[ticker name]`
+python src/data_downloader.py --index spxusd --year 2023 2024
 ```
 
-This will save the data as `data/raw/[ticker name]/[ticker name].csv`.
+This saves data to `data/raw/` and processed data to `data/processed/`.
 
-### 3. 🐳 Run with Docker (optional)
+#### 2. Generate Synthetic Data
 
-Build runtime image:
+Generate synthetic data using the unified script (handles both parametric and non-parametric models):
+
 ```bash
-docker build -f Dockerfile.runtime -t sdgfts-runtime .
+python src/generation_scripts/generate_data.py \
+  --generation_length 52 \
+  --num_samples 1000 \
+  --seed 42 \
+  --output_dir generated_data
 ```
 
-Generate artifacts (volume mount your working directory):
+The script trains models on the training set at the ACF-inferred sequence length, then generates samples by stitching log returns to reach the target generation length. Artifacts are saved under `generated_data/<ModelName>/<ModelName>_seq_<L>.pt`.
+
+#### 3. Evaluate Generated Data
+
+Evaluate all generated artifacts:
+
 ```bash
-docker run --rm -v $(pwd):/app sdgfts-runtime \
-  python src/scripts/generate_parametric_data.py --seq_lengths 120 180 --num_samples 500
-docker run --rm -v $(pwd):/app sdgfts-runtime \
-  python src/scripts/generate_non_parametric_data.py --seq_lengths 120 180 --num_samples 500
+python src/unified_evaluator.py \
+  --generated_dir generated_data \
+  --results_dir results \
+  --seq_lengths 52 60 120 180 240 300
 ```
 
-Evaluate saved artifacts:
-```bash
-docker run --rm -v $(pwd):/app sdgfts-runtime \
-  python src/unified_evaluator.py --seq_lengths 120 180 --results_dir results/seq_run
-```
+Outputs are saved to:
+- `/results/seq_<L>/<ModelName>/metrics.json` - Evaluation metrics
+- `/results/seq_<L>/<ModelName>/visualizations/` - Visualization outputs
 
-Orchestrate all stages locally (non-container):
-```bash
-python src/parallelizer_script.py --seq_lengths 120 180 --stage all
-```
+#### 4. Generate Publication-Ready Plots
 
-### 4. ▶️ Run the Benchmark
-
-Execute the full benchmark and get all evaluation metrics, synthetic data, and logs in `notebooks/pipeline_validation.py`
-
-
-**What happens:**
-- **Data Preprocessing**:
-  - **Non-parametric models**: The data is segmented into overlapping sub-sequences of shape `(R, l, N)` where `R` is the number of sequences, `l` is the sequence length, and `N` is the number of features.
-  - **Parametric models**: The original time series is used without segmentation, resulting in data of shape `(l, N)`.
-- Several generative models (both parametric and non-parametric) are trained.
-- Each model generates exactly **500 samples**.
-- All taxonomy metrics (fidelity, diversity, efficiency, and stylized facts) are computed.
-- Results are:
-  -  Printed in the console.
-  - Saved to a detailed JSON file in the results directory.
-
-#### Customizing runs:
-- `configs/dataset_cfgs.yaml`: Modify the preprocessing of the dataset for *parametric/non-parametric*.
-
-### 4. 📊 Viewing Results
-
-#### Publication-Ready Plots
 Generate comprehensive, publication-ready plots for all evaluation metrics:
 
 ```bash
 python src/plot_statistics/evaluation_plotter.py
 ```
 
-This will:
-- Automatically find the latest evaluation results
-- Generate publication-quality plots (300 DPI) for all metrics
-- Save plots to `evaluation_plots/` directory
-- Include performance metrics, distribution analysis, similarity measures, stylized facts, and model rankings
+This automatically finds the latest evaluation results, generates publication-quality plots (300 DPI), and saves them to `evaluation_plots/` directory.
+
+### Pipeline Overview
+
+**What happens:**
+- **Data Preprocessing**:
+  - **Non-parametric models**: The data is segmented into overlapping sub-sequences of shape `(R, l, N)` where `R` is the number of sequences, `l` is the sequence length, and `N` is the number of features.
+  - **Parametric models**: The original time series is used without segmentation, resulting in data of shape `(l, N)`.
+- Models are trained on the training set at the ACF-inferred sequence length
+- Generated samples are stitched to reach target generation lengths
+- All taxonomy metrics (fidelity, diversity, efficiency, and stylized facts) are computed
+- Results are printed in the console and saved to detailed JSON files in the results directory
+
+#### Customizing runs
+
+- `configs/dataset_cfgs.yaml`: Modify the preprocessing of the dataset for parametric/non-parametric models.
 
 ---
 
-## 🗂️ Project Structure
+## Docker Troubleshooting
+
+### View logs for a specific service
+
+```bash
+docker-compose logs -f generate-data
+```
+
+### Rebuild after code changes
+
+```bash
+docker-compose build base
+docker-compose up
+```
+
+### Run a single service with a custom command
+
+```bash
+# Build the base image first
+docker-compose build base
+
+# Run with a specific python command
+docker-compose run --rm generate-data python src/generation_scripts/generate_data.py --generation_length 52
+```
+
+### Clean up
+
+```bash
+# Stop all containers
+docker-compose down
+
+# Remove volumes (WARNING: deletes data!)
+docker-compose down -v
+
+# Remove images
+docker-compose down --rmi all
+```
+
+---
+
+## Project Structure
 
 ```
 Unified-benchmark-for-SDGFTS-main/
@@ -112,7 +202,7 @@ Unified-benchmark-for-SDGFTS-main/
 
 ---
 
-## 🤖 Supported Models
+## Supported Models
 
 The benchmark supports a range of both traditional parametric models and modern deep learning approaches:
 
@@ -138,11 +228,11 @@ The benchmark supports a range of both traditional parametric models and modern 
 
 </details>
 
-> 🛠️ All models share a unified interface for training, sample generation, and comprehensive metric evaluation.
+> All models share a unified interface for training, sample generation, and comprehensive metric evaluation.
 
 ---
 
-## 📏 Metrics & Evaluation
+## Metrics & Evaluation
 
 ### 1. Fidelity Metrics
 - **Feature-based Distances**
@@ -174,7 +264,7 @@ Refer to `src/taxonomies/` for implementation details and to `src/utils/` for ut
 
 ---
 
-## ➕ How To Add Your Own Model
+## How To Add Your Own Model
 
 1. Implement your model in `src/models/` and ensure you inherit from the appropriate base class (`ParametricModel` or `DeepLearningModel`).
 2. Register your model in `notebooks/pipeline_validation.py` by specifying it under `run_complete_evaluation`.
@@ -182,7 +272,7 @@ Refer to `src/taxonomies/` for implementation details and to `src/utils/` for ut
 
 ---
 
-## 🏆 Results
+## Results
 
 All results are available in:
 - The console (summary tables per model)
@@ -190,7 +280,7 @@ All results are available in:
 
 ---
 
-## 👥 Contributors
+## Contributors
 
 | Name                  | Role                                 | Email                             |
 |-----------------------|--------------------------------------|-----------------------------------|
@@ -200,10 +290,9 @@ All results are available in:
 
 ---
 
-## 📚 More
+## More
 
 - For detailed examples and model-by-model usage, see `notebooks/`.
 - To report issues or contribute, see the **Contributing** section below.
 
 ---
-
