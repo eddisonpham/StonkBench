@@ -67,7 +67,7 @@ class DeepLearningModel(torch.nn.Module, ABC):
         torch.nn.Module.__init__(self)
 
     @abstractmethod
-    def fit(self, data_loader: torch.utils.data.DataLoader, num_epochs: int = 10, valid_loader: torch.utils.data.DataLoader = None, *args, **kwargs) -> None:
+    def fit(self, data_loader: torch.utils.data.DataLoader, num_epochs: int = 10, *args, **kwargs) -> None:
         """
         Trains the network via a DataLoader with batches.
 

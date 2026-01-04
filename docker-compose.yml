@@ -69,7 +69,7 @@ services:
     command: >
       src/parallelizer_script.py
       --stage evaluate
-      --seq_lengths 52 60 120 180 240 300
+      --seq_lengths 51 60 120 180 240 300
       --max_procs 8
       --generated_dir /generated_data
       --results_dir /results

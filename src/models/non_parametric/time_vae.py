@@ -141,24 +141,14 @@ class TimeVAE(DeepLearningModel):
         self.kl_ramp = KLRamp(kl_anneal_epochs, kl_weight_start, kl_weight_end)
         self.loss_module = VAELoss(recon_weight, min_kl)
 
-        # Store best parameters inside the class
-        self.best_state_dict = None
-        self.best_val_loss = float('inf')
-        self._best_model_loaded = False
-
     def forward(self, x):
         mu, log_var = self.encoder(x)
         z = self.sampler(mu, log_var)
         x_hat = self.decoder(z)
         return x_hat, mu, log_var
 
-    def fit(self, data_loader: DataLoader, num_epochs: int = 25, valid_loader: DataLoader = None, verbose: bool = True):
-        """Train TimeVAE and save the best parameters based on validation total loss (or training loss if no validation set)."""
-        # Initialize best_state_dict with current model state
-        self.best_state_dict = {k: v.cpu().clone() for k, v in self.state_dict().items()}
-        self.best_val_loss = float('inf')
-        self._best_model_loaded = False
-        
+    def fit(self, data_loader: DataLoader, num_epochs: int = 25, verbose: bool = True):
+        """Train TimeVAE."""
         for epoch in range(1, num_epochs + 1):
             epoch_start_time = time.time()
             kl_weight = self.kl_ramp(epoch)
@@ -190,67 +180,26 @@ class TimeVAE(DeepLearningModel):
             avg_recon = total_recon / num
             avg_kl = total_kl / num
 
-            # Compute validation loss if validation set is provided
-            if valid_loader is not None:
-                self.eval()
-                val_total_loss, val_num = 0.0, 0
-                with torch.no_grad():
-                    for batch in valid_loader:
-                        x = batch[0].float().to(self.device)
-                        if x.dim() == 2:
-                            x = x.unsqueeze(-1)
-                        x_hat, mu, log_var = self(x)
-                        val_loss = self.loss_module(x, x_hat, mu, log_var, kl_weight, return_parts=False)
-                        val_total_loss += val_loss.item() * x.size(0)
-                        val_num += x.size(0)
-                avg_val_loss = val_total_loss / val_num
-                
-                # Save best parameters based on validation loss
-                if avg_val_loss < self.best_val_loss:
-                    self.best_val_loss = avg_val_loss
-                    self.best_state_dict = {k: v.cpu().clone() for k, v in self.state_dict().items()}
-                
-                epoch_time = time.time() - epoch_start_time
-                if verbose:
-                    print(f"Epoch {epoch:03d}: Train loss {avg_loss:.5g} (recon {avg_recon:.5g}, KL {avg_kl:.5g}), Val loss {avg_val_loss:.5g} | Time: {epoch_time:.2f}s")
-            else:
-                # Fall back to training loss if no validation set
-                if avg_loss < self.best_val_loss:
-                    self.best_val_loss = avg_loss
-                    self.best_state_dict = {k: v.cpu().clone() for k, v in self.state_dict().items()}
-                
-                epoch_time = time.time() - epoch_start_time
-                if verbose:
-                    print(f"Epoch {epoch:03d}: Training loss {avg_loss:.5g}, recon {avg_recon:.5g}, KL {avg_kl:.5g} | Time: {epoch_time:.2f}s")
-
-        # Restore best parameters at the end
-        if self.best_state_dict is not None:
-            self.load_state_dict(self.best_state_dict)
-            self._best_model_loaded = True
+            epoch_time = time.time() - epoch_start_time
             if verbose:
-                print(f"Best model restored with validation loss {self.best_val_loss:.5g}")
-
+                print(f"Epoch {epoch:03d}: Train loss {avg_loss:.5g} (recon {avg_recon:.5g}, KL {avg_kl:.5g}) | Time: {epoch_time:.2f}s")
+            
         if verbose:
             print(f"Training completed for {num_epochs} epochs.")
 
     def generate(self, num_samples: int, generation_length: int, seed: int = 42, *args, **kwargs):
         """
         Generate synthetic samples after training.
-        
+
         Args:
             num_samples (int): Number of simulated samples (R).
             generation_length (int): Length of each generated sample.
             seed (int, optional): Random seed for generation. Defaults to 42.
             *args, **kwargs: Optional arguments.
-        
+
         Returns:
             torch.Tensor: Generated series of shape (R, l)
         """
-        # Ensure best model is loaded
-        if not self._best_model_loaded and self.best_state_dict is not None:
-            self.load_state_dict(self.best_state_dict)
-            self._best_model_loaded = True
-        
         self.eval()
         if seed is not None:
             torch.manual_seed(seed)

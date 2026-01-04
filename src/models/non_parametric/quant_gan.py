@@ -142,7 +142,7 @@ class QuantGAN(DeepLearningModel):
             x = x.unsqueeze(1)
         return x
 
-    def fit(self, data_loader, num_epochs: int = 15, valid_loader=None):
+    def fit(self, data_loader, num_epochs: int = 15):
         all_batches = []
         for batch, _ in data_loader:
             batch = batch.to(self.device)
