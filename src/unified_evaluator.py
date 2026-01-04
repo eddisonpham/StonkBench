@@ -1,626 +1,510 @@
 """
-Unified Evaluator Pipeline
+Unified Evaluator (evaluation-only).
 
-This script provides a unified pipeline to train and evaluate both parametric
-and non-parametric time series generative models.
-
-Usage:
-    python -m src.unified_evaluator --seq_length 103 --num_samples 1000 --num_epochs 10
-    python -m src.unified_evaluator --seq_length None --num_samples 500 --num_epochs 5
+Loads pre-generated artifacts from `generated_data/` and computes taxonomy metrics
+without any training or generation. Artifacts must follow the contract described
+in `refactor.md` and be produced by the generation scripts.
 """
 
-import sys
 import argparse
-import numpy as np
-import torch
-from pathlib import Path
 import json
-from datetime import datetime
-from typing import Dict, Any, Optional
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-# Add project root to path
+import numpy as np
+import pandas as pd
+import torch
+
 project_root = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(project_root))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
-from src.models.base.base_model import DeepLearningModel
-from src.models.parametric.gbm import GeometricBrownianMotion
-from src.models.parametric.ou_process import OUProcess
-from src.models.parametric.merton_jump_diffusion import MertonJumpDiffusion
-from src.models.parametric.garch11 import GARCH11
-from src.models.parametric.de_jump_diffusion import DoubleExponentialJumpDiffusion
-from src.models.non_parametric.block_bootstrap import BlockBootstrap
-from src.models.non_parametric.quant_gan import QuantGAN
-from src.models.non_parametric.time_vae import TimeVAE
-# from src.models.non_parametric.takahashi import TakahashiDiffusion  # Commented out as requested
-
-from src.utils.display_utils import show_with_start_divider, show_with_end_divider
-from src.utils.preprocessing_utils import (
-    create_dataloaders,
+from src.utils.artifact_utils import load_artifact  # noqa: E402
+from src.utils.configs_utils import get_dataset_cfgs  # noqa: E402
+from src.utils.display_utils import show_with_start_divider, show_with_end_divider  # noqa: E402
+from src.utils.evaluation_classes_utils import (  # noqa: E402
+    DiversityEvaluator,
+    FidelityEvaluator,
+    StylizedFactsEvaluator,
+    VisualAssessmentEvaluator,
+    UtilityEvaluator,
+)
+from src.utils.preprocessing_utils import (  # noqa: E402
     preprocess_data,
     sliding_window_view,
     find_length,
-)
-from src.utils.configs_utils import get_dataset_cfgs
-from src.utils.evaluation_classes_utils import (
-    DiversityEvaluator,
-    FidelityEvaluator,
-    RuntimeEvaluator,
-    StylizedFactsEvaluator,
-    VisualAssessmentEvaluator,
-    UtilityEvaluator
+    LogReturnTransformation,
 )
 
 
-class UnifiedEvaluator:
-    """
-    Unified evaluator class to evaluate both parametric and non-parametric models.
-    """
+# Constants
+UTILITY_TRAIN_RATIO = 0.8
+UTILITY_VAL_RATIO = 0.9
+UTILITY_NUM_EPOCHS = 40
+UTILITY_BATCH_SIZE = 64
+UTILITY_LEARNING_RATE = 1e-3
 
-    def __init__(
-        self,
-        experiment_name: str,
-        parametric_dataset_cfgs: Dict[str, Any],
-        non_parametric_dataset_cfgs: Dict[str, Any],
-        results_dir: Optional[Path] = None,
-        seq_length: Optional[int] = None
-    ):
-        """
-        Initialize the unified evaluator.
 
-        Args:
-            experiment_name: Name of the experiment
-            parametric_dataset_cfgs: Configuration for parametric models
-            non_parametric_dataset_cfgs: Configuration for non-parametric models
-            seq_length: Sequence length for time series. If None, will be determined using autocorrelation
-            results_dir: Directory to save results. If None, creates a timestamped directory
-        """
-        self.parametric_dataset_cfgs = parametric_dataset_cfgs
-        self.non_parametric_dataset_cfgs = non_parametric_dataset_cfgs
-        self.experiment_name = experiment_name
-        self.seq_length = seq_length
+def _to_numpy(x: Any) -> np.ndarray:
+    """Convert tensor or array to numpy array."""
+    if isinstance(x, torch.Tensor):
+        return x.cpu().numpy()
+    return np.asarray(x)
 
-        self.results = {}
-        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+class DatasetCache:
+    """Manages caching of preprocessed real datasets for evaluation."""
+
+    def __init__(self, non_param_cfg: Dict[str, Any], param_cfg: Dict[str, Any]):
+        self.non_param_cfg = non_param_cfg
+        self.param_cfg = param_cfg
+        self._cache: Dict[int, Dict[str, Any]] = {}
+        self._train_seq_length: Optional[int] = None
+
+    def _infer_training_sequence_length(self) -> int:
+        """Infer training sequence length from ACF analysis on training split only."""
+        if self._train_seq_length is not None:
+            return self._train_seq_length
+
+        data_path = self.non_param_cfg.get('original_data_path')
+        index = self.non_param_cfg.get('index')
+
+        df = pd.read_csv(data_path)
+        original_prices = torch.from_numpy(df[index].values)
+        scaler = LogReturnTransformation()
+        log_returns, _ = scaler.transform(original_prices)
         
-        if results_dir is None:
-            self.results_dir = project_root / "results" / f"evaluation_{self.timestamp}"
-        else:
-            self.results_dir = Path(results_dir)
-        self.results_dir.mkdir(parents=True, exist_ok=True)
+        # Split to get training split only
+        valid_ratio = self.non_param_cfg.get('valid_ratio', 0.1)
+        test_ratio = self.non_param_cfg.get('test_ratio', 0.1)
+        L = len(log_returns)
+        train_end = int(L * (1 - valid_ratio - test_ratio))
+        train_log_returns = log_returns[:train_end]
 
-    def evaluate_model(
-        self,
-        model,
-        model_name: str,
-        real_data: np.ndarray,
-        train_data,
-        generation_kwargs: Dict[str, Any],
-        valid_loader=None,
-        fit_kwargs: Dict[str, Any] = None,
-        seed: int = 42
-    ) -> Dict[str, Any]:
+        self._train_seq_length = find_length(train_log_returns)
+        return self._train_seq_length
+
+    def get_dataset(self, seq_length: int) -> Dict[str, Any]:
         """
-        Unified evaluation for both parametric and non-parametric models.
-
-        Args:
-            model: The generative model to evaluate
-            model_name: Name of the model for logging
-            real_data: Real data for comparison (numpy array)
-            train_data: Training data (tensor for parametric, DataLoader for non-parametric)
-            valid_loader: Validation DataLoader (for non-parametric models)
-            generation_kwargs: Kwargs for model.generate()
-            fit_kwargs: Optional kwargs for model.fit() (e.g., num_epochs)
-            seed: Random seed
-
-        Returns:
-            Dictionary containing all evaluation metrics
-        """
-        show_with_start_divider(f"Evaluating {model_name}")
-        num_samples = generation_kwargs.get('num_samples', 500)
+        Get or create cached dataset for a given sequence length.
         
-        model_dir = self.results_dir / model_name
-        model_dir.mkdir(parents=True, exist_ok=True)
+        Preprocessing only cleans and splits data (no windows).
+        Sliding windows are applied here:
+        - Training: fixed window length (inferred from ACF on training split)
+        - Validation/test: dynamic window length (seq_length parameter)
+        
+        For parametric models:
+        - Uses standard preprocessing (no windows needed)
+        """
+        if seq_length in self._cache:
+            return self._cache[seq_length]
 
-        evaluation_results: Dict[str, Any] = {}
-
-        print(f"Training {model_name}...")
-        # --- For QuantGAN, skip training/generation and load from file ---
-        is_quantgan = model_name.lower() == "quantgan"
-        loaded_gen_numpy = None
-        loaded_gen_torch = None
-        if is_quantgan:
-            length = generation_kwargs.get('generation_length', self.seq_length)
-            # Find output file (assume outputs folder is at project root)
-            outputs_path = project_root / "outputs"
-            quantgan_fname = outputs_path / f"QuantGAN_fakes_{length}.pt"
-            if not quantgan_fname.exists():
-                raise FileNotFoundError(f"Could not find QuantGAN fake data at: {quantgan_fname}")
-            print(f"Loading QuantGAN generated data from: {quantgan_fname}")
-            loaded_gen_torch = torch.load(quantgan_fname)
-            if loaded_gen_torch.shape[0] > num_samples:
-                loaded_gen_torch = loaded_gen_torch[:num_samples]
-            loaded_gen_numpy = loaded_gen_torch.cpu().numpy()
-            # Runtime evaluation is not meaningful, but to keep result fields:
-            runtime_results = {'generation_time_sec': None}
-            evaluation_results.update(runtime_results)
-            generated_data = loaded_gen_numpy
+        # Preprocess: ONLY clean and split (no sliding windows)
+        train_log_returns_np, valid_log_returns_np, test_log_returns_np, train_init_np, valid_init_np, test_init_np = preprocess_data(
+            self.non_param_cfg,
+            supress_cfg_message=True,
+        )
+        
+        # Get training sequence length (fixed, inferred from training split)
+        train_seq_length = self._infer_training_sequence_length()
+        
+        # Load prices to get initial values for windows
+        data_path = self.non_param_cfg.get('original_data_path')
+        index = self.non_param_cfg.get('index')
+        df = pd.read_csv(data_path)
+        original_prices = torch.from_numpy(df[index].values).float()
+        valid_ratio = self.non_param_cfg.get('valid_ratio', 0.1)
+        test_ratio = self.non_param_cfg.get('test_ratio', 0.1)
+        full_L = len(original_prices) - 1  # log_returns length
+        train_end_full = int(full_L * (1 - valid_ratio - test_ratio))
+        valid_end_full = int(full_L * (1 - test_ratio))
+        
+        # Apply sliding windows:
+        # - Training: fixed length (train_seq_length)
+        # - Validation/test: dynamic length (seq_length)
+        train_data_np = sliding_window_view(train_log_returns_np, train_seq_length, stride=1)
+        train_indices_np = torch.arange(0, len(train_data_np))
+        train_prices = original_prices[:train_end_full+1]
+        train_indices_np = train_indices_np[train_indices_np < len(train_prices)]
+        train_data_np = train_data_np[:len(train_indices_np)]
+        train_init_windows_np = train_prices[train_indices_np]
+        
+        # Validation windows at dynamic length (seq_length)
+        if len(valid_log_returns_np) >= seq_length:
+            valid_data_np = sliding_window_view(valid_log_returns_np, seq_length, stride=1)
+            valid_indices_np = torch.arange(0, len(valid_data_np))
+            valid_prices = original_prices[train_end_full:valid_end_full+1]
+            valid_indices_np = valid_indices_np[valid_indices_np < len(valid_prices)]
+            valid_data_np = valid_data_np[:len(valid_indices_np)]
+            valid_init_windows_np = valid_prices[valid_indices_np]
         else:
-            if isinstance(model, DeepLearningModel):
-                num_epochs = fit_kwargs.get('num_epochs', 10) if fit_kwargs else 10
-                model.fit(train_data)
+            valid_data_np = torch.empty((0, seq_length), dtype=train_log_returns_np.dtype)
+            valid_init_windows_np = torch.empty((0,), dtype=original_prices.dtype)
+        
+        # Test windows at dynamic length (seq_length)
+        if len(test_log_returns_np) >= seq_length:
+            test_data_np = sliding_window_view(test_log_returns_np, seq_length, stride=1)
+            test_indices_np = torch.arange(0, len(test_data_np))
+            test_prices = original_prices[valid_end_full:]
+            test_indices_np = test_indices_np[test_indices_np < len(test_prices)]
+            test_data_np = test_data_np[:len(test_indices_np)]
+            test_init_windows_np = test_prices[test_indices_np]
+        else:
+            test_data_np = torch.empty((0, seq_length), dtype=train_log_returns_np.dtype)
+            test_init_windows_np = torch.empty((0,), dtype=original_prices.dtype)
+
+        # Prepare parametric datasets (no windows needed)
+        (
+            train_para,
+            valid_para,
+            test_para,
+            train_init_para,
+            valid_init_para,
+            test_init_para,
+        ) = preprocess_data(self.param_cfg, supress_cfg_message=True)
+
+        dataset = {
+            "nonparam_train": train_data_np,
+            "nonparam_valid": valid_data_np,
+            "nonparam_test": test_data_np,
+            "nonparam_train_init": train_init_windows_np,
+            "nonparam_valid_init": valid_init_windows_np,
+            "nonparam_test_init": test_init_windows_np,
+            "param_series": torch.cat([train_para, valid_para, test_para]),
+            "param_train": train_para,
+            "param_valid": valid_para,
+            "param_test": test_para,
+            "param_train_init": train_init_para,
+            "param_valid_init": valid_init_para,
+            "param_test_init": test_init_para,
+        }
+
+        self._cache[seq_length] = dataset
+        return dataset
+
+
+class ArtifactLoader:
+    """Handles loading and validation of generated artifacts."""
+
+    @staticmethod
+    def load(artifact_path: Path) -> Tuple[torch.Tensor, Dict[str, Any]]:
+        """Load artifact and return data and metadata."""
+        return load_artifact(artifact_path)
+
+    @staticmethod
+    def extract_metadata(artifact_path: Path, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract and validate metadata from artifact."""
+        return {
+            "model_name": metadata.get("model_name") or artifact_path.parent.name,
+            "model_type": metadata.get("model_type", "non_parametric"),
+            "sequence_length": int(metadata["sequence_length"]),
+            "num_samples": int(metadata.get("num_samples", 0)),
+        }
+
+    @staticmethod
+    def prepare_data(
+        data: torch.Tensor,
+        num_samples: int,
+    ) -> np.ndarray:
+        """Prepare data for evaluation."""
+        return _to_numpy(data[:num_samples])
+
+
+class RealDataPreparer:
+    """Prepares real data windows for comparison with generated data."""
+
+    @staticmethod
+    def prepare(
+        dataset: Dict[str, Any],
+        seq_length: int,
+        model_type: str,
+        num_samples: int,
+    ) -> np.ndarray:
+        """
+        Prepare real data windows aligned with generated data at generation length.
+
+        - Parametric: Create sliding windows from test set at generation length
+        - Non-parametric: Use pre-windowed test set (windows already created in get_dataset at generation length)
+        """
+        if model_type == "parametric":
+            # Create windows from test set log returns at generation length
+            test_series = dataset["param_test"]
+            if len(test_series) >= seq_length:
+                real_windows = sliding_window_view(test_series, seq_length, stride=1)
             else:
-                model.fit(train_data)
-
-            print(f"\nGenerating {num_samples} samples...")
-            runtime_evaluator = RuntimeEvaluator(
-                generate_func=model.generate,
-                generation_kwargs=generation_kwargs
-            )
-            runtime_results = runtime_evaluator.evaluate()
-            evaluation_results.update(runtime_results)
-
-            generated_data = model.generate(**generation_kwargs)
-            if isinstance(generated_data, torch.Tensor):
-                generated_data = generated_data.cpu().numpy()
-
-        # Convert to numpy if needed
-        if isinstance(real_data, torch.Tensor):
-            real_data = real_data.cpu().numpy()
+                real_windows = torch.empty((0, seq_length), dtype=test_series.dtype)
         else:
-            real_data = np.asarray(real_data)
+            # Non-parametric: test windows are already created in get_dataset with dynamic length (generation length)
+            real_windows = dataset["nonparam_test"]
 
-        # Ensure real_data has the same shape as generated_data for comparison
-        if real_data.ndim == 1:
-            window_size = generation_kwargs.get('generation_length', 1)
-            real_data = sliding_window_view(torch.from_numpy(real_data), window_size, 1).numpy()
-        
-        # Sample same number of real samples as generated samples
+        real_data = _to_numpy(real_windows)
+
+        # Align sample counts
         if real_data.shape[0] > num_samples:
-            idx = np.random.permutation(real_data.shape[0])[:num_samples]
-            real_data = real_data[idx]
+            real_data = real_data[:num_samples]
+        
+        return real_data
 
-        print(f"Generated data shape: {generated_data.shape}")
-        print(f"Real data shape: {real_data.shape}")
+
+class CoreMetricsEvaluator:
+    """Evaluates core taxonomy metrics (fidelity, diversity, stylized facts, visual)."""
+
+    def __init__(self, output_dir: Path):
+        self.output_dir = output_dir
+
+    def evaluate(
+        self,
+        real_data: np.ndarray,
+        generated_data: np.ndarray,
+    ) -> Dict[str, Any]:
+        """Run all core metric evaluations."""
+        results: Dict[str, Any] = {}
 
         evaluators = [
             FidelityEvaluator(real_data, generated_data),
             DiversityEvaluator(real_data, generated_data),
             StylizedFactsEvaluator(real_data, generated_data),
-            VisualAssessmentEvaluator(real_data, generated_data, model_dir)
+            VisualAssessmentEvaluator(real_data, generated_data, self.output_dir),
         ]
 
         for evaluator in evaluators:
-            print(f"Computing {evaluator.__class__.__name__}...")
+            evaluator_name = evaluator.__class__.__name__
             try:
-                results = evaluator.evaluate()
-                if results is not None:
-                    evaluation_results.update(results)
-            except Exception as e:
-                print(f"Warning: {evaluator.__class__.__name__} failed: {e}")
+                metric_results = evaluator.evaluate()
+                if metric_results:
+                    results.update(metric_results)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[WARN] {evaluator_name} failed: {exc}")
 
-        metrics_path = model_dir / "metrics.json"
-        with open(metrics_path, 'w') as f:
-            json.dump(evaluation_results, f, indent=2, default=str)
+        return results
 
-        print(f"Evaluation completed for {model_name} (results saved at {metrics_path}).")
 
-        return evaluation_results
-    
-    def evaluate_utility(
+class UtilityMetricsEvaluator:
+    """Evaluates utility metrics (deep hedging)."""
+
+    def __init__(
         self,
-        model_name: str,
+        num_epochs: int = UTILITY_NUM_EPOCHS,
+        batch_size: int = UTILITY_BATCH_SIZE,
+        learning_rate: float = UTILITY_LEARNING_RATE,
+    ):
+        self.num_epochs = num_epochs
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
+
+    def evaluate(
+        self,
         generated_data: np.ndarray,
-        real_train_log_returns: torch.Tensor,
-        real_val_log_returns: torch.Tensor,
-        real_test_log_returns: torch.Tensor,
-        real_train_initial: torch.Tensor,
-        real_val_initial: torch.Tensor,
-        real_test_initial: torch.Tensor,
-        generation_length: int,
-        num_epochs: int = 40,
-        batch_size: int = 128,
-        learning_rate: float = 1e-3
+        dataset: Dict[str, Any],
+        seq_length: int,
     ) -> Dict[str, Any]:
-        """
-        Evaluate utility-based metrics for a model using deep hedging evaluation.
-        
-        Args:
-            model_name: Name of the model
-            generated_data: Generated synthetic data (num_samples, generation_length)
-            real_train_log_returns: Real training log returns
-            real_val_log_returns: Real validation log returns
-            real_test_log_returns: Real test log returns
-            real_train_initial: Real training initial prices
-            real_val_initial: Real validation initial prices
-            real_test_initial: Real test initial prices
-            generation_length: Length of generated sequences
-            num_epochs: Number of epochs for hedger training
-            batch_size: Batch size for hedger training
-            learning_rate: Learning rate for hedger training
-            
-        Returns:
-            Dictionary containing utility evaluation results
-        """
-        print(f"\nEvaluating utility metrics for {model_name}...")
-        
-        # Convert generated data to torch tensor if needed
-        if isinstance(generated_data, np.ndarray):
-            generated_data = torch.from_numpy(generated_data).float()
-        
-        # Split generated data into train/val/test (80/10/10)
-        num_samples = generated_data.shape[0]
-        train_end = int(num_samples * 0.8)
-        val_end = int(num_samples * 0.9)
-        
-        synthetic_train_log_returns = generated_data[:train_end]
-        synthetic_val_log_returns = generated_data[train_end:val_end]
-        synthetic_test_log_returns = generated_data[val_end:]
-        
-        # Create synthetic initial values (use mean of real initial values)
-        mean_initial = float(real_train_initial.mean().item())
-        device = real_train_initial.device
-        
-        synthetic_train_initial = torch.ones(train_end, device=device) * mean_initial
-        synthetic_val_initial = torch.ones(val_end - train_end, device=device) * mean_initial
-        synthetic_test_initial = torch.ones(num_samples - val_end, device=device) * mean_initial
-        
-        # Run utility evaluation
-        utility_evaluator = UtilityEvaluator(
-            real_train_log_returns=real_train_log_returns,
-            real_val_log_returns=real_val_log_returns,
-            real_test_log_returns=real_test_log_returns,
-            synthetic_train_log_returns=synthetic_train_log_returns,
-            synthetic_val_log_returns=synthetic_val_log_returns,
-            synthetic_test_log_returns=synthetic_test_log_returns,
-            real_train_initial=real_train_initial,
-            real_val_initial=real_val_initial,
-            real_test_initial=real_test_initial,
-            synthetic_train_initial=synthetic_train_initial,
-            synthetic_val_initial=synthetic_val_initial,
-            synthetic_test_initial=synthetic_test_initial,
-            seq_length=generation_length,
-            num_epochs=num_epochs,
-            batch_size=batch_size,
-            learning_rate=learning_rate
+        """Run utility evaluation using deep hedging."""
+        synthetic = torch.from_numpy(generated_data).float()
+        num_samples = synthetic.shape[0]
+
+        # Split synthetic data
+        train_end = int(num_samples * UTILITY_TRAIN_RATIO)
+        val_end = int(num_samples * UTILITY_VAL_RATIO)
+
+        synthetic_train = synthetic[:train_end]
+        synthetic_val = synthetic[train_end:val_end]
+        synthetic_test = synthetic[val_end:]
+
+        # Prepare initial values for synthetic data
+        mean_initial = float(dataset["nonparam_train_init"].mean().item())
+        device = dataset["nonparam_train_init"].device
+
+        synthetic_initials = {
+            "train": torch.ones(train_end, device=device) * mean_initial,
+            "val": torch.ones(val_end - train_end, device=device) * mean_initial,
+            "test": torch.ones(num_samples - val_end, device=device) * mean_initial,
+        }
+
+        # Create utility evaluator
+        evaluator = UtilityEvaluator(
+            real_train_log_returns=dataset["nonparam_train"],
+            real_val_log_returns=dataset["nonparam_valid"],
+            real_test_log_returns=dataset["nonparam_test"],
+            synthetic_train_log_returns=synthetic_train,
+            synthetic_val_log_returns=synthetic_val,
+            synthetic_test_log_returns=synthetic_test,
+            real_train_initial=dataset["nonparam_train_init"],
+            real_val_initial=dataset["nonparam_valid_init"],
+            real_test_initial=dataset["nonparam_test_init"],
+            synthetic_train_initial=synthetic_initials["train"],
+            synthetic_val_initial=synthetic_initials["val"],
+            synthetic_test_initial=synthetic_initials["test"],
+            seq_length=seq_length,
+            num_epochs=self.num_epochs,
+            batch_size=self.batch_size,
+            learning_rate=self.learning_rate,
         )
-        
+
         try:
-            utility_results = utility_evaluator.evaluate()
-            return utility_results
-        except Exception as e:
-            print(f"Warning: Utility evaluation failed for {model_name}: {e}")
-            return {"error": str(e)}
+            return evaluator.evaluate()
+        except Exception as exc:  # noqa: BLE001
+            print(f"[WARN] Utility evaluation failed: {exc}")
+            return {"utility_error": str(exc)}
 
-    def run_complete_evaluation(
-        self, 
-        num_samples: int = 500, 
-        num_epochs: int = 10,
-        batch_size: int = 32,
-        seed: int = 42
-    ) -> Dict[str, Any]:
+
+class UnifiedEvaluator:
+    """
+    Main evaluator that orchestrates the evaluation pipeline.
+
+    Loads generated artifacts and evaluates them against real data using
+    taxonomy metrics (fidelity, diversity, stylized facts, visual, utility).
+    """
+
+    def __init__(
+        self,
+        generated_dir: Path,
+        results_dir: Path,
+        seq_length_filter: Optional[List[int]] = None,
+    ):
+        self.generated_dir = Path(generated_dir)
+        self.results_dir = Path(results_dir)
+        self.results_dir.mkdir(parents=True, exist_ok=True)
+        self.seq_length_filter = set(seq_length_filter or [])
+
+        # Initialize components
+        non_param_cfg, param_cfg = get_dataset_cfgs()
+        self.dataset_cache = DatasetCache(non_param_cfg, param_cfg)
+        self.artifact_loader = ArtifactLoader()
+        self.real_data_preparer = RealDataPreparer()
+        self.core_metrics_evaluator = None  # Initialized per artifact
+        self.utility_metrics_evaluator = UtilityMetricsEvaluator()
+
+    def _should_evaluate(self, seq_length: int) -> bool:
+        """Check if sequence length should be evaluated."""
+        return not self.seq_length_filter or seq_length in self.seq_length_filter
+
+    def _prepare_output_directory(self, seq_length: int, model_name: str) -> Path:
+        """Create and return output directory for results."""
+        output_dir = self.results_dir / f"seq_{seq_length}" / model_name
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
+
+    def _save_results(self, results: Dict[str, Any], output_dir: Path) -> None:
+        """Save evaluation results to JSON file."""
+        metrics_path = output_dir / "metrics.json"
+        with metrics_path.open("w") as f:
+            json.dump(results, f, indent=2, default=str)
+
+    def evaluate_artifact(self, artifact_path: Path) -> Dict[str, Any]:
         """
-        Run complete evaluation on all models.
-
-        Args:
-            num_samples: Number of samples to generate per model
-            num_epochs: Number of training epochs for non-parametric models
-            batch_size: Batch size for DataLoaders
-            seed: Random seed
+        Evaluate a single artifact.
 
         Returns:
-            Dictionary containing results for all models
+            Dictionary of evaluation results, or empty dict if skipped
         """
-        show_with_start_divider("Starting Complete Evaluation Pipeline")
-        
-        # Set random seeds
-        torch.manual_seed(seed)
-        np.random.seed(seed)
+        # Load artifact
+        data, metadata = self.artifact_loader.load(artifact_path)
+        artifact_info = self.artifact_loader.extract_metadata(artifact_path, metadata)
+        seq_length = artifact_info["sequence_length"]
 
-        # Data reduction ratio: we will randomly sample this fraction from each set
-        data_reduction_ratio = 0.24
+        # Check if should evaluate
+        if not self._should_evaluate(seq_length):
+            return {}
 
-        # Preprocess parametric data
-        train_data_para, valid_data_para, test_data_para, _, _, _ = preprocess_data(
-            self.parametric_dataset_cfgs
+        # Prepare data
+        num_samples = artifact_info["num_samples"]
+        generated_data = self.artifact_loader.prepare_data(data, num_samples)
+
+        # Get real data for comparison
+        dataset = self.dataset_cache.get_dataset(seq_length)
+        real_data = self.real_data_preparer.prepare(
+            dataset, seq_length, artifact_info["model_type"], num_samples
         )
 
-        # Randomly sample from each dataset (no overlap needed since splits are already disjoint)
-        def random_subset(data, n, axis=0, always_return_tensor=True):
-            """Returns a random subset of n rows from data (either np.ndarray or torch.Tensor)."""
-            if n <= 0 or n >= data.shape[axis]:
-                return data
-            if isinstance(data, np.ndarray):
-                idx = np.random.choice(data.shape[axis], size=n, replace=False)
-                idx.sort()
-                return data[idx]
-            elif isinstance(data, torch.Tensor):
-                idx = torch.randperm(data.shape[axis])[:n].sort()[0]
-                return data.index_select(axis, idx)
-            else:
-                raise TypeError("Unsupported data type for random_subset")
-        
-        train_size = int(train_data_para.shape[0] * data_reduction_ratio)
-        valid_size = int(valid_data_para.shape[0] * data_reduction_ratio)
-        test_size = int(test_data_para.shape[0] * data_reduction_ratio)
+        # Prepare output directory
+        output_dir = self._prepare_output_directory(seq_length, artifact_info["model_name"])
+        self.core_metrics_evaluator = CoreMetricsEvaluator(output_dir)
 
-        train_data_para = random_subset(train_data_para, train_size)
-        valid_data_para = random_subset(valid_data_para, valid_size)
-        test_data_para = random_subset(test_data_para, test_size)
-
-        print(f"  - Parametric train data shape: {train_data_para.shape}")
-        print(f"  - Parametric valid data shape: {valid_data_para.shape}")
-        print(f"  - Parametric test data shape: {test_data_para.shape}")
-
-        # Preprocess non-parametric data
-        # Override seq_length in config if specified
-        non_para_cfg = self.non_parametric_dataset_cfgs.copy()
-        non_para_cfg['seq_length'] = self.seq_length
-        print(f"  - Using specified sequence length: {self.seq_length}")
-
-        (
-            train_data_non_para,
-            valid_data_non_para,
-            test_data_non_para,
-            train_initial_non_para,
-            valid_initial_non_para,
-            test_initial_non_para
-        ) = preprocess_data(non_para_cfg)
-
-        train_size = int(train_data_non_para.shape[0] * data_reduction_ratio)
-        valid_size = int(valid_data_non_para.shape[0] * data_reduction_ratio)
-        test_size = int(test_data_non_para.shape[0] * data_reduction_ratio)
-
-        # Randomly sample from data and their corresponding initial values (keep sync!)
-        def split_data_and_initial(data, initial, n):
-            if n <= 0 or n >= data.shape[0]:
-                return data, initial
-            idx = np.random.choice(data.shape[0], size=n, replace=False)
-            idx.sort()
-            if isinstance(data, np.ndarray):
-                return data[idx], initial[idx]
-            elif isinstance(data, torch.Tensor):
-                idx_torch = torch.tensor(idx, dtype=torch.long, device=data.device)
-                return data.index_select(0, idx_torch), initial.index_select(0, idx_torch)
-            else:
-                raise TypeError("Unsupported data type in split_data_and_initial")
-
-        train_data_non_para, train_initial_non_para = split_data_and_initial(train_data_non_para, train_initial_non_para, train_size)
-        valid_data_non_para, valid_initial_non_para = split_data_and_initial(valid_data_non_para, valid_initial_non_para, valid_size)
-        test_data_non_para, test_initial_non_para = split_data_and_initial(test_data_non_para, test_initial_non_para, test_size)
-
-        train_loader_non_para, valid_loader_non_para, test_loader_non_para = create_dataloaders(
-            train_data_non_para,
-            valid_data_non_para,
-            test_data_non_para,
-            batch_size=batch_size,
-            train_seed=seed,
-            valid_seed=seed,
-            test_seed=seed,
-            train_initial=train_initial_non_para,
-            valid_initial=valid_initial_non_para,
-            test_initial=test_initial_non_para,
+        # Run evaluation
+        show_with_start_divider(
+            f"Evaluating {artifact_info['model_name']} @ seq {seq_length}"
         )
 
-        generation_length = train_data_non_para.shape[1]
-        print(f"  - Non-parametric train data shape: {train_data_non_para.shape} (random sample, {data_reduction_ratio*100:.1f}%)")
-        print(f"  - Non-parametric valid data shape: {valid_data_non_para.shape} (random sample, {data_reduction_ratio*100:.1f}%)")
-        print(f"  - Non-parametric test data shape: {test_data_non_para.shape} (random sample, {data_reduction_ratio*100:.1f}%)")
-        print(f"  - Generation length: {generation_length}")
-
-        # Initialize parametric models
-        parametric_models = {}
-        parametric_models["GBM"] = GeometricBrownianMotion()
-        parametric_models["OU Process"] = OUProcess()
-        parametric_models["MJD"] = MertonJumpDiffusion()
-        parametric_models["GARCH11"] = GARCH11()
-        parametric_models["DEJD"] = DoubleExponentialJumpDiffusion()
-        parametric_models["BlockBootstrap"] = BlockBootstrap(block_size=generation_length)
-
-        non_parametric_models = {}
-
-        # --- Patch for QuantGAN: This will not instantiate the model, but "fake" as if it is present ---
-        # non_parametric_models["TimeVAE"] = TimeVAE(
-        #     seq_len=generation_length,
-        #     input_dim=1
-        # )
-        # Instead of : 
-        # non_parametric_models["QuantGAN"] = QuantGAN(
-        #     seq_len=generation_length,
-        # )
-
-        # So we just put a `"QuantGAN": None` as a placeholder for our logic in evaluate_model
-        non_parametric_models["QuantGAN"] = None
-
-        all_results = {}
-
-        generation_kwargs_para = {
-            'num_samples': num_samples,
-            'generation_length': self.seq_length,
-            'seed': seed
+        results: Dict[str, Any] = {
+            **artifact_info,
+            "metadata": metadata,
         }
-        for model_name, model in parametric_models.items():
-            results = self.evaluate_model(
-                model=model,
-                model_name=model_name,
-                real_data=test_data_para.numpy() if isinstance(test_data_para, torch.Tensor) else test_data_para,
-                train_data=train_data_para,
-                generation_kwargs=generation_kwargs_para,
-                valid_loader=None,
-                fit_kwargs=None,
-                seed=seed
-            )
-            
-            print(f"\nRunning utility evaluation for {model_name}...")
-            utility_num_samples = max(num_samples, 1000)
-            utility_generation_kwargs = {
-                'num_samples': utility_num_samples,
-                'generation_length': self.seq_length,
-                'seed': seed
-            }
-            generated_data = model.generate(**utility_generation_kwargs)
-            if isinstance(generated_data, torch.Tensor):
-                generated_data = generated_data.cpu().numpy()
-            
-            utility_results = self.evaluate_utility(
-                model_name=model_name,
-                generated_data=generated_data,
-                real_train_log_returns=train_data_non_para,
-                real_val_log_returns=valid_data_non_para,
-                real_test_log_returns=test_data_non_para,
-                real_train_initial=train_initial_non_para,
-                real_val_initial=valid_initial_non_para,
-                real_test_initial=test_initial_non_para,
-                generation_length=self.seq_length,
-                num_epochs=40,
-                batch_size=64,
-                learning_rate=1e-3
-            )
-            results['utility'] = utility_results
-            
-            # Update metrics.json file with utility results
-            model_dir = self.results_dir / model_name
-            metrics_path = model_dir / "metrics.json"
-            with open(metrics_path, 'w') as f:
-                json.dump(results, f, indent=2, default=str)
-            print(f"Updated metrics.json with utility results for {model_name}")
-            
-            all_results[model_name] = results
 
-        generation_kwargs_non_para = {
-            'num_samples': num_samples,
-            'generation_length': self.seq_length,
-            'seed': seed
-        }
-        fit_kwargs_non_para = {'num_epochs': num_epochs}
-        for model_name, model in non_parametric_models.items():
-            # Only valid for QuantGAN patch -- handle loading the generated data from file 
-            results = self.evaluate_model(
-                model=model,
-                model_name=model_name,
-                real_data=test_data_non_para.numpy() if isinstance(test_data_non_para, torch.Tensor) else test_data_non_para,
-                train_data=train_loader_non_para,
-                generation_kwargs=generation_kwargs_non_para,
-                valid_loader=valid_loader_non_para,
-                fit_kwargs=fit_kwargs_non_para,
-                seed=seed
-            )
-            
-            print(f"\nRunning utility evaluation for {model_name}...")
-            # --- Instead of model.generate, re-use loaded QuantGAN data for utility too ---
-            length = self.seq_length
-            outputs_path = project_root / "outputs"
-            quantgan_fname = outputs_path / f"QuantGAN_fakes_{length}.pt"
-            if not quantgan_fname.exists():
-                raise FileNotFoundError(f"Could not find QuantGAN fake data at: {quantgan_fname}")
-            loaded_gen_torch = torch.load(quantgan_fname)
-            utility_num_samples = max(num_samples, 1000)
-            # If more than needed, take only first utility_num_samples
-            if loaded_gen_torch.shape[0] > utility_num_samples:
-                loaded_gen_torch = loaded_gen_torch[:utility_num_samples]
-            generated_data = loaded_gen_torch.cpu().numpy()
+        # Core metrics
+        core_results = self.core_metrics_evaluator.evaluate(real_data, generated_data)
+        results.update(core_results)
 
-            utility_results = self.evaluate_utility(
-                model_name=model_name,
-                generated_data=generated_data,
-                real_train_log_returns=train_data_non_para,
-                real_val_log_returns=valid_data_non_para,
-                real_test_log_returns=test_data_non_para,
-                real_train_initial=train_initial_non_para,
-                real_val_initial=valid_initial_non_para,
-                real_test_initial=test_initial_non_para,
-                generation_length=self.seq_length,
-                num_epochs=40,
-                batch_size=64,
-                learning_rate=1e-3
+        # Utility metrics
+        utility_results = self.utility_metrics_evaluator.evaluate(
+            generated_data, dataset, seq_length
+        )
+        results["utility"] = utility_results
+
+        # Save results
+        self._save_results(results, output_dir)
+
+        show_with_end_divider(f"Finished {artifact_info['model_name']} @ seq {seq_length}")
+        return results
+
+    def run(self) -> Dict[str, Any]:
+        """
+        Run evaluation on all artifacts in the generated directory.
+
+        Returns:
+            Dictionary mapping artifact keys to evaluation results
+        """
+        # Validate input directory
+        if not self.generated_dir.exists():
+            raise FileNotFoundError(
+                f"Generated data directory not found: {self.generated_dir}"
             )
-            results['utility'] = utility_results
-            
-            # Update metrics.json file with utility results
-            model_dir = self.results_dir / model_name
-            metrics_path = model_dir / "metrics.json"
-            with open(metrics_path, 'w') as f:
-                json.dump(results, f, indent=2, default=str)
-            print(f"Updated metrics.json with utility results for {model_name}")
-            
-            all_results[model_name] = results
-        # Save complete results
-        results_file = self.results_dir / "complete_evaluation.json"
-        with open(results_file, 'w') as f:
+
+        # Find all artifacts
+        artifacts = sorted(self.generated_dir.glob("*/*.pt"))
+        if not artifacts:
+            raise FileNotFoundError(f"No artifacts found in {self.generated_dir}")
+
+        # Evaluate each artifact
+        all_results: Dict[str, Any] = {}
+        for artifact_path in artifacts:
+            try:
+                result = self.evaluate_artifact(artifact_path)
+                if result:
+                    key = f"{result['model_name']}_seq_{result['sequence_length']}"
+                    all_results[key] = result
+            except Exception as exc:  # noqa: BLE001
+                print(f"[ERROR] Failed to evaluate {artifact_path}: {exc}")
+
+        # Save summary
+        summary_path = self.results_dir / "complete_evaluation.json"
+        with summary_path.open("w") as f:
             json.dump(all_results, f, indent=2, default=str)
 
-        show_with_end_divider("EVALUATION COMPLETE")
-        print(f"Results saved to: {results_file}")
-        print(f"Experiment: {self.experiment_name}")
-        print(f"Sequence length used: {self.seq_length}")
-
+        print(f"Saved evaluation summary to {summary_path}")
         return all_results
 
 
-def main():
-    """Main function to run the evaluation pipeline."""
-    parser = argparse.ArgumentParser(description='Unified Evaluator Pipeline')
+def parse_args():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="Unified evaluation (artifact-only).")
     parser.add_argument(
-        '--seq_length',
-        type=lambda x: None if x.lower() == 'none' else int(x),
-        default=None,
-        help='Sequence length for time series. If None, will be determined using autocorrelation'
-    )
-    parser.add_argument(
-        '--num_samples',
-        type=int,
-        default=500,
-        help='Number of samples to generate per model (default: 500)'
-    )
-    parser.add_argument(
-        '--num_epochs',
-        type=int,
-        default=10,
-        help='Number of training epochs for non-parametric models (default: 10)'
-    )
-    parser.add_argument(
-        '--batch_size',
-        type=int,
-        default=32,
-        help='Batch size for DataLoaders (default: 32)'
-    )
-    parser.add_argument(
-        '--seed',
-        type=int,
-        default=42,
-        help='Random seed (default: 42)'
-    )
-    parser.add_argument(
-        '--experiment_name',
+        "--generated_dir",
         type=str,
-        default='TimeSeries_Generation_Comprehensive_Evaluation',
-        help='Name of the experiment'
+        default=str(project_root / "generated_data"),
+        help="Directory containing generated artifacts.",
     )
     parser.add_argument(
-        '--results_dir',
+        "--results_dir",
         type=str,
+        default=str(project_root / "results"),
+        help="Directory to store evaluation outputs.",
+    )
+    parser.add_argument(
+        "--seq_lengths",
+        type=int,
+        nargs="*",
         default=None,
-        help='Directory to save results. If None, creates a timestamped directory'
+        help="Optional sequence lengths to evaluate (subset).",
     )
-
-    args = parser.parse_args()
-
-    non_parametric_dataset_cfgs, parametric_dataset_cfgs = get_dataset_cfgs()
-
-    evaluator = UnifiedEvaluator(
-        experiment_name=args.experiment_name,
-        parametric_dataset_cfgs=parametric_dataset_cfgs,
-        non_parametric_dataset_cfgs=non_parametric_dataset_cfgs,
-        seq_length=args.seq_length,
-        results_dir=Path(args.results_dir) if args.results_dir else None
-    )
-
-    evaluator.run_complete_evaluation(
-        num_samples=args.num_samples,
-        num_epochs=args.num_epochs,
-        batch_size=args.batch_size,
-        seed=args.seed
-    )
-
-if __name__ == "__main__":
-    main()
-
+    return parser.parse_args()

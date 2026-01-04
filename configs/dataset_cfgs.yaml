@@ -1,16 +1,12 @@
 nonparametric_dataset_cfg:
-  index: "spxusd"
   platform: "MS"
   timeframe: "M1"
-  original_data_path: "data/processed/combined_${index}.csv"
   valid_ratio: 0.10
   test_ratio: 0.10
 
 parametric_dataset_cfg:
-  index: "spxusd"
   platform: "MS"
   timeframe: "M1"
-  original_data_path: "data/processed/combined_${index}.csv"
   valid_ratio: 0.10
   test_ratio: 0.10
   is_parametric: true

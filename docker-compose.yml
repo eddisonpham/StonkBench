@@ -1,0 +1,109 @@
+services:
+  # Base service definition (not run directly)
+  base:
+    build:
+      context: .
+      dockerfile: Dockerfile.base
+    image: sdgfts-base:latest
+    volumes:
+      - ./data:/data
+      - ./generated_data:/generated_data
+      - ./results:/results
+      - ./evaluation_plots:/evaluation_plots
+      - ./configs:/app/configs:ro
+    environment:
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}
+    networks:
+      - default
+
+  # Data download and preprocessing service
+  data-download:
+    extends:
+      service: base
+    container_name: sdgfts-data-download
+    command: >
+      src/data_downloader.py
+      --index spxusd
+      --year 2023 2024
+    volumes:
+      - ./data:/data
+      - ./configs:/app/configs:ro
+    healthcheck:
+      test: ["CMD", "test", "-f", "/data/processed/combined_spxusd.csv"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Parametric model data generation
+  generate-data:
+    extends:
+      service: base
+    container_name: sdgfts-generate-data
+    command: >
+      src/generation_scripts/generate_data.py
+      --seq_lengths 52 60 120 180 240 300
+      --num_samples 1000
+      --seed 42
+      --output_dir /generated_data
+    depends_on:
+      data-download:
+        condition: service_completed_successfully
+    volumes:
+      - data:/data:ro
+      - generated_data:/generated_data
+      - configs:/app/configs:ro
+    environment:
+      - OMP_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
+      - NUMEXPR_NUM_THREADS=1
+      - OPENBLAS_NUM_THREADS=1
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+  eval:
+    extends:
+      service: base
+    container_name: sdgfts-eval
+    command: >
+      src/parallelizer_script.py
+      --stage evaluate
+      --seq_lengths 52 60 120 180 240 300
+      --max_procs 8
+      --generated_dir /generated_data
+      --results_dir /results
+    depends_on:
+      generate-data:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/data:ro
+      - ./generated_data:/generated_data:ro
+      - ./results:/results
+      - ./configs:/app/configs:ro
+
+  # Plotting service (generates paper figures)
+  plot:
+    extends:
+      service: base
+    container_name: sdgfts-plot
+    command: ["src/plot_statistics/evaluation_plotter.py"]
+    depends_on:
+      eval:
+        condition: service_completed_successfully
+    volumes:
+      - ./results:/results:ro
+      - ./evaluation_plots:/evaluation_plots
+      - ./configs:/app/configs:ro
+
+networks:
+  default:
+    name: sdgfts-network
+    driver: bridge
+
+volumes:
+  data:
+  generated_data:
+  results:
+  evaluation_plots:
+  configs:

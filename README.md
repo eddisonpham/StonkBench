@@ -23,7 +23,33 @@ python src/data_downloader.py --ticker `[ticker name]`
 
 This will save the data as `data/raw/[ticker name]/[ticker name].csv`.
 
-### 3. ▶️ Run the Benchmark
+### 3. 🐳 Run with Docker (optional)
+
+Build runtime image:
+```bash
+docker build -f Dockerfile.runtime -t sdgfts-runtime .
+```
+
+Generate artifacts (volume mount your working directory):
+```bash
+docker run --rm -v $(pwd):/app sdgfts-runtime \
+  python src/scripts/generate_parametric_data.py --seq_lengths 120 180 --num_samples 500
+docker run --rm -v $(pwd):/app sdgfts-runtime \
+  python src/scripts/generate_non_parametric_data.py --seq_lengths 120 180 --num_samples 500
+```
+
+Evaluate saved artifacts:
+```bash
+docker run --rm -v $(pwd):/app sdgfts-runtime \
+  python src/unified_evaluator.py --seq_lengths 120 180 --results_dir results/seq_run
+```
+
+Orchestrate all stages locally (non-container):
+```bash
+python src/parallelizer_script.py --seq_lengths 120 180 --stage all
+```
+
+### 4. ▶️ Run the Benchmark
 
 Execute the full benchmark and get all evaluation metrics, synthetic data, and logs in `notebooks/pipeline_validation.py`
 
