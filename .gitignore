@@ -22,6 +22,6 @@ testing_files/*
 
 cache/*
 
-notebooks/sanity_check_dl
-
+notebooks/*
+src/experiments/*
 */**/*.pt

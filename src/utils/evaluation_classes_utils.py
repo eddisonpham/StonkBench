@@ -30,6 +30,36 @@ from src.hedging_models.non_deep_hedgers.linear_regression import LinearRegressi
 from src.hedging_models.non_deep_hedgers.xgboost import XGBoost
 
 
+def _to_2d(data: np.ndarray) -> np.ndarray:
+    arr = np.asarray(data)
+    if arr.ndim == 2:
+        return arr
+    if arr.ndim == 3:
+        n, l, c = arr.shape
+        return arr.reshape(n, l * c)
+    raise ValueError(f"Expected 2D or 3D data, got shape {arr.shape}")
+
+
+def _split_channels(data: np.ndarray) -> list[np.ndarray]:
+    arr = np.asarray(data)
+    if arr.ndim == 2:
+        return [arr]
+    if arr.ndim == 3:
+        return [arr[:, :, c] for c in range(arr.shape[2])]
+    raise ValueError(f"Expected 2D or 3D data, got shape {arr.shape}")
+
+
+def _aggregate_channel_metrics(channel_metrics: list[dict[str, float]]) -> dict[str, dict[str, float]]:
+    if not channel_metrics:
+        return {}
+    keys = sorted(channel_metrics[0].keys())
+    aggregated = {}
+    for key in keys:
+        values = np.array([m[key] for m in channel_metrics], dtype=float)
+        aggregated[key] = {"mean": float(np.mean(values)), "std": float(np.std(values))}
+    return aggregated
+
+
 class TaxonomyEvaluator(ABC):
     """Abstract base class for taxonomy evaluators."""
 
@@ -49,7 +79,16 @@ class TaxonomyEvaluator(ABC):
 class DiversityEvaluator(TaxonomyEvaluator):
     def evaluate(self) -> Dict[str, np.ndarray]:
         metrics = ["euclidean", "dtw"]
-        self.results = {f"icd_{m}": calculate_icd(self.syn_data, metric=m) for m in metrics}
+        syn = np.asarray(self.syn_data)
+        channel_results = []
+        for channel in _split_channels(syn):
+            channel_results.append({f"icd_{m}": calculate_icd(channel, metric=m) for m in metrics})
+        if len(channel_results) == 1:
+            self.results = channel_results[0]
+        else:
+            summary = _aggregate_channel_metrics(channel_results)
+            self.results = {k: v["mean"] for k, v in summary.items()}
+            self.results["per_channel"] = channel_results
         return self.results
 
 class FidelityEvaluator(TaxonomyEvaluator):
@@ -61,7 +100,23 @@ class FidelityEvaluator(TaxonomyEvaluator):
             "sd": calculate_sd,
             "kd": calculate_kd
         }
-        self.results = {name: fn(self.ori_data, self.syn_data) for name, fn in fidelity_metrics.items()}
+        ori_channels = _split_channels(np.asarray(self.ori_data))
+        syn_channels = _split_channels(np.asarray(self.syn_data))
+        if len(ori_channels) != len(syn_channels):
+            min_c = min(len(ori_channels), len(syn_channels))
+            ori_channels = ori_channels[:min_c]
+            syn_channels = syn_channels[:min_c]
+
+        channel_results = []
+        for ori_c, syn_c in zip(ori_channels, syn_channels):
+            channel_results.append({name: fn(ori_c, syn_c) for name, fn in fidelity_metrics.items()})
+
+        if len(channel_results) == 1:
+            self.results = channel_results[0]
+        else:
+            summary = _aggregate_channel_metrics(channel_results)
+            self.results = {k: v["mean"] for k, v in summary.items()}
+            self.results["per_channel"] = channel_results
         return self.results
 
 class RuntimeEvaluator(TaxonomyEvaluator):
@@ -90,16 +145,36 @@ class StylizedFactsEvaluator(TaxonomyEvaluator):
             "long_memory_volatility": long_memory_volatility
         }
         try:
-            for name, fn in fact_functions.items():
-                real_val = fn(self.ori_data)
-                synth_val = fn(self.syn_data)
-                diff_val = np.abs(real_val - synth_val)
-                # Store results as scalars
-                self.results[name] = {
-                    "real": float(real_val),
-                    "synth": float(synth_val),
-                    "diff": float(diff_val)
-                }
+            ori_channels = _split_channels(np.asarray(self.ori_data))
+            syn_channels = _split_channels(np.asarray(self.syn_data))
+            per_channel = []
+            for ori_c, syn_c in zip(ori_channels, syn_channels):
+                channel_dict = {}
+                for name, fn in fact_functions.items():
+                    real_val = fn(ori_c)
+                    synth_val = fn(syn_c)
+                    diff_val = np.abs(real_val - synth_val)
+                    channel_dict[name] = {
+                        "real": float(np.asarray(real_val).mean()),
+                        "synth": float(np.asarray(synth_val).mean()),
+                        "diff": float(np.asarray(diff_val).mean()),
+                    }
+                per_channel.append(channel_dict)
+            if len(per_channel) == 1:
+                self.results = per_channel[0]
+            else:
+                averaged = {}
+                for metric_name in per_channel[0].keys():
+                    real_vals = np.array([c[metric_name]["real"] for c in per_channel], dtype=float)
+                    synth_vals = np.array([c[metric_name]["synth"] for c in per_channel], dtype=float)
+                    diff_vals = np.array([c[metric_name]["diff"] for c in per_channel], dtype=float)
+                    averaged[metric_name] = {
+                        "real": float(np.mean(real_vals)),
+                        "synth": float(np.mean(synth_vals)),
+                        "diff": float(np.mean(diff_vals)),
+                    }
+                averaged["per_channel"] = per_channel
+                self.results = averaged
         except Exception as e:
             print(f"Warning: Stylized facts evaluation failed: {e}")
             self.results["stylized_facts_error"] = str(e)

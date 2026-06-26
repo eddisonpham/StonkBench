@@ -1,13 +1,5 @@
-nonparametric_dataset_cfg:
-  platform: "MS"
-  timeframe: "M1"
-  valid_ratio: 0.10
-  test_ratio: 0.10
+deep_learning_dataset_cfg:
+  preprocessed_data_path: "data/preprocessed/dl_set.pt"
 
-parametric_dataset_cfg:
-  platform: "MS"
-  timeframe: "M1"
-  valid_ratio: 0.10
-  test_ratio: 0.10
-  is_parametric: true
-
+statistical_dataset_cfg:
+  preprocessed_data_path: "data/preprocessed/statsmodel_set.pt"

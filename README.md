@@ -31,10 +31,11 @@ docker-compose up
 ```
 
 This command runs all services in dependency order:
-1. **data-download**: Downloads and preprocesses SPXUSD time series data
-2. **generate-data**: Generates synthetic data using both parametric and non-parametric models
-3. **eval**: Evaluates all generated data using the unified evaluator
-4. **plot**: Generates publication-ready figures from evaluation results
+1. **data-download**: Downloads daily close/volume market data
+2. **data-preprocess**: Builds `dl_set.pt` and `statsmodel_set.pt`
+3. **generate-data**: Generates synthetic data using both statistical and deep learning models
+4. **eval**: Evaluates all generated data using the unified evaluator
+5. **plot**: Generates publication-ready figures from evaluation results
 
 #### Run specific services
 
@@ -42,11 +43,11 @@ This command runs all services in dependency order:
 # Run only data download
 docker-compose up data-download
 
-# Run data download and generation only
-docker-compose up data-download generate-data
+# Run data download + preprocessing + generation
+docker-compose up data-download data-preprocess generate-data
 
 # Run through evaluation, skip plotting
-docker-compose up data-download generate-data eval
+docker-compose up data-download data-preprocess generate-data eval
 ```
 
 #### Environment variables
@@ -62,7 +63,7 @@ export CUDA_VISIBLE_DEVICES=0
 
 The following local directories are mapped into containers:
 
-- `./data` → `/data` (raw and processed data)
+- `./data` → `/data` (downloaded datasets)
 - `./generated_data` → `/generated_data` (synthetic data outputs)
 - `./results` → `/results` (evaluation results)
 - `./evaluation_plots` → `/evaluation_plots` (plots and figures)
@@ -74,41 +75,63 @@ The following local directories are mapped into containers:
 
 Fetch the required dataset:
 ```bash
-python src/data_downloader.py --index spxusd --year 2023 2024
+python src/data_downloader.py --index SPY QQQ IWM XLF XLV AAPL MSFT NVDA AVGO JPM LLY UNH AMZN TSLA CAT UNP META NFLX PG COST XOM CVX NEE PLD LIN --start 2023-01-01 --end 2025-01-01
 ```
 
-This saves data to `data/raw/` and processed data to `data/processed/`.
+This saves data to `data/combined_data.csv`.
 
-#### 2. Generate Synthetic Data
+#### 2. Preprocess Dataset
 
-Generate synthetic data using the unified script (handles both parametric and non-parametric models):
+```bash
+python src/data_preprocessing.py \
+  --input_csv data/combined_data.csv \
+  --output_dir data/preprocessed \
+  --window_size 21 \
+  --stride 1 \
+  --train_ratio 0.8
+```
+
+This writes:
+- `data/preprocessed/dl_set.pt`
+- `data/preprocessed/statsmodel_set.pt`
+
+#### 3. Generate Synthetic Data
+
+Generate synthetic data using the multivariate adapter pipeline:
 
 ```bash
 python src/generation_scripts/generate_data.py \
+  --models quantgan timegan timegrad timevae unconditional_tsdiffusion vrnn gbm_adapter \
   --generation_length 52 \
   --num_samples 1000 \
   --seed 42 \
-  --output_dir generated_data
+  --output_root src/experiments
 ```
 
-The script trains models on the training set at the ACF-inferred sequence length, then generates samples by stitching log returns to reach the target generation length. Artifacts are saved under `generated_data/<ModelName>/<ModelName>_seq_<L>.pt`.
+The script loads the preprocessed `.pt` datasets, trains through model adapters, and writes artifacts/checkpoints/logs under `src/experiments/<model_name>/`.
 
-#### 3. Evaluate Generated Data
+#### 4. Evaluate Generated Data
 
 Evaluate all generated artifacts:
 
 ```bash
 python src/unified_evaluator.py \
-  --generated_dir generated_data \
+  --generated_dir src/experiments \
   --results_dir results \
   --seq_lengths 52 60 120 180 240 300
+```
+
+#### 4.1 Smoke Test All Models
+
+```bash
+python src/experiments/smoke_test.py
 ```
 
 Outputs are saved to:
 - `/results/seq_<L>/<ModelName>/metrics.json` - Evaluation metrics
 - `/results/seq_<L>/<ModelName>/visualizations/` - Visualization outputs
 
-#### 4. Generate Publication-Ready Plots
+#### 5. Generate Publication-Ready Plots
 
 Generate comprehensive, publication-ready plots for all evaluation metrics:
 
@@ -121,17 +144,18 @@ This automatically finds the latest evaluation results, generates publication-qu
 ### Pipeline Overview
 
 **What happens:**
-- **Data Preprocessing**:
-  - **Non-parametric models**: The data is segmented into overlapping sub-sequences of shape `(R, l, N)` where `R` is the number of sequences, `l` is the sequence length, and `N` is the number of features.
-  - **Parametric models**: The original time series is used without segmentation, resulting in data of shape `(l, N)`.
-- Models are trained on the training set at the ACF-inferred sequence length
+- `src/data_preprocessing.py` transforms data:
+  - Price columns: log returns
+  - Volume columns: log(volume)
+- Deep learning models train on precomputed windows `(R, 21, N)` from `dl_set.pt`
+- Statistical models fit on train series `(T, N)` from `statsmodel_set.pt`
 - Generated samples are stitched to reach target generation lengths
 - All taxonomy metrics (fidelity, diversity, efficiency, and stylized facts) are computed
 - Results are printed in the console and saved to detailed JSON files in the results directory
 
 #### Customizing runs
 
-- `configs/dataset_cfgs.yaml`: Modify the preprocessing of the dataset for parametric/non-parametric models.
+- `configs/dataset_cfgs.yaml`: Set paths for `dl_set.pt` and `statsmodel_set.pt`.
 
 ---
 
@@ -194,7 +218,8 @@ Unified-benchmark-for-SDGFTS-main/
   │   │   └─ evaluation_plotter.py  # Main plotting script (executable)
   │   ├─ utils/                  # Configs, display, math, evaluation classes, preprocessing, etc.
   │   │   └─ eval_plot_utils.py  # Utilities for evaluation plotting
-  │   └─ data_downloader.py      # Dataset download utility
+  │   ├─ data_downloader.py      # Yahoo Finance download utility
+  │   └─ data_preprocessing.py   # Builds dl_set.pt and statsmodel_set.pt
   ├─ configs/                    # Experiment and preprocessing config templates
   ├─ requirements.txt
   └─ README.md
@@ -204,27 +229,27 @@ Unified-benchmark-for-SDGFTS-main/
 
 ## Supported Models
 
-The benchmark supports a range of both traditional parametric models and modern deep learning approaches:
+The benchmark supports a range of both traditional statistical models and modern deep learning approaches:
 
 <details>
-<summary><strong>Parametric Models</strong></summary>
+<summary><strong>Statistical Models</strong></summary>
 
 - <kbd>Geometric Brownian Motion (GBM)</kbd>
 - <kbd>Ornstein-Uhlenbeck (OU) Process</kbd>
 - <kbd>Merton Jump Diffusion (MJD)</kbd>
 - <kbd>Double Exponential Jump Diffusion (DEJD)</kbd>
 - <kbd>GARCH(1,1)</kbd>
+- <kbd>Block Bootstrap</kbd>
 
 </details>
 
 <details>
-<summary><strong>Non-parametric & Deep Learning Models</strong></summary>
+<summary><strong>Deep Learning Models</strong></summary>
 
 - <kbd>TimeGAN</kbd>
 - <kbd>QuantGAN</kbd>
 - <kbd>TimeVAE</kbd>
 - <kbd>Sig-WGAN</kbd>
-- <kbd>Block Bootstrap</kbd>
 
 </details>
 
@@ -266,7 +291,7 @@ Refer to `src/taxonomies/` for implementation details and to `src/utils/` for ut
 
 ## How To Add Your Own Model
 
-1. Implement your model in `src/models/` and ensure you inherit from the appropriate base class (`ParametricModel` or `DeepLearningModel`).
+1. Implement your model in `src/models/statistical/` or `src/models/deep_learning/` and inherit from `StatisticalModel` or `DeepLearningModel`.
 2. Register your model in `notebooks/pipeline_validation.py` by specifying it under `run_complete_evaluation`.
 3. Rerun the pipeline and review your results in the `results/` directory!
 

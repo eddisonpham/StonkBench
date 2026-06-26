@@ -15,12 +15,23 @@ All metrics are computed as averages across sample time series.
 
 import numpy as np
 
+
+def _to_2d(data: np.ndarray) -> np.ndarray:
+    if data.ndim == 2:
+        return data
+    if data.ndim == 3:
+        n, l, c = data.shape
+        return data.reshape(n, l * c)
+    raise ValueError(f"Expected 2D or 3D input, got {data.shape}")
+
+
 def autocorr_returns(data, lag=1):
     """
     Average lag-k autocorrelation of raw returns across samples.
     This computes the linear autocorrelation on raw returns to assess the absence of linear dependence.
     data: np.ndarray of shape (n_samples, length)
     """
+    data = _to_2d(np.asarray(data))
     acfs = []
     for sample in data:
         r = sample
@@ -38,6 +49,7 @@ def volatility_clustering(data, max_lag=1):
     data: np.ndarray of shape (n_samples, length)
     Returns: array of mean autocorrelations for lags 1,...,max_lag (length = max_lag)
     """
+    data = _to_2d(np.asarray(data))
     acf_by_lag = []
     for lag in range(1, max_lag + 1):
         lag_acfs = []
@@ -57,6 +69,7 @@ def long_memory_volatility(data, max_lag=52):
     Estimate the long memory of volatility by fitting the power-law decay of the autocorrelation of absolute returns.
     The decay exponent (beta) is estimated for each sample, and the mean is returned.
     """
+    data = _to_2d(np.asarray(data))
     _, n_len = data.shape
     betas = []
     for sample in data:

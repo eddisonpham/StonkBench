@@ -15,4 +15,4 @@ def get_dataset_cfgs():
     with open(cfg_file, 'r') as f:
         dataset_cfgs = yaml.load(f, Loader=yaml.FullLoader)
 
-    return dataset_cfgs['nonparametric_dataset_cfg'], dataset_cfgs['parametric_dataset_cfg']
+    return dataset_cfgs['deep_learning_dataset_cfg'], dataset_cfgs['statistical_dataset_cfg']

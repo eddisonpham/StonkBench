@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-import pandas as pd
 import torch
 
 project_root = Path(__file__).resolve().parents[1]
@@ -30,12 +29,7 @@ from src.utils.evaluation_classes_utils import (  # noqa: E402
     VisualAssessmentEvaluator,
     UtilityEvaluator,
 )
-from src.utils.preprocessing_utils import (  # noqa: E402
-    preprocess_data,
-    sliding_window_view,
-    find_length,
-    LogReturnTransformation,
-)
+from src.utils.preprocessed_data_utils import load_dl_set, load_stats_set, sliding_window_2d  # noqa: E402
 
 
 # Constants
@@ -53,131 +47,64 @@ def _to_numpy(x: Any) -> np.ndarray:
     return np.asarray(x)
 
 
+def _normalize_model_type(model_type: str) -> str:
+    if model_type in ("parametric", "statistical"):
+        return "statistical"
+    if model_type in ("non_parametric", "deep_learning"):
+        return "deep_learning"
+    return model_type
+
+
 class DatasetCache:
     """Manages caching of preprocessed real datasets for evaluation."""
 
-    def __init__(self, non_param_cfg: Dict[str, Any], param_cfg: Dict[str, Any]):
-        self.non_param_cfg = non_param_cfg
-        self.param_cfg = param_cfg
+    def __init__(self, deep_learning_cfg: Dict[str, Any], statistical_cfg: Dict[str, Any]):
+        self._dl_set = load_dl_set(deep_learning_cfg["preprocessed_data_path"])
+        self._stats_set = load_stats_set(statistical_cfg["preprocessed_data_path"])
         self._cache: Dict[int, Dict[str, Any]] = {}
-        self._train_seq_length: Optional[int] = None
-
-    def _infer_training_sequence_length(self) -> int:
-        """Infer training sequence length from ACF analysis on training split only."""
-        if self._train_seq_length is not None:
-            return self._train_seq_length
-
-        data_path = self.non_param_cfg.get('original_data_path')
-        index = self.non_param_cfg.get('index')
-
-        df = pd.read_csv(data_path)
-        original_prices = torch.from_numpy(df[index].values)
-        scaler = LogReturnTransformation()
-        log_returns, _ = scaler.transform(original_prices)
-        
-        # Split to get training split only
-        valid_ratio = self.non_param_cfg.get('valid_ratio', 0.1)
-        test_ratio = self.non_param_cfg.get('test_ratio', 0.1)
-        L = len(log_returns)
-        train_end = int(L * (1 - valid_ratio - test_ratio))
-        train_log_returns = log_returns[:train_end]
-
-        self._train_seq_length = find_length(train_log_returns)
-        return self._train_seq_length
 
     def get_dataset(self, seq_length: int) -> Dict[str, Any]:
         """
         Get or create cached dataset for a given sequence length.
-        
-        Preprocessing only cleans and splits data (no windows).
-        Sliding windows are applied here:
-        - Training: fixed window length (inferred from ACF on training split)
-        - Validation/test: dynamic window length (seq_length parameter)
-        
-        For parametric models:
-        - Uses standard preprocessing (no windows needed)
         """
         if seq_length in self._cache:
             return self._cache[seq_length]
 
-        # Preprocess: ONLY clean and split (no sliding windows)
-        train_log_returns_np, valid_log_returns_np, test_log_returns_np, train_init_np, valid_init_np, test_init_np = preprocess_data(
-            self.non_param_cfg,
-            supress_cfg_message=True,
-        )
-        
-        # Get training sequence length (fixed, inferred from training split)
-        train_seq_length = self._infer_training_sequence_length()
-        
-        # Load prices to get initial values for windows
-        data_path = self.non_param_cfg.get('original_data_path')
-        index = self.non_param_cfg.get('index')
-        df = pd.read_csv(data_path)
-        original_prices = torch.from_numpy(df[index].values).float()
-        valid_ratio = self.non_param_cfg.get('valid_ratio', 0.1)
-        test_ratio = self.non_param_cfg.get('test_ratio', 0.1)
-        full_L = len(original_prices) - 1  # log_returns length
-        train_end_full = int(full_L * (1 - valid_ratio - test_ratio))
-        valid_end_full = int(full_L * (1 - test_ratio))
-        
-        # Apply sliding windows:
-        # - Training: fixed length (train_seq_length)
-        # - Validation/test: dynamic length (seq_length)
-        train_data_np = sliding_window_view(train_log_returns_np, train_seq_length, stride=1)
-        train_indices_np = torch.arange(0, len(train_data_np))
-        train_prices = original_prices[:train_end_full+1]
-        train_indices_np = train_indices_np[train_indices_np < len(train_prices)]
-        train_data_np = train_data_np[:len(train_indices_np)]
-        train_init_windows_np = train_prices[train_indices_np]
-        
-        # Validation windows at dynamic length (seq_length)
-        if len(valid_log_returns_np) >= seq_length:
-            valid_data_np = sliding_window_view(valid_log_returns_np, seq_length, stride=1)
-            valid_indices_np = torch.arange(0, len(valid_data_np))
-            valid_prices = original_prices[train_end_full:valid_end_full+1]
-            valid_indices_np = valid_indices_np[valid_indices_np < len(valid_prices)]
-            valid_data_np = valid_data_np[:len(valid_indices_np)]
-            valid_init_windows_np = valid_prices[valid_indices_np]
-        else:
-            valid_data_np = torch.empty((0, seq_length), dtype=train_log_returns_np.dtype)
-            valid_init_windows_np = torch.empty((0,), dtype=original_prices.dtype)
-        
-        # Test windows at dynamic length (seq_length)
-        if len(test_log_returns_np) >= seq_length:
-            test_data_np = sliding_window_view(test_log_returns_np, seq_length, stride=1)
-            test_indices_np = torch.arange(0, len(test_data_np))
-            test_prices = original_prices[valid_end_full:]
-            test_indices_np = test_indices_np[test_indices_np < len(test_prices)]
-            test_data_np = test_data_np[:len(test_indices_np)]
-            test_init_windows_np = test_prices[test_indices_np]
-        else:
-            test_data_np = torch.empty((0, seq_length), dtype=train_log_returns_np.dtype)
-            test_init_windows_np = torch.empty((0,), dtype=original_prices.dtype)
+        dl_train = self._dl_set["train_windows"].float()
+        dl_test_series = self._dl_set["test_series"].float()
+        dl_eval_windows = sliding_window_2d(dl_test_series, seq_length, stride=1)
+        split_idx = dl_eval_windows.shape[0] // 2
+        dl_valid = dl_eval_windows[:split_idx]
+        dl_test = dl_eval_windows[split_idx:]
+        if dl_test.shape[0] == 0:
+            dl_test = dl_valid
 
-        # Prepare parametric datasets (no windows needed)
-        (
-            train_para,
-            valid_para,
-            test_para,
-            train_init_para,
-            valid_init_para,
-            test_init_para,
-        ) = preprocess_data(self.param_cfg, supress_cfg_message=True)
+        train_inits = dl_train[:, 0, :] if dl_train.shape[0] else torch.empty((0, dl_test_series.shape[1]))
+        valid_inits = dl_valid[:, 0, :] if dl_valid.shape[0] else torch.empty((0, dl_test_series.shape[1]))
+        test_inits = dl_test[:, 0, :] if dl_test.shape[0] else torch.empty((0, dl_test_series.shape[1]))
+
+        train_stat = self._stats_set["train_series"].float()
+        test_stat = self._stats_set["test_series"].float()
+        full_stat = self._stats_set["full_series"].float()
+        stat_windows = sliding_window_2d(test_stat, seq_length, stride=1)
 
         dataset = {
-            "nonparam_train": train_data_np,
-            "nonparam_valid": valid_data_np,
-            "nonparam_test": test_data_np,
-            "nonparam_train_init": train_init_windows_np,
-            "nonparam_valid_init": valid_init_windows_np,
-            "nonparam_test_init": test_init_windows_np,
-            "param_series": torch.cat([train_para, valid_para, test_para]),
-            "param_train": train_para,
-            "param_valid": valid_para,
-            "param_test": test_para,
-            "param_train_init": train_init_para,
-            "param_valid_init": valid_init_para,
-            "param_test_init": test_init_para,
+            "deep_learning_train": dl_train,
+            "deep_learning_valid": dl_valid,
+            "deep_learning_test": dl_test,
+            "deep_learning_train_init": train_inits,
+            "deep_learning_valid_init": valid_inits,
+            "deep_learning_test_init": test_inits,
+            "asset_columns": list(self._dl_set["feature_columns"]),
+            "price_columns": list(self._dl_set["price_columns"]),
+            "statistical_series": full_stat,
+            "statistical_train": train_stat,
+            "statistical_valid": torch.empty((0, train_stat.shape[1]), dtype=train_stat.dtype),
+            "statistical_test": test_stat,
+            "statistical_train_init": train_stat[0] if train_stat.shape[0] else torch.zeros(train_stat.shape[1]),
+            "statistical_valid_init": torch.zeros(train_stat.shape[1]),
+            "statistical_test_init": test_stat[0] if test_stat.shape[0] else torch.zeros(train_stat.shape[1]),
+            "statistical_test_windows": stat_windows,
         }
 
         self._cache[seq_length] = dataset
@@ -197,9 +124,10 @@ class ArtifactLoader:
         """Extract and validate metadata from artifact."""
         return {
             "model_name": metadata.get("model_name") or artifact_path.parent.name,
-            "model_type": metadata.get("model_type", "non_parametric"),
+            "model_type": _normalize_model_type(metadata.get("model_type", "deep_learning")),
             "sequence_length": int(metadata["sequence_length"]),
             "num_samples": int(metadata.get("num_samples", 0)),
+            "num_channels": int(metadata.get("num_channels", 1)),
         }
 
     @staticmethod
@@ -208,7 +136,10 @@ class ArtifactLoader:
         num_samples: int,
     ) -> np.ndarray:
         """Prepare data for evaluation."""
-        return _to_numpy(data[:num_samples])
+        data = data[:num_samples]
+        if data.ndim == 2:
+            data = data.unsqueeze(-1)
+        return _to_numpy(data)
 
 
 class RealDataPreparer:
@@ -223,20 +154,12 @@ class RealDataPreparer:
     ) -> np.ndarray:
         """
         Prepare real data windows aligned with generated data at generation length.
-
-        - Parametric: Create sliding windows from test set at generation length
-        - Non-parametric: Use pre-windowed test set (windows already created in get_dataset at generation length)
         """
-        if model_type == "parametric":
-            # Create windows from test set log returns at generation length
-            test_series = dataset["param_test"]
-            if len(test_series) >= seq_length:
-                real_windows = sliding_window_view(test_series, seq_length, stride=1)
-            else:
-                real_windows = torch.empty((0, seq_length), dtype=test_series.dtype)
+        model_type = _normalize_model_type(model_type)
+        if model_type == "statistical":
+            real_windows = dataset["statistical_test_windows"]
         else:
-            # Non-parametric: test windows are already created in get_dataset with dynamic length (generation length)
-            real_windows = dataset["nonparam_test"]
+            real_windows = dataset["deep_learning_test"]
 
         real_data = _to_numpy(real_windows)
 
@@ -293,6 +216,24 @@ class UtilityMetricsEvaluator:
         self.batch_size = batch_size
         self.learning_rate = learning_rate
 
+    @staticmethod
+    def _average_nested_dicts(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        if not results:
+            return {}
+        first = results[0]
+        averaged: Dict[str, Any] = {}
+        for key, value in first.items():
+            values = [r[key] for r in results if key in r]
+            if not values:
+                continue
+            if isinstance(value, dict):
+                averaged[key] = UtilityMetricsEvaluator._average_nested_dicts(values)  # type: ignore[arg-type]
+            elif isinstance(value, (int, float, np.floating)):
+                averaged[key] = float(np.mean([float(v) for v in values]))
+            else:
+                averaged[key] = value
+        return averaged
+
     def evaluate(
         self,
         generated_data: np.ndarray,
@@ -301,51 +242,88 @@ class UtilityMetricsEvaluator:
     ) -> Dict[str, Any]:
         """Run utility evaluation using deep hedging."""
         synthetic = torch.from_numpy(generated_data).float()
-        num_samples = synthetic.shape[0]
+        if synthetic.ndim == 2:
+            synthetic = synthetic.unsqueeze(-1)
 
-        # Split synthetic data
+        num_samples = synthetic.shape[0]
         train_end = int(num_samples * UTILITY_TRAIN_RATIO)
         val_end = int(num_samples * UTILITY_VAL_RATIO)
 
-        synthetic_train = synthetic[:train_end]
-        synthetic_val = synthetic[train_end:val_end]
-        synthetic_test = synthetic[val_end:]
+        feature_columns = dataset.get("asset_columns", [])
+        price_columns = dataset.get("price_columns", feature_columns)
+        price_indices = [feature_columns.index(c) for c in price_columns if c in feature_columns]
+        if not price_indices:
+            return {"utility_error": "No price channels available for utility evaluation."}
 
-        # Prepare initial values for synthetic data
-        mean_initial = float(dataset["nonparam_train_init"].mean().item())
-        device = dataset["nonparam_train_init"].device
+        synthetic = synthetic[:, :, price_indices]
+        real_train_all = dataset["deep_learning_train"][:, :, price_indices]
+        real_valid_all = dataset["deep_learning_valid"][:, :, price_indices]
+        real_test_all = dataset["deep_learning_test"][:, :, price_indices]
+        real_train_init_all = dataset["deep_learning_train_init"][:, price_indices]
+        real_valid_init_all = dataset["deep_learning_valid_init"][:, price_indices]
+        real_test_init_all = dataset["deep_learning_test_init"][:, price_indices]
 
-        synthetic_initials = {
-            "train": torch.ones(train_end, device=device) * mean_initial,
-            "val": torch.ones(val_end - train_end, device=device) * mean_initial,
-            "test": torch.ones(num_samples - val_end, device=device) * mean_initial,
+        num_channels = synthetic.shape[-1]
+        per_channel_results: List[Dict[str, Any]] = []
+        for c in range(num_channels):
+            synthetic_c = synthetic[:, :, c]
+            synthetic_train = synthetic_c[:train_end]
+            synthetic_val = synthetic_c[train_end:val_end]
+            synthetic_test = synthetic_c[val_end:]
+
+            real_train = real_train_all[:, :, c]
+            real_val = real_valid_all[:, :, c]
+            real_test = real_test_all[:, :, c]
+            real_train_init = real_train_init_all[:, c]
+            real_val_init = real_valid_init_all[:, c]
+            real_test_init = real_test_init_all[:, c]
+
+            if real_val.shape[0] == 0:
+                real_val = real_test
+                real_val_init = real_test_init
+
+            if real_train.shape[0] == 0 or real_test.shape[0] == 0:
+                per_channel_results.append({"utility_error": "Insufficient real data windows for utility evaluation."})
+                continue
+
+            mean_initial = float(real_train_init.mean().item())
+            device = real_train_init.device
+            synthetic_initials = {
+                "train": torch.ones(train_end, device=device) * mean_initial,
+                "val": torch.ones(val_end - train_end, device=device) * mean_initial,
+                "test": torch.ones(num_samples - val_end, device=device) * mean_initial,
+            }
+
+            evaluator = UtilityEvaluator(
+                real_train_log_returns=real_train,
+                real_val_log_returns=real_val,
+                real_test_log_returns=real_test,
+                synthetic_train_log_returns=synthetic_train,
+                synthetic_val_log_returns=synthetic_val,
+                synthetic_test_log_returns=synthetic_test,
+                real_train_initial=real_train_init,
+                real_val_initial=real_val_init,
+                real_test_initial=real_test_init,
+                synthetic_train_initial=synthetic_initials["train"],
+                synthetic_val_initial=synthetic_initials["val"],
+                synthetic_test_initial=synthetic_initials["test"],
+                seq_length=seq_length,
+                num_epochs=self.num_epochs,
+                batch_size=self.batch_size,
+                learning_rate=self.learning_rate,
+            )
+
+            try:
+                per_channel_results.append(evaluator.evaluate())
+            except Exception as exc:  # noqa: BLE001
+                per_channel_results.append({"utility_error": str(exc)})
+
+        if num_channels == 1:
+            return per_channel_results[0]
+        return {
+            "summary": self._average_nested_dicts(per_channel_results),
+            "per_channel": per_channel_results,
         }
-
-        # Create utility evaluator
-        evaluator = UtilityEvaluator(
-            real_train_log_returns=dataset["nonparam_train"],
-            real_val_log_returns=dataset["nonparam_valid"],
-            real_test_log_returns=dataset["nonparam_test"],
-            synthetic_train_log_returns=synthetic_train,
-            synthetic_val_log_returns=synthetic_val,
-            synthetic_test_log_returns=synthetic_test,
-            real_train_initial=dataset["nonparam_train_init"],
-            real_val_initial=dataset["nonparam_valid_init"],
-            real_test_initial=dataset["nonparam_test_init"],
-            synthetic_train_initial=synthetic_initials["train"],
-            synthetic_val_initial=synthetic_initials["val"],
-            synthetic_test_initial=synthetic_initials["test"],
-            seq_length=seq_length,
-            num_epochs=self.num_epochs,
-            batch_size=self.batch_size,
-            learning_rate=self.learning_rate,
-        )
-
-        try:
-            return evaluator.evaluate()
-        except Exception as exc:  # noqa: BLE001
-            print(f"[WARN] Utility evaluation failed: {exc}")
-            return {"utility_error": str(exc)}
 
 
 class UnifiedEvaluator:
@@ -368,8 +346,8 @@ class UnifiedEvaluator:
         self.seq_length_filter = set(seq_length_filter or [])
 
         # Initialize components
-        non_param_cfg, param_cfg = get_dataset_cfgs()
-        self.dataset_cache = DatasetCache(non_param_cfg, param_cfg)
+        deep_learning_cfg, statistical_cfg = get_dataset_cfgs()
+        self.dataset_cache = DatasetCache(deep_learning_cfg, statistical_cfg)
         self.artifact_loader = ArtifactLoader()
         self.real_data_preparer = RealDataPreparer()
         self.core_metrics_evaluator = None  # Initialized per artifact
@@ -416,6 +394,14 @@ class UnifiedEvaluator:
         real_data = self.real_data_preparer.prepare(
             dataset, seq_length, artifact_info["model_type"], num_samples
         )
+        if real_data.ndim == 2:
+            real_data = np.expand_dims(real_data, axis=-1)
+        if generated_data.ndim == 2:
+            generated_data = np.expand_dims(generated_data, axis=-1)
+        if real_data.shape[-1] != generated_data.shape[-1]:
+            min_channels = min(real_data.shape[-1], generated_data.shape[-1])
+            real_data = real_data[:, :, :min_channels]
+            generated_data = generated_data[:, :, :min_channels]
 
         # Prepare output directory
         output_dir = self._prepare_output_directory(seq_length, artifact_info["model_name"])
@@ -463,6 +449,8 @@ class UnifiedEvaluator:
         # Find all artifacts
         artifacts = sorted(self.generated_dir.glob("*/*.pt"))
         if not artifacts:
+            artifacts = sorted(self.generated_dir.glob("*/artifacts/*.pt"))
+        if not artifacts:
             raise FileNotFoundError(f"No artifacts found in {self.generated_dir}")
 
         # Evaluate each artifact
@@ -491,7 +479,7 @@ def parse_args():
     parser.add_argument(
         "--generated_dir",
         type=str,
-        default=str(project_root / "generated_data"),
+        default=str(project_root / "src" / "experiments"),
         help="Directory containing generated artifacts.",
     )
     parser.add_argument(
@@ -508,3 +496,17 @@ def parse_args():
         help="Optional sequence lengths to evaluate (subset).",
     )
     return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    evaluator = UnifiedEvaluator(
+        generated_dir=Path(args.generated_dir),
+        results_dir=Path(args.results_dir),
+        seq_length_filter=args.seq_lengths,
+    )
+    evaluator.run()
+
+
+if __name__ == "__main__":
+    main()

@@ -11,6 +11,15 @@ from scipy.spatial.distance import pdist
 from dtaidistance import dtw
 
 
+def _to_2d(data: np.ndarray) -> np.ndarray:
+    if data.ndim == 2:
+        return data
+    if data.ndim == 3:
+        n, l, c = data.shape
+        return data.reshape(n, l * c)
+    raise ValueError(f"Expected 2D or 3D input, got {data.shape}")
+
+
 def compute_icd_euclidean(data: np.ndarray) -> float:
     """
     Compute Intra-Class Distance (ICD) for time series using the Euclidean metric.
@@ -42,7 +51,7 @@ def calculate_icd(comp_data: np.ndarray, metric: str = "euclidean") -> float:
     ICD = (2 / A^2) * sum_{i<j} D(X_i, X_j)
     """
     assert metric in ["euclidean", "dtw"], "Unsupported metric"
-    assert comp_data.ndim == 2, "Expected 2D array (n_samples, timesteps)"
+    comp_data = _to_2d(np.asarray(comp_data))
 
     if metric == "euclidean":
         return compute_icd_euclidean(comp_data)

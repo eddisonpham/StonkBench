@@ -55,12 +55,19 @@ def validate_artifact(data: torch.Tensor, metadata: Dict[str, Any]) -> None:
         raise ValueError(f"Metadata missing required keys: {missing}")
 
     seq_len = int(metadata["sequence_length"])
-    if data.ndim != 2:
-        raise ValueError(f"Artifact tensor must be 2D (num_samples, L); got ndim={data.ndim}.")
+    if data.ndim not in (2, 3):
+        raise ValueError(f"Artifact tensor must be 2D or 3D; got ndim={data.ndim}.")
     if data.shape[1] != seq_len:
         raise ValueError(
             f"Sequence length mismatch: tensor has {data.shape[1]}, metadata says {seq_len}."
         )
+    if "num_channels" in metadata:
+        num_channels = int(metadata["num_channels"])
+        actual_channels = 1 if data.ndim == 2 else data.shape[2]
+        if actual_channels != num_channels:
+            raise ValueError(
+                f"Channel mismatch: tensor has {actual_channels}, metadata says {num_channels}."
+            )
 
 
 def save_artifact(
@@ -74,6 +81,9 @@ def save_artifact(
 
     validate_artifact(data, metadata)
 
+    # Persist as 3D (R, L, C) for standardized multivariate contract.
+    if data.ndim == 2:
+        data = data.unsqueeze(-1)
     payload = {"data": data.cpu(), "metadata": metadata}
     torch.save(payload, output_path)
     return output_path
@@ -106,8 +116,14 @@ def stitch_sequences(base_data: torch.Tensor, target_length: int, seed: int = 42
     Returns:
         2D tensor of shape (num_samples, target_length)
     """
+    if base_data.ndim == 3:
+        # Stitch each channel independently then stack.
+        stitched_channels = []
+        for c in range(base_data.shape[2]):
+            stitched_channels.append(stitch_sequences(base_data[:, :, c], target_length, seed + c).unsqueeze(-1))
+        return torch.cat(stitched_channels, dim=-1)
     if base_data.ndim != 2:
-        raise ValueError("base_data must be 2D (num_samples, base_length).")
+        raise ValueError("base_data must be 2D (num_samples, base_length) or 3D (num_samples, base_length, channels).")
     num_samples, base_length = base_data.shape
 
     if target_length == base_length:
@@ -153,6 +169,8 @@ def default_metadata(
     }
     if extra:
         meta.update(extra)
+    meta.setdefault("num_channels", 1)
+    meta.setdefault("is_multivariate", False)
     return meta
 
 

@@ -4,6 +4,18 @@ from pathlib import Path
 from typing import List
 
 
+DEFAULT_MODELS = [
+    "quantgan",
+    "timegan",
+    "timegrad",
+    "timevae",
+    "unconditional_tsdiffusion",
+    "vrnn",
+    "gbm_adapter",
+    "block_bootstrap",
+]
+
+
 def run(cmd: List[str]):
     print(f"[RUN] {' '.join(cmd)}")
     return subprocess.Popen(cmd)
@@ -27,6 +39,12 @@ def parse_args():
         help="Stage to run.",
     )
     parser.add_argument("--max_procs", type=int, default=3, help="Maximum concurrent processes.")
+    parser.add_argument(
+        "--models",
+        nargs="*",
+        default=DEFAULT_MODELS,
+        help="Model keys passed to run_benchmark.",
+    )
     # Evaluation arguments (passed through to unified_evaluator)
     parser.add_argument(
         "--generated_dir",
@@ -50,26 +68,21 @@ def main():
     procs = []
 
     if args.stage in ("generate", "all"):
-        gen_cmd_param = [
-            "python",
-            "src/generation_scripts/generate_parametric_data.py",
-            "--num_samples",
-            str(args.num_samples),
-        ]
-        gen_cmd_param += ["--seq_lengths", *seq_lengths]
-
-        gen_cmd_nonparam = [
-            "python",
-            "src/generation_scripts/generate_non_parametric_data.py",
-            "--num_samples",
-            str(args.num_samples),
-            "--num_epochs",
-            str(args.num_epochs),
-        ]
-        gen_cmd_nonparam += ["--seq_lengths", *seq_lengths]
-
-        procs.append(run(gen_cmd_param))
-        procs.append(run(gen_cmd_nonparam))
+        for seq_len in seq_lengths:
+            gen_cmd = [
+                "python",
+                "-m",
+                "src.experiments.run_benchmark",
+                "--generation_length",
+                seq_len,
+                "--num_samples",
+                str(args.num_samples),
+                "--num_epochs",
+                str(args.num_epochs),
+                "--models",
+                *args.models,
+            ]
+            procs.append(run(gen_cmd))
 
     if args.stage in ("evaluate", "all"):
         eval_cmd = [
