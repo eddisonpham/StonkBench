@@ -25,3 +25,5 @@ cache/*
 notebooks/*
 src/experiments/*
 */**/*.pt
+
+docs/*

@@ -10,7 +10,6 @@ services:
       - ./generated_data:/generated_data
       - ./results:/results
       - ./evaluation_plots:/evaluation_plots
-      - ./configs:/app/configs:ro
     environment:
       - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}
     networks:
@@ -28,7 +27,6 @@ services:
       --end 2025-01-01
     volumes:
       - ./data:/data
-      - ./configs:/app/configs:ro
     healthcheck:
       test: ["CMD", "test", "-f", "/data/combined_data.csv"]
       interval: 10s
@@ -52,7 +50,6 @@ services:
         condition: service_completed_successfully
     volumes:
       - ./data:/data
-      - ./configs:/app/configs:ro
     healthcheck:
       test: ["CMD", "test", "-f", "/data/preprocessed/dl_set.pt"]
       interval: 10s
@@ -78,7 +75,6 @@ services:
     volumes:
       - data:/data:ro
       - generated_data:/generated_data
-      - configs:/app/configs:ro
     environment:
       - OMP_NUM_THREADS=1
       - MKL_NUM_THREADS=1
@@ -106,7 +102,6 @@ services:
       - ./data:/data:ro
       - ./generated_data:/generated_data:ro
       - ./results:/results
-      - ./configs:/app/configs:ro
 
   # Plotting service (generates paper figures)
   plot:
@@ -120,7 +115,6 @@ services:
     volumes:
       - ./results:/results:ro
       - ./evaluation_plots:/evaluation_plots
-      - ./configs:/app/configs:ro
 
 networks:
   default:
@@ -132,4 +126,3 @@ volumes:
   generated_data:
   results:
   evaluation_plots:
-  configs:

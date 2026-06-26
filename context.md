@@ -26,17 +26,12 @@ src/unified_evaluator.py
 - A temporal gap of `window_size - 1` is inserted between train and test to avoid overlap leakage.
 - Statistical preprocessing keeps full transformed train/test series (no windowing for fit).
 
-## Config contract
+## Dataset paths
 
-`configs/dataset_cfgs.yaml` points to preprocessed datasets:
+Preprocessed dataset paths are defined in `src/utils/preprocessed_data_utils.py`:
 
-```yaml
-deep_learning_dataset_cfg:
-  preprocessed_data_path: "data/preprocessed/dl_set.pt"
-
-statistical_dataset_cfg:
-  preprocessed_data_path: "data/preprocessed/statsmodel_set.pt"
-```
+- `DL_SET_PATH`
+- `STATS_SET_PATH`
 
 ## Notes
 

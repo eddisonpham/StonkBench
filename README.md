@@ -67,7 +67,6 @@ The following local directories are mapped into containers:
 - `./generated_data` → `/generated_data` (synthetic data outputs)
 - `./results` → `/results` (evaluation results)
 - `./evaluation_plots` → `/evaluation_plots` (plots and figures)
-- `./configs` → `/app/configs` (read-only configuration files)
 
 ### Run Locally (Non-Docker)
 
@@ -155,7 +154,7 @@ This automatically finds the latest evaluation results, generates publication-qu
 
 #### Customizing runs
 
-- `configs/dataset_cfgs.yaml`: Set paths for `dl_set.pt` and `statsmodel_set.pt`.
+- Preprocessed dataset paths: `DL_SET_PATH` and `STATS_SET_PATH` in `src/utils/preprocessed_data_utils.py`.
 
 ---
 
@@ -220,7 +219,6 @@ Unified-benchmark-for-SDGFTS-main/
   │   │   └─ eval_plot_utils.py  # Utilities for evaluation plotting
   │   ├─ data_downloader.py      # Yahoo Finance download utility
   │   └─ data_preprocessing.py   # Builds dl_set.pt and statsmodel_set.pt
-  ├─ configs/                    # Experiment and preprocessing config templates
   ├─ requirements.txt
   └─ README.md
 ```

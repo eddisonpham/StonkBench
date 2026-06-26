@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, List
 
 import torch
 
 from src.experiments.core.contracts import StandardBatch
+
+_DATA_DIR = Path("/data") if Path("/data").exists() else Path(__file__).resolve().parents[2] / "data"
+DL_SET_PATH = str(_DATA_DIR / "preprocessed" / "dl_set.pt")
+STATS_SET_PATH = str(_DATA_DIR / "preprocessed" / "statsmodel_set.pt")
 
 
 def sliding_window_2d(series: torch.Tensor, window_size: int, stride: int = 1) -> torch.Tensor:

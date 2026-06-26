@@ -20,7 +20,6 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from src.utils.artifact_utils import load_artifact  # noqa: E402
-from src.utils.configs_utils import get_dataset_cfgs  # noqa: E402
 from src.utils.display_utils import show_with_start_divider, show_with_end_divider  # noqa: E402
 from src.utils.evaluation_classes_utils import (  # noqa: E402
     DiversityEvaluator,
@@ -29,7 +28,13 @@ from src.utils.evaluation_classes_utils import (  # noqa: E402
     VisualAssessmentEvaluator,
     UtilityEvaluator,
 )
-from src.utils.preprocessed_data_utils import load_dl_set, load_stats_set, sliding_window_2d  # noqa: E402
+from src.utils.preprocessed_data_utils import (  # noqa: E402
+    DL_SET_PATH,
+    STATS_SET_PATH,
+    load_dl_set,
+    load_stats_set,
+    sliding_window_2d,
+)
 
 
 # Constants
@@ -58,9 +63,12 @@ def _normalize_model_type(model_type: str) -> str:
 class DatasetCache:
     """Manages caching of preprocessed real datasets for evaluation."""
 
-    def __init__(self, deep_learning_cfg: Dict[str, Any], statistical_cfg: Dict[str, Any]):
-        self._dl_set = load_dl_set(deep_learning_cfg["preprocessed_data_path"])
-        self._stats_set = load_stats_set(statistical_cfg["preprocessed_data_path"])
+    DL_SET_PATH = DL_SET_PATH
+    STATS_SET_PATH = STATS_SET_PATH
+
+    def __init__(self) -> None:
+        self._dl_set = load_dl_set(self.DL_SET_PATH)
+        self._stats_set = load_stats_set(self.STATS_SET_PATH)
         self._cache: Dict[int, Dict[str, Any]] = {}
 
     def get_dataset(self, seq_length: int) -> Dict[str, Any]:
@@ -346,8 +354,7 @@ class UnifiedEvaluator:
         self.seq_length_filter = set(seq_length_filter or [])
 
         # Initialize components
-        deep_learning_cfg, statistical_cfg = get_dataset_cfgs()
-        self.dataset_cache = DatasetCache(deep_learning_cfg, statistical_cfg)
+        self.dataset_cache = DatasetCache()
         self.artifact_loader = ArtifactLoader()
         self.real_data_preparer = RealDataPreparer()
         self.core_metrics_evaluator = None  # Initialized per artifact

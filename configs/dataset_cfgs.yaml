@@ -1,5 +1,0 @@
-deep_learning_dataset_cfg:
-  preprocessed_data_path: "data/preprocessed/dl_set.pt"
-
-statistical_dataset_cfg:
-  preprocessed_data_path: "data/preprocessed/statsmodel_set.pt"
