@@ -23,7 +23,11 @@ testing_files/*
 cache/*
 
 notebooks/*
-src/experiments/*
 */**/*.pt
+*/**/*.pth
 
 docs/*
+data/*
+
+*/**/run.jsonl
+*/**/run_manifest.json

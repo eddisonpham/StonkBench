@@ -29,10 +29,12 @@ from src.utils.evaluation_classes_utils import (  # noqa: E402
     UtilityEvaluator,
 )
 from src.utils.preprocessed_data_utils import (  # noqa: E402
-    DL_SET_PATH,
-    STATS_SET_PATH,
+    channel_norm_stats,
+    denormalize_channels,
     load_dl_set,
     load_stats_set,
+    resolve_dl_set_path,
+    resolve_stats_set_path,
     sliding_window_2d,
 )
 
@@ -63,12 +65,9 @@ def _normalize_model_type(model_type: str) -> str:
 class DatasetCache:
     """Manages caching of preprocessed real datasets for evaluation."""
 
-    DL_SET_PATH = DL_SET_PATH
-    STATS_SET_PATH = STATS_SET_PATH
-
-    def __init__(self) -> None:
-        self._dl_set = load_dl_set(self.DL_SET_PATH)
-        self._stats_set = load_stats_set(self.STATS_SET_PATH)
+    def __init__(self, dl_set_path: str | None = None, stats_set_path: str | None = None) -> None:
+        self._dl_set = load_dl_set(dl_set_path or resolve_dl_set_path())
+        self._stats_set = load_stats_set(stats_set_path or resolve_stats_set_path())
         self._cache: Dict[int, Dict[str, Any]] = {}
 
     def get_dataset(self, seq_length: int) -> Dict[str, Any]:
@@ -78,8 +77,21 @@ class DatasetCache:
         if seq_length in self._cache:
             return self._cache[seq_length]
 
+        norm_stats = channel_norm_stats(self._dl_set)
+
+        def _raw_series(split: str) -> torch.Tensor:
+            raw_key = f"{split}_series_raw"
+            if raw_key in self._dl_set:
+                return self._dl_set[raw_key].float()
+            series = self._dl_set[f"{split}_series"].float()
+            if norm_stats is not None:
+                return denormalize_channels(series, *norm_stats)
+            return series
+
         dl_train = self._dl_set["train_windows"].float()
-        dl_test_series = self._dl_set["test_series"].float()
+        if norm_stats is not None:
+            dl_train = denormalize_channels(dl_train, *norm_stats)
+        dl_test_series = _raw_series("test")
         dl_eval_windows = sliding_window_2d(dl_test_series, seq_length, stride=1)
         split_idx = dl_eval_windows.shape[0] // 2
         dl_valid = dl_eval_windows[:split_idx]
@@ -91,9 +103,11 @@ class DatasetCache:
         valid_inits = dl_valid[:, 0, :] if dl_valid.shape[0] else torch.empty((0, dl_test_series.shape[1]))
         test_inits = dl_test[:, 0, :] if dl_test.shape[0] else torch.empty((0, dl_test_series.shape[1]))
 
-        train_stat = self._stats_set["train_series"].float()
-        test_stat = self._stats_set["test_series"].float()
-        full_stat = self._stats_set["full_series"].float()
+        train_stat = _raw_series("train")
+        test_stat = _raw_series("test")
+        full_stat = test_stat
+        if "full_series" in self._stats_set:
+            full_stat = self._stats_set["full_series"].float()
         stat_windows = sliding_window_2d(test_stat, seq_length, stride=1)
 
         dataset = {

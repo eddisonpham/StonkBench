@@ -36,10 +36,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--stride", type=int, default=1, help="Sliding window stride")
     parser.add_argument("--train_ratio", type=float, default=0.8, help="Train split ratio")
     parser.add_argument(
+        "--val_ratio",
+        type=float,
+        default=0.15,
+        help="Validation fraction carved from the train region (before test gap)",
+    )
+    parser.add_argument(
         "--gap",
         type=int,
         default=None,
-        help="Temporal gap between train and test (default: window_size - 1)",
+        help="Temporal gap between splits (default: window_size - 1)",
     )
     return parser.parse_args()
 
@@ -71,10 +77,11 @@ def _build_transformed_frame(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str],
             raise ValueError(f"Column '{col}' has non-positive values; log transform is undefined.")
 
     price_log_returns = np.log(df[price_cols]).diff().iloc[1:].reset_index(drop=True)
-    volume_logs = np.log(df[volume_cols]).iloc[1:].reset_index(drop=True)
+    # Log-volume changes (not levels) so volume features are stationary like returns.
+    volume_log_changes = np.log(df[volume_cols]).diff().iloc[1:].reset_index(drop=True)
     timestamps = df["timestamp"].iloc[1:].reset_index(drop=True)
 
-    transformed = pd.concat([timestamps, price_log_returns, volume_logs], axis=1)
+    transformed = pd.concat([timestamps, price_log_returns, volume_log_changes], axis=1)
     feature_columns = price_cols + volume_cols
     return transformed, price_cols, feature_columns
 
@@ -96,21 +103,38 @@ def main() -> None:
     window_size = int(args.window_size)
     stride = int(args.stride)
     train_ratio = float(args.train_ratio)
+    val_ratio = float(args.val_ratio)
     if not 0.0 < train_ratio < 1.0:
         raise ValueError("--train_ratio must be in (0, 1)")
+    if not 0.0 < val_ratio < 1.0:
+        raise ValueError("--val_ratio must be in (0, 1)")
     gap = int(args.gap) if args.gap is not None else max(window_size - 1, 0)
 
     total_steps = features.shape[0]
-    train_end = int(total_steps * train_ratio)
-    test_start = min(train_end + gap, total_steps)
+    train_region_end = int(total_steps * train_ratio)
+    test_start = min(train_region_end + gap, total_steps)
 
-    train_series = features[:train_end]
+    val_len = max(window_size, int(train_region_end * val_ratio))
+    val_start = max(window_size, train_region_end - val_len)
+    train_fit_end = max(window_size, val_start - gap)
+
+    train_fit_series = features[:train_fit_end]
+    valid_series = features[val_start:train_region_end]
     test_series = features[test_start:]
-    train_timestamps = timestamps[:train_end]
+    train_fit_timestamps = timestamps[:train_fit_end]
+    valid_timestamps = timestamps[val_start:train_region_end]
     test_timestamps = timestamps[test_start:]
 
-    dl_train_windows = _sliding_windows(train_series, window_size, stride)
-    dl_test_windows = _sliding_windows(test_series, window_size, stride)
+    # Per-channel z-score from train-fit split only (leak-free).
+    channel_mean = train_fit_series.mean(dim=0)
+    channel_std = train_fit_series.std(dim=0, unbiased=True).clamp(min=1e-8)
+    train_series_norm = (train_fit_series - channel_mean) / channel_std
+    valid_series_norm = (valid_series - channel_mean) / channel_std
+    test_series_norm = (test_series - channel_mean) / channel_std
+
+    dl_train_windows = _sliding_windows(train_series_norm, window_size, stride)
+    dl_valid_windows = _sliding_windows(valid_series_norm, window_size, stride)
+    dl_test_windows = _sliding_windows(test_series_norm, window_size, stride)
 
     dl_set: Dict[str, object] = {
         "feature_columns": feature_columns,
@@ -118,12 +142,21 @@ def main() -> None:
         "window_size": window_size,
         "stride": stride,
         "train_ratio": train_ratio,
+        "val_ratio": val_ratio,
         "gap": gap,
-        "train_series": train_series,
-        "test_series": test_series,
-        "train_timestamps": train_timestamps,
+        "channel_mean": channel_mean,
+        "channel_std": channel_std,
+        "train_series": train_series_norm,
+        "valid_series": valid_series_norm,
+        "test_series": test_series_norm,
+        "train_series_raw": train_fit_series,
+        "valid_series_raw": valid_series,
+        "test_series_raw": test_series,
+        "train_timestamps": train_fit_timestamps,
+        "valid_timestamps": valid_timestamps,
         "test_timestamps": test_timestamps,
         "train_windows": dl_train_windows,
+        "valid_windows": dl_valid_windows,
         "test_windows": dl_test_windows,
     }
 
@@ -131,12 +164,15 @@ def main() -> None:
         "feature_columns": feature_columns,
         "price_columns": price_columns,
         "train_ratio": train_ratio,
+        "val_ratio": val_ratio,
         "gap": gap,
         "full_series": features,
         "full_timestamps": timestamps,
-        "train_series": train_series,
+        "train_series": train_fit_series,
+        "valid_series": valid_series,
         "test_series": test_series,
-        "train_timestamps": train_timestamps,
+        "train_timestamps": train_fit_timestamps,
+        "valid_timestamps": valid_timestamps,
         "test_timestamps": test_timestamps,
     }
 
@@ -146,10 +182,14 @@ def main() -> None:
     torch.save(statsmodel_set, stats_path)
 
     print(f"Saved DL set: {dl_path}")
-    print(f"  train_series: {tuple(train_series.shape)}, train_windows: {tuple(dl_train_windows.shape)}")
-    print(f"  test_series:  {tuple(test_series.shape)},  test_windows:  {tuple(dl_test_windows.shape)}")
+    print(f"  train_series (norm): {tuple(train_series_norm.shape)}, train_windows: {tuple(dl_train_windows.shape)}")
+    print(f"  valid_series (norm): {tuple(valid_series_norm.shape)}, valid_windows: {tuple(dl_valid_windows.shape)}")
+    print(f"  test_series (norm):  {tuple(test_series_norm.shape)},  test_windows:  {tuple(dl_test_windows.shape)}")
     print(f"Saved stats set: {stats_path}")
-    print(f"  full_series:  {tuple(features.shape)}, train_series: {tuple(train_series.shape)}, test_series: {tuple(test_series.shape)}")
+    print(
+        f"  full_series: {tuple(features.shape)}, train: {tuple(train_fit_series.shape)}, "
+        f"valid: {tuple(valid_series.shape)}, test: {tuple(test_series.shape)}"
+    )
 
 
 if __name__ == "__main__":

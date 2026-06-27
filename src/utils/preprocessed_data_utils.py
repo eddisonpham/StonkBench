@@ -2,16 +2,56 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 
 from src.experiments.core.contracts import StandardBatch
 
 _DATA_DIR = Path("/data") if Path("/data").exists() else Path(__file__).resolve().parents[2] / "data"
-DL_SET_PATH = str(_DATA_DIR / "preprocessed" / "dl_set.pt")
-STATS_SET_PATH = str(_DATA_DIR / "preprocessed" / "statsmodel_set.pt")
+_DEFAULT_DL_SET = str(_DATA_DIR / "preprocessed" / "dl_set.pt")
+_DEFAULT_STATS_SET = str(_DATA_DIR / "preprocessed" / "statsmodel_set.pt")
+
+
+def resolve_dl_set_path() -> str:
+    return os.environ.get("STONKBENCH_DL_SET_PATH", _DEFAULT_DL_SET)
+
+
+def resolve_stats_set_path() -> str:
+    return os.environ.get("STONKBENCH_STATS_SET_PATH", _DEFAULT_STATS_SET)
+
+
+# Backward-compatible module constants (resolved at import; prefer resolve_* in runtime code).
+DL_SET_PATH = resolve_dl_set_path()
+STATS_SET_PATH = resolve_stats_set_path()
+
+
+def channel_norm_stats(dl_set: Dict[str, Any]) -> Optional[Tuple[torch.Tensor, torch.Tensor]]:
+    """Return (mean, std) if the DL set was z-scored during preprocessing."""
+    mean = dl_set.get("channel_mean")
+    std = dl_set.get("channel_std")
+    if mean is None or std is None:
+        return None
+    return mean.float(), std.float()
+
+
+def denormalize_channels(data: torch.Tensor, mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:
+    """Map z-scored windows back to raw feature space."""
+    if data.ndim == 2:
+        return data * std + mean
+    if data.ndim == 3:
+        return data * std.view(1, 1, -1) + mean.view(1, 1, -1)
+    raise ValueError(f"Expected 2D or 3D tensor, got {tuple(data.shape)}")
+
+
+def normalize_channels(data: torch.Tensor, mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:
+    if data.ndim == 2:
+        return (data - mean) / std
+    if data.ndim == 3:
+        return (data - mean.view(1, 1, -1)) / std.view(1, 1, -1)
+    raise ValueError(f"Expected 2D or 3D tensor, got {tuple(data.shape)}")
 
 
 def sliding_window_2d(series: torch.Tensor, window_size: int, stride: int = 1) -> torch.Tensor:
@@ -56,41 +96,48 @@ def build_batch_from_dl_set(dl_set: Dict[str, Any], generation_length: int) -> S
     train_series = dl_set["train_series"].float()
     test_series = dl_set["test_series"].float()
     train_windows = dl_set["train_windows"].float()
-    test_windows = sliding_window_2d(test_series, generation_length, stride=1)
+    window_size = int(dl_set["window_size"])
 
-    # Utility evaluators expect non-empty valid/test splits; split test windows in half.
-    split_idx = test_windows.shape[0] // 2
-    valid_windows = test_windows[:split_idx]
-    eval_test_windows = test_windows[split_idx:]
-    if eval_test_windows.shape[0] == 0:
-        eval_test_windows = valid_windows
-
-    valid_series = _empty_series_like(train_series)
-    eval_test_series = test_series
+    if "valid_series" in dl_set and "valid_windows" in dl_set:
+        valid_series = dl_set["valid_series"].float()
+        valid_windows = dl_set["valid_windows"].float()
+        if "test_windows" in dl_set:
+            test_windows = dl_set["test_windows"].float()
+        else:
+            test_windows = sliding_window_2d(test_series, generation_length, stride=1)
+    else:
+        # Legacy fallback: carve validation from test windows (deprecated).
+        valid_series = _empty_series_like(train_series)
+        test_windows = sliding_window_2d(test_series, generation_length, stride=1)
+        split_idx = test_windows.shape[0] // 2
+        valid_windows = test_windows[:split_idx]
+        test_windows = test_windows[split_idx:] if split_idx else test_windows
 
     channel_count = train_series.shape[1]
     empty_initial = torch.empty((0, channel_count), dtype=train_series.dtype)
     train_window_initials = train_windows[:, 0, :] if train_windows.shape[0] else empty_initial
     valid_window_initials = valid_windows[:, 0, :] if valid_windows.shape[0] else empty_initial
-    test_window_initials = eval_test_windows[:, 0, :] if eval_test_windows.shape[0] else empty_initial
+    test_window_initials = test_windows[:, 0, :] if test_windows.shape[0] else empty_initial
     train_initial = train_series[0] if train_series.shape[0] else torch.zeros(channel_count, dtype=train_series.dtype)
+    valid_initial = valid_series[0] if valid_series.shape[0] else torch.zeros(channel_count, dtype=train_series.dtype)
+    test_initial = test_series[0] if test_series.shape[0] else torch.zeros(channel_count, dtype=train_series.dtype)
 
     return StandardBatch(
         train=train_series,
         valid=valid_series,
-        test=eval_test_series,
+        test=test_series,
         train_initial=train_initial,
-        valid_initial=torch.zeros(channel_count, dtype=train_series.dtype),
-        test_initial=eval_test_series[0] if eval_test_series.shape[0] else torch.zeros(channel_count, dtype=train_series.dtype),
+        valid_initial=valid_initial,
+        test_initial=test_initial,
         asset_columns=list(dl_set["feature_columns"]),
         price_columns=list(dl_set["price_columns"]),
         train_windows=train_windows,
-        valid_windows=valid_windows if valid_windows.shape[0] else _empty_windows_like(train_series, generation_length),
-        test_windows=eval_test_windows if eval_test_windows.shape[0] else _empty_windows_like(train_series, generation_length),
+        valid_windows=valid_windows if valid_windows.shape[0] else _empty_windows_like(train_series, window_size),
+        test_windows=test_windows if test_windows.shape[0] else _empty_windows_like(train_series, window_size),
         train_window_initials=train_window_initials,
         valid_window_initials=valid_window_initials,
         test_window_initials=test_window_initials,
-        inferred_length=int(dl_set["window_size"]),
+        inferred_length=window_size,
     )
 
 
