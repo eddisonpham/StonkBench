@@ -27,6 +27,8 @@ venv/
 *.dvi
 *.ps
 *.pdfsync
+research-paper/*.pdf
+research-paper/non-essensals/*.pdf
 *.nav
 *.snm
 *.vrb
