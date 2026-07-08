@@ -89,12 +89,10 @@ services:
       service: base
     container_name: sdgfts-eval
     command: >
-      src/parallelizer_script.py
-      --stage evaluate
-      --seq_lengths 60 120 180 240 300
-      --max_procs 8
+      src/unified_evaluator.py
       --generated_dir /generated_data/src/experiments
       --results_dir /results
+      --seq_lengths 60 120 180 240 300
     depends_on:
       generate-data:
         condition: service_completed_successfully

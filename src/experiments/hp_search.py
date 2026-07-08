@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import itertools
 import json
 import statistics
 import tempfile
@@ -16,25 +15,16 @@ import torch
 from src.experiments.core.registry import ADAPTER_REGISTRY
 from src.experiments.core.contracts import AdapterFitInput
 from src.experiments.core.registry import get_adapter
+from src.experiments.hp_configs import (
+    DL_MODEL_KEYS,
+    HPConfig,
+    HP_SEARCH_EPOCHS,
+    configs_for_model,
+)
+from src.utils.device import device_to_str, get_device, log_device_context
 from src.utils.preprocessed_data_utils import build_batch_from_dl_set, load_dl_set, resolve_dl_set_path
 
-DL_MODEL_KEYS = [
-    "quantgan",
-    "timegan",
-    "timegrad",
-    "timevae",
-    "unconditional_tsdiffusion",
-    "vrnn",
-]
-
-DEFAULT_SEEDS = [7, 11, 42]
-
-HP_GRID: Dict[str, List[Any]] = {
-    "max_epochs": [10, 20, 30, 40],
-    "learning_rate": [1e-4, 1e-3, 3e-3],
-    "batch_size": [32, 64],
-    "patience": [12],
-}
+DEFAULT_SEED = 42
 
 
 @dataclass(frozen=True)
@@ -42,34 +32,39 @@ class TrialSpec:
     model_key: str
     seed: int
     trial_id: int
-    max_epochs: int
-    learning_rate: float
-    batch_size: int
-    patience: int
+    config: HPConfig
 
-    def metadata(self) -> Dict[str, Any]:
-        return {
-            "max_epochs": self.max_epochs,
-            "learning_rate": self.learning_rate,
-            "batch_size": self.batch_size,
-            "patience": self.patience,
-            "use_calibration": False,
-        }
+    def metadata(self, smoke: bool = False) -> Dict[str, Any]:
+        max_epochs = 2 if smoke else HP_SEARCH_EPOCHS[self.model_key]
+        return self.config.metadata(max_epochs=max_epochs)
 
     def label(self) -> str:
+        meta = self.metadata()
         return (
-            f"{self.model_key}_s{self.seed}_e{self.max_epochs}_"
-            f"lr{self.learning_rate:g}_bs{self.batch_size}"
+            f"{self.model_key}_s{self.seed}_{self.config.config_id}_"
+            f"e{meta['max_epochs']}_lr{meta['learning_rate']:g}_bs{meta['batch_size']}"
+        )
+
+    def label_with_smoke(self, smoke: bool) -> str:
+        meta = self.metadata(smoke=smoke)
+        return (
+            f"{self.model_key}_s{self.seed}_{self.config.config_id}_"
+            f"e{meta['max_epochs']}_lr{meta['learning_rate']:g}_bs{meta['batch_size']}"
         )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run DL HP search with validation-loss selection.")
     parser.add_argument("--dl_set_path", type=str, default=None, help="Override dl_set.pt path")
-    parser.add_argument("--output_dir", type=str, default="results/hp_search")
-    parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--output_dir", type=str, default="/home/epham/StonkBench/output/results/hp_search")
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="Compute device (default: cuda if available else cpu)",
+    )
     parser.add_argument("--models", type=str, nargs="*", default=None, help="Subset of DL model keys")
-    parser.add_argument("--seeds", type=int, nargs="*", default=list(DEFAULT_SEEDS))
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--trial_id", type=int, default=None, help="Run a single flattened trial id")
     parser.add_argument("--list_trials", action="store_true", help="Print trial schedule and exit")
     parser.add_argument("--smoke", action="store_true", help="Tiny grid for quick validation")
@@ -81,52 +76,38 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _grid_values(smoke: bool) -> Dict[str, List[Any]]:
-    if not smoke:
-        return HP_GRID
-    return {
-        "max_epochs": [2],
-        "learning_rate": [1e-3],
-        "batch_size": [32],
-        "patience": [12],
-    }
-
-
 def build_trial_specs(
     model_keys: Sequence[str],
-    seeds: Sequence[int],
+    seed: int,
     smoke: bool = False,
 ) -> List[TrialSpec]:
-    grid = _grid_values(smoke)
-    combos = list(
-        itertools.product(
-            grid["max_epochs"],
-            grid["learning_rate"],
-            grid["batch_size"],
-            grid["patience"],
-        )
-    )
     specs: List[TrialSpec] = []
     trial_id = 0
     for model_key in model_keys:
-        for seed in seeds:
-            for max_epochs, learning_rate, batch_size, patience in combos:
-                specs.append(
-                    TrialSpec(
-                        model_key=model_key,
-                        seed=int(seed),
-                        trial_id=trial_id,
-                        max_epochs=int(max_epochs),
-                        learning_rate=float(learning_rate),
-                        batch_size=int(batch_size),
-                        patience=int(patience),
-                    )
+        if smoke:
+            configs = [configs_for_model(model_key)[0]]
+        else:
+            configs = configs_for_model(model_key)
+        for config in configs:
+            specs.append(
+                TrialSpec(
+                    model_key=model_key,
+                    seed=int(seed),
+                    trial_id=trial_id,
+                    config=config,
                 )
-                trial_id += 1
+            )
+            trial_id += 1
     return specs
 
 
-def run_trial(spec: TrialSpec, dl_set: Dict[str, Any], device: str, output_dir: Path) -> Dict[str, Any]:
+def run_trial(
+    spec: TrialSpec,
+    dl_set: Dict[str, Any],
+    device: str,
+    output_dir: Path,
+    smoke: bool = False,
+) -> Dict[str, Any]:
     torch.manual_seed(spec.seed)
     batch = build_batch_from_dl_set(dl_set, generation_length=int(dl_set["window_size"]))
     adapter = get_adapter(spec.model_key)
@@ -144,16 +125,19 @@ def run_trial(spec: TrialSpec, dl_set: Dict[str, Any], device: str, output_dir: 
             num_epochs=1,
             device=device,
             seed=spec.seed,
-            metadata=spec.metadata(),
+            metadata=spec.metadata(smoke=smoke),
         )
         fit_info = adapter.fit(fit_input, checkpoints_dir=checkpoints_dir, logs_dir=logs_dir)
 
+    meta = spec.metadata(smoke=smoke)
     result = {
         "trial_id": spec.trial_id,
         "model_key": spec.model_key,
         "seed": spec.seed,
-        "label": spec.label(),
-        **spec.metadata(),
+        "label": spec.label_with_smoke(smoke),
+        "config_id": spec.config.config_id,
+        "is_vendor_default": spec.config.is_vendor_default,
+        **meta,
         **fit_info,
     }
     trial_path = output_dir / "trials" / f"{spec.trial_id:05d}_{spec.label()}.json"
@@ -167,7 +151,7 @@ def aggregate_results(results: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
     grouped: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
     for row in results:
         model_key = row["model_key"]
-        config_key = (
+        config_key = row.get("config_id") or (
             f"e{row['max_epochs']}_lr{row['learning_rate']:g}_bs{row['batch_size']}_p{row['patience']}"
         )
         grouped.setdefault(model_key, {}).setdefault(config_key, []).append(row)
@@ -182,6 +166,8 @@ def aggregate_results(results: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
             ranked.append(
                 {
                     "config_key": config_key,
+                    "config_id": rows[0].get("config_id", config_key),
+                    "is_vendor_default": bool(rows[0].get("is_vendor_default", False)),
                     "max_epochs": rows[0]["max_epochs"],
                     "learning_rate": rows[0]["learning_rate"],
                     "batch_size": rows[0]["batch_size"],
@@ -207,7 +193,7 @@ def main() -> None:
     if unknown:
         raise ValueError(f"Unknown model keys: {unknown}")
 
-    specs = build_trial_specs(model_keys=model_keys, seeds=args.seeds, smoke=args.smoke)
+    specs = build_trial_specs(model_keys=model_keys, seed=args.seed, smoke=args.smoke)
     if args.list_trials:
         for spec in specs:
             print(f"{spec.trial_id}\t{spec.label()}")
@@ -243,15 +229,18 @@ def main() -> None:
             "  python -m src.data_preprocessing"
         )
 
+    device = device_to_str(get_device(args.device))
+    print(log_device_context())
+
     if args.trial_id is not None:
         if args.trial_id < 0 or args.trial_id >= len(specs):
             raise ValueError(f"trial_id must be in [0, {len(specs) - 1}]")
-        results = [run_trial(specs[args.trial_id], dl_set, args.device, output_dir)]
+        results = [run_trial(specs[args.trial_id], dl_set, device, output_dir, smoke=args.smoke)]
     else:
         results = []
         for spec in specs:
-            print(f"Running trial {spec.trial_id}/{len(specs)-1}: {spec.label()}")
-            results.append(run_trial(spec, dl_set, args.device, output_dir))
+            print(f"Running trial {spec.trial_id}/{len(specs)-1}: {spec.label_with_smoke(args.smoke)}")
+            results.append(run_trial(spec, dl_set, device, output_dir, smoke=args.smoke))
 
     summary = aggregate_results(results)
     summary_path = output_dir / "summary.json"

@@ -9,6 +9,18 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from src.experiments.core.contracts import AdapterFitInput
+from src.utils.device import resolve_device
+
+__all__ = [
+    "EarlyStopping",
+    "FitTrainingInfo",
+    "TrainingParams",
+    "average_loss_over_loader",
+    "make_loader",
+    "parse_training_params",
+    "resolve_device",
+    "use_calibration",
+]
 
 
 @dataclass
@@ -74,15 +86,11 @@ class EarlyStopping:
         return val_loss > self.best + self.min_delta
 
 
-def resolve_device(device: str) -> torch.device:
-    if device.startswith("cuda") and torch.cuda.is_available():
-        return torch.device(device)
-    return torch.device("cpu")
-
-
 def parse_training_params(fit_input: AdapterFitInput) -> TrainingParams:
     meta = fit_input.metadata
-    default_epochs = max(20, int(fit_input.num_epochs) * 10)
+    # The benchmark entrypoints already choose the intended training budget.
+    # Only override it when an explicit HP-search value is provided in metadata.
+    default_epochs = max(1, int(fit_input.num_epochs))
     return TrainingParams(
         max_epochs=int(meta.get("max_epochs", default_epochs)),
         patience=int(meta.get("patience", 12)),

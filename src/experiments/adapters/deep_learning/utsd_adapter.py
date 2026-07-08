@@ -118,7 +118,7 @@ class UnconditionalTSDiffusionAdapter(ModelAdapter):
             cfg = copy.deepcopy(diffusion_configs.diffusion_small_config)
             model = TSDiff(
                 **cfg,
-                freq="H",
+                freq="h",
                 use_features=False,
                 use_lags=False,
                 normalization="none",

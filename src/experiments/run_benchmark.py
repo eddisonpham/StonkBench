@@ -3,9 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import torch
-
 from src.experiments.core.pipeline import run_model_experiment
+from src.utils.device import device_to_str, get_device, log_device_context
 from src.utils.preprocessed_data_utils import DL_SET_PATH, STATS_SET_PATH
 
 
@@ -20,8 +19,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num_samples", type=int, default=128)
     parser.add_argument("--num_epochs", type=int, default=3)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--output_root", type=str, default="src/experiments")
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="Compute device (default: cuda if available else cpu; STONKBENCH_DEVICE env overrides)",
+    )
+    parser.add_argument("--output_root", type=str, default="/home/epham/StonkBench/output")
     parser.add_argument("--smoke_test", action="store_true")
     return parser.parse_args()
 
@@ -36,6 +40,8 @@ def main() -> None:
         num_samples = args.num_samples
         num_epochs = args.num_epochs
 
+    device = device_to_str(get_device(args.device))
+    print(log_device_context())
     print(f"DL set: {DL_SET_PATH}")
     print(f"Stats set: {STATS_SET_PATH}")
 
@@ -48,8 +54,8 @@ def main() -> None:
                 num_samples=num_samples,
                 num_epochs=num_epochs,
                 seed=args.seed,
-                device=args.device,
-                experiments_root=Path(args.output_root),
+                device=device,
+                output_root=Path(args.output_root),
             )
         )
     print("Saved artifacts:")

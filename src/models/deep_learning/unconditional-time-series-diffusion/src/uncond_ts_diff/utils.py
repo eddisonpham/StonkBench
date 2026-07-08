@@ -101,7 +101,7 @@ def get_lags_for_freq(freq_str: str):
         raise NotImplementedError(
             "Lags for freq multiple > 1 are not implemented yet."
         )
-    if offset.name == "H":
+    if offset.name in {"H", "h"}:
         lags_seq = [24 * i for i in [1, 2, 3, 4, 5, 6, 7, 14, 21, 28]]
     elif offset.name == "D" or offset.name == "B":
         # TODO: Fix lags for B
@@ -508,11 +508,11 @@ class GluonTSNumpyDataset:
     data
         Numpy array of samples with shape [N, T].
     start_date, optional
-        Dummy start date field, by default pd.Period("2023", "H")
+        Dummy start date field, by default pd.Period("2023", "h")
     """
 
     def __init__(
-        self, data: np.ndarray, start_date: pd.Period = pd.Period("2023", "H")
+        self, data: np.ndarray, start_date: pd.Period = pd.Period("2023", "h")
     ):
         self.data = data
         self.start_date = start_date

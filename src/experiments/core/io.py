@@ -10,15 +10,14 @@ from src.experiments.core.contracts import ExperimentPaths
 from src.utils.artifact_utils import compute_preprocessing_hash
 
 
-def ensure_experiment_paths(base_dir: Path, model_name: str) -> ExperimentPaths:
-    model_root = base_dir / model_name
+def ensure_experiment_paths(output_root: Path, model_name: str) -> ExperimentPaths:
     paths = ExperimentPaths(
-        root=base_dir,
-        model_root=model_root,
-        artifacts=model_root / "artifacts",
-        checkpoints=model_root / "checkpoints",
-        logs=model_root / "logs",
-        metrics=model_root / "metrics",
+        root=output_root,
+        model_root=output_root / "experiments" / model_name,
+        artifacts=output_root / "results" / model_name / "artifacts",
+        checkpoints=output_root / "checkpoints" / model_name,
+        logs=output_root / "logs" / model_name,
+        metrics=output_root / "results" / model_name / "metrics",
     )
     for p in (paths.model_root, paths.artifacts, paths.checkpoints, paths.logs, paths.metrics):
         p.mkdir(parents=True, exist_ok=True)

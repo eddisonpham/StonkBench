@@ -8,12 +8,14 @@ providing a clean training/generation API for adapter integration.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
+
+from src.utils.device import resolve_device
 
 
 class TemporalBlock(nn.Module):
@@ -126,8 +128,8 @@ class QuantGANFitResult:
 
 
 class QuantGANTrainer:
-    def __init__(self, device: str = "cpu", cfg: Optional[QuantGANConfig] = None):
-        self.device = device
+    def __init__(self, device: Union[str, torch.device] = "cpu", cfg: Optional[QuantGANConfig] = None):
+        self.device = resolve_device(device)
         self.cfg = cfg or QuantGANConfig()
         self.generator: Optional[Generator] = None
         self.discriminator: Optional[Discriminator] = None

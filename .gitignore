@@ -31,3 +31,5 @@ data/*
 
 */**/run.jsonl
 */**/run_manifest.json
+
+notebooks/*

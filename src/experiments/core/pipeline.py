@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import torch
 
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput, StandardBatch
 from src.experiments.core.io import append_jsonl, build_run_manifest, ensure_experiment_paths, write_json
 from src.experiments.core.registry import STATISTICAL_MODEL_KEYS, get_adapter
+from src.utils.device import device_to_str, get_device
 from src.utils.artifact_utils import default_metadata, save_artifact
 from src.utils.preprocessed_data_utils import (
     build_batch_from_dl_set,
@@ -50,21 +51,29 @@ def run_model_experiment(
     num_epochs: int,
     seed: int,
     device: str,
-    experiments_root: Path,
+    output_root: Path,
+    training_metadata: Optional[Dict[str, Any]] = None,
+    sanity_output_dir: Optional[Path] = None,
+    sanity_price_assets: Tuple[str, str] = ("SPY", "AAPL"),
 ) -> Path:
     _setup_seed(seed)
+    resolved_device = device_to_str(get_device(device))
     adapter = get_adapter(model_key)
-    paths = ensure_experiment_paths(experiments_root, model_key)
+    paths = ensure_experiment_paths(output_root, model_key)
     preprocessing = _preprocessing_metadata(model_key)
     batch = _prepare_standard_batch(model_key, generation_length)
+
+    metadata: Dict[str, Any] = {"generation_length": generation_length}
+    if training_metadata:
+        metadata.update(training_metadata)
 
     fit_input = AdapterFitInput(
         batch=batch,
         sequence_length=batch.inferred_length or generation_length,
         num_epochs=num_epochs,
-        device=device,
+        device=resolved_device,
         seed=seed,
-        metadata={"generation_length": generation_length},
+        metadata=metadata,
     )
     fit_info = adapter.fit(fit_input, checkpoints_dir=paths.checkpoints, logs_dir=paths.logs)
     generated = adapter.generate(num_samples=num_samples, generation_length=generation_length, seed=seed)
@@ -113,6 +122,23 @@ def run_model_experiment(
     )
     write_json(paths.logs / "run_manifest.json", manifest)
     append_jsonl(paths.logs / "run.jsonl", {"event": "run_complete", "artifact": str(artifact_path)})
+
+    if sanity_output_dir is not None and model_key not in STATISTICAL_MODEL_KEYS:
+        from src.experiments.sanity_visualization import render_model_sanity
+
+        sanity_paths = render_model_sanity(
+            adapter=adapter,
+            batch=batch,
+            output_dir=sanity_output_dir / model_key,
+            generation_length=generation_length,
+            seed=seed,
+            price_assets=sanity_price_assets,
+        )
+        write_json(
+            sanity_output_dir / model_key / "manifest.json",
+            {"model_key": model_key, "plots": [str(p) for p in sanity_paths]},
+        )
+
     return artifact_path
 
 
@@ -123,7 +149,10 @@ def run_benchmark(
     num_epochs: int,
     seed: int,
     device: str,
-    experiments_root: Path,
+    output_root: Path,
+    training_metadata: Optional[Dict[str, Any]] = None,
+    sanity_output_dir: Optional[Path] = None,
+    sanity_price_assets: Tuple[str, str] = ("SPY", "AAPL"),
 ) -> List[Path]:
     artifacts = []
     for model_key in model_keys:
@@ -135,7 +164,10 @@ def run_benchmark(
                 num_epochs=num_epochs,
                 seed=seed,
                 device=device,
-                experiments_root=experiments_root,
+                output_root=output_root,
+                training_metadata=training_metadata,
+                sanity_output_dir=sanity_output_dir,
+                sanity_price_assets=sanity_price_assets,
             )
         )
     return artifacts
