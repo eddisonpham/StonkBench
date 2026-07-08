@@ -22,6 +22,14 @@ testing_files/*
 
 cache/*
 
-notebooks/sanity_check_dl
-
+notebooks/*
 */**/*.pt
+*/**/*.pth
+
+docs/*
+data/*
+
+*/**/run.jsonl
+*/**/run_manifest.json
+
+notebooks/*

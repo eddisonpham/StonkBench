@@ -31,12 +31,28 @@ from sklearn.manifold import TSNE
 from scipy.stats import skew, kurtosis, wasserstein_distance
 
 
+def _to_2d(data: np.ndarray) -> np.ndarray:
+    """
+    Normalize to 2D representation:
+    - (N, L) stays unchanged
+    - (N, L, C) -> (N, L*C)
+    """
+    if data.ndim == 2:
+        return data
+    if data.ndim == 3:
+        n, l, c = data.shape
+        return data.reshape(n, l * c)
+    raise ValueError(f"Expected 2D or 3D array, got shape {data.shape}")
+
+
 def calculate_mdd(ori_data: np.ndarray, gen_data: np.ndarray) -> float:
     """
     Marginal Distribution Distance (MDD):
     Computes the average 1-Wasserstein distance between the marginals
     distributions of original and generated data along each time index.
     """
+    ori_data = _to_2d(np.asarray(ori_data))
+    gen_data = _to_2d(np.asarray(gen_data))
     assert ori_data.shape == gen_data.shape, "Real and generated data must have the same shape."
 
     wasserstein_values = [
@@ -48,6 +64,8 @@ def calculate_mdd(ori_data: np.ndarray, gen_data: np.ndarray) -> float:
 
 def calculate_md(ori_data, gen_data):
     """Mean Distance (MD): Absolute difference between dataset mean of sample means."""
+    ori_data = _to_2d(np.asarray(ori_data))
+    gen_data = _to_2d(np.asarray(gen_data))
     ori_mean = np.nanmean(ori_data, axis=1)
     gen_mean = np.nanmean(gen_data, axis=1)
     mean_ori = np.nanmean(ori_mean)
@@ -56,6 +74,8 @@ def calculate_md(ori_data, gen_data):
 
 def calculate_sdd(ori_data, gen_data):
     """Standard Deviation Distance (SDD): Absolute difference between dataset mean of sample stds."""
+    ori_data = _to_2d(np.asarray(ori_data))
+    gen_data = _to_2d(np.asarray(gen_data))
     ori_std = np.nanstd(ori_data, axis=1, ddof=1)
     gen_std = np.nanstd(gen_data, axis=1, ddof=1)
     mean_ori = np.nanmean(ori_std)
@@ -64,6 +84,8 @@ def calculate_sdd(ori_data, gen_data):
 
 def calculate_sd(ori_data, gen_data):
     """Skewness Distance (SD): Absolute difference between dataset mean of sample skewness."""
+    ori_data = _to_2d(np.asarray(ori_data))
+    gen_data = _to_2d(np.asarray(gen_data))
     ori_skew = skew(ori_data, axis=1, bias=False, nan_policy="omit")
     gen_skew = skew(gen_data, axis=1, bias=False, nan_policy="omit")
     mean_ori = np.nanmean(ori_skew)
@@ -72,6 +94,8 @@ def calculate_sd(ori_data, gen_data):
 
 def calculate_kd(ori_data, gen_data):
     """Kurtosis Distance (KD): Absolute difference between dataset mean of sample kurtosis."""
+    ori_data = _to_2d(np.asarray(ori_data))
+    gen_data = _to_2d(np.asarray(gen_data))
     ori_kurt = kurtosis(ori_data, axis=1, bias=False, fisher=True, nan_policy="omit")
     gen_kurt = kurtosis(gen_data, axis=1, bias=False, fisher=True, nan_policy="omit")
     mean_ori = np.nanmean(ori_kurt)
@@ -79,6 +103,8 @@ def calculate_kd(ori_data, gen_data):
     return float(np.abs(mean_gen - mean_ori))
 
 def visualize_tsne(ori_data, gen_data, result_path):
+    ori_data = _to_2d(np.asarray(ori_data))
+    gen_data = _to_2d(np.asarray(gen_data))
     sns.set(style="whitegrid", context="paper", font_scale=1.2)
 
     sample_no = len(ori_data)
@@ -125,6 +151,8 @@ def visualize_tsne(ori_data, gen_data, result_path):
     plt.close()
 
 def visualize_distribution(ori_data, gen_data, result_path):
+    ori_data = _to_2d(np.asarray(ori_data))
+    gen_data = _to_2d(np.asarray(gen_data))
     ori_flat = ori_data.flatten()
     gen_flat = gen_data.flatten()
     ori_min, ori_max = np.min(ori_flat), np.max(ori_flat)

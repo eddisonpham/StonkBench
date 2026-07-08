@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 from abc import ABC, abstractmethod
 
+from src.utils.device import get_device
+
 
 class DeepHedgingModel(nn.Module, ABC):
     """
@@ -29,7 +31,7 @@ class DeepHedgingModel(nn.Module, ABC):
         
         self.premium = nn.Parameter(torch.zeros(1))
         
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = get_device()
         self.to(self.device)
     
     def compute_payoff(self, final_prices: torch.Tensor) -> torch.Tensor:
@@ -175,7 +177,7 @@ class NonDeepHedgingModel(ABC):
         self.strike = strike
         
         self.premium = torch.zeros(1)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = get_device()
     
     def compute_payoff(self, final_prices: torch.Tensor) -> torch.Tensor:
         """

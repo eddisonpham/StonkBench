@@ -19,6 +19,11 @@ def log_returns_to_prices(
     initial_prices: torch.Tensor
 ) -> torch.Tensor:
     """Convert log returns to prices using initial prices."""
+    if log_returns.ndim == 3:
+        # Utility hedgers are univariate; use first channel by default.
+        log_returns = log_returns[:, :, 0]
+        if initial_prices.ndim == 2:
+            initial_prices = initial_prices[:, 0]
     if log_returns.ndim == 1:
         log_returns = log_returns.unsqueeze(0)
     R, L = log_returns.shape

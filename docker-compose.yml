@@ -10,7 +10,6 @@ services:
       - ./generated_data:/generated_data
       - ./results:/results
       - ./evaluation_plots:/evaluation_plots
-      - ./configs:/app/configs:ro
     environment:
       - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}
     networks:
@@ -23,36 +22,59 @@ services:
     container_name: sdgfts-data-download
     command: >
       src/data_downloader.py
-      --index spxusd
-      --year 2023 2024
+      --index SPY QQQ IWM XLF XLV AAPL MSFT NVDA AVGO JPM LLY UNH AMZN TSLA CAT UNP META NFLX PG COST XOM CVX NEE PLD LIN
+      --start 2023-01-01
+      --end 2025-01-01
     volumes:
       - ./data:/data
-      - ./configs:/app/configs:ro
     healthcheck:
-      test: ["CMD", "test", "-f", "/data/processed/combined_spxusd.csv"]
+      test: ["CMD", "test", "-f", "/data/combined_data.csv"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 30s
 
-  # Parametric model data generation
+  data-preprocess:
+    extends:
+      service: base
+    container_name: sdgfts-data-preprocess
+    command: >
+      src/data_preprocessing.py
+      --input_csv /data/combined_data.csv
+      --output_dir /data/preprocessed
+      --window_size 21
+      --stride 1
+      --train_ratio 0.8
+    depends_on:
+      data-download:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "test", "-f", "/data/preprocessed/dl_set.pt"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Statistical + deep learning model data generation
   generate-data:
     extends:
       service: base
     container_name: sdgfts-generate-data
     command: >
       src/generation_scripts/generate_data.py
-      --seq_lengths 52 60 120 180 240 300
+      --models quantgan timegan timegrad timevae unconditional_tsdiffusion vrnn gbm_adapter block_bootstrap
+      --generation_length 60
       --num_samples 1000
       --seed 42
-      --output_dir /generated_data
+      --output_root /generated_data/src/experiments
     depends_on:
-      data-download:
+      data-preprocess:
         condition: service_completed_successfully
     volumes:
       - data:/data:ro
       - generated_data:/generated_data
-      - configs:/app/configs:ro
     environment:
       - OMP_NUM_THREADS=1
       - MKL_NUM_THREADS=1
@@ -67,12 +89,10 @@ services:
       service: base
     container_name: sdgfts-eval
     command: >
-      src/parallelizer_script.py
-      --stage evaluate
-      --seq_lengths 51 60 120 180 240 300
-      --max_procs 8
-      --generated_dir /generated_data
+      src/unified_evaluator.py
+      --generated_dir /generated_data/src/experiments
       --results_dir /results
+      --seq_lengths 60 120 180 240 300
     depends_on:
       generate-data:
         condition: service_completed_successfully
@@ -80,7 +100,6 @@ services:
       - ./data:/data:ro
       - ./generated_data:/generated_data:ro
       - ./results:/results
-      - ./configs:/app/configs:ro
 
   # Plotting service (generates paper figures)
   plot:
@@ -94,7 +113,6 @@ services:
     volumes:
       - ./results:/results:ro
       - ./evaluation_plots:/evaluation_plots
-      - ./configs:/app/configs:ro
 
 networks:
   default:
@@ -106,4 +124,3 @@ volumes:
   generated_data:
   results:
   evaluation_plots:
-  configs:
