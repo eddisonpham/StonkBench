@@ -1,0 +1,63 @@
+\section{Preliminaries}
+  \subsection{Problem Definition}
+    Let us formally define the markt generation problem.
+    Given a financial time series of asset price movements
+    $\textbf{X} = (\textbf{x}_1,...,\textbf{x}_K)^T \in \mathbb R^{T\times K}$ 
+    with $K$ individual securites spanning time $T$. Let 
+    $p(\textbf{x}_1,...,\textbf{x}_K)$ denote the real distribution 
+    of the given time series $\textbf{X}$. The objective of SDG 
+    for FTS is to generate a synthetic time series 
+    $\mathbf{\hat{X}} = (\mathbf{\hat{x}}_1, \ldots, 
+    \mathbf{\hat{x}}_n)^{T}$ such that its distribution 
+    $p(\mathbf{\hat{x}}_1, \ldots, \mathbf{\hat{x}}_n)$ 
+    approximates $p(\textbf{x}_1,...,\textbf{x}_K)$, while 
+    preserving the key properties exhibited in the real financial 
+    time series, such as autocorrelation structure, volatility 
+    clustering, and distributional moments.
+
+  \subsection{Scope of Project}
+    \subsubsection{Evaluated Methods}
+      Our benchmark encompasses a diverse range of models
+      from traditional parametric approaches to modern deep 
+      learning architectures. We selected models satisifying one
+      of three main criteria: (1) proven industry adoption, (2) research 
+      community acceptance, and (3) recent methodological 
+      innovations and interest.
+
+      Our evaluation includes classical parametric models, which 
+      rely on predefined statistical distributions and assumptions 
+      about the underlying data generation process. These models 
+      have been extensively used in financial institutions for 
+      their interpretability and theoretical foundations. 
+
+      We also evaluate modern deep learning approaches, 
+      particularly deep learning-based models that learn the data 
+      distribution directly from observations without assuming a 
+      specific form. These include generative adversarial 
+      networks, and variational autoencoders, 
+      representing the cutting edge in synthetic market data generation.
+
+      An overview of the classes of market generator evaluate is outlined
+      in §\ref{sec:model-overview}.
+
+      \subsubsection{Datasets}
+      The market generators' objective is to generate realistic and diverse
+      synthetic time series from daily financial asset returns, spanning across
+      10 years and collected from Yahoo Finance.
+      In the interest of evaluating cross-asset distributive properties,
+      we have select a range of financial equities, including 25 US large-cap
+      stocks from the following sectors. Furthermore, we have included 5
+      of the most popular US index-tracking ETFs. 
+
+      \subsubsection{Scope of Evaluation Taxonomical Criteria}
+      Our evaluation framework follows the taxonomy structure 
+      proposed by Stenger et al. \cite{Stenger24}, incorporating 
+      various evaluation measures from different papers in the 
+      field.
+
+      We systematically integrate evaluation metrics from multiple 
+      sources while maintaining this structured taxonomical 
+      approach, ensuring comprehensive coverage of all critical 
+      aspects of evaluation and setting a standard for 
+      future research in market generators as a whole. A full description
+      of the evaluation suite are outlined in §\ref{subsec:stats-measure}, \ref{subsec:utility-measure}.

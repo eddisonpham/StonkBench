@@ -1,0 +1,131 @@
+\section{Conclusion and Future Work}
+  In our research, we recognize the existing limitations in the
+    evaluation of synthetic time series, particularly the absence of a
+    universally accepted framework. To address this, we adopt the
+    evaluation taxonomy proposed by Stenger et al. and expand upon it to
+    create a comprehensive benchmark specifically tailored for Synthetic
+    Data Generation for Financial Time Series (SDGFTS).
+    Our contributions include the development of a consolidated evaluation
+    framework that systematically reviews and integrates various
+    assessment methods from leading studies in the field. This approach
+    not only enhances the rigor of evaluations but also facilitates the
+    comparison of different SDGFTS models, ultimately providing a more
+    standardized and reliable means of assessing synthetic data quality.
+
+  We believe that Stonk Bench will serve as a valuable resource for
+    researchers and practitioners in the field of synthetic financial
+    time series generation.
+    We hope that our benchmark will facilitate more rigorous and
+    standardized evaluations of SDGFTS models, ultimately advancing
+    the state of the art in this important area of research.
+    For the broader field of synthetic data generation, our work
+    highlights the importance of a comprehensive and unifying
+    evaluation frameworks that consider both statistical properties
+    and practical utility that is proposed by Stenger \textit{et al.}.
+  \subsection{Summary of Findings}
+  We presented Stonk-Bench, a comprehensive benchmark for evaluating 
+  Synthetic Data Generation for Financial Time Series (SDGFTS). This 
+  benchmark integrates statistical fidelity, diversity, stylized facts 
+  verification, and utility evaluation through (deep) hedging. We evaluated 
+  a suite of 5 traditional, 3 deep learning-based, and 1 other SDGFTS 
+  models on the S\&P 500 minute-level dataset.
+  \subsection{Stonk Bench Shortcomings}\label{subsub:shortcomings}
+      While Stonk Bench represents a significant step forward in the
+      evaluation of SDGFTS models, we acknowledge several limitations
+      in our current work:
+    \begin{enumerate}[label=\textbf{[S\arabic*]}]
+      \item \textbf{Incompatibility with other models:}
+        Stonk Bench has so far been evaluated mainly on classical
+        stochastic models (e.g., GBM, OU, GARCH) and a subset of
+        deep-learning approaches (GANs, VAEs).
+        Other model families — such as
+        reinforcement-learning-based generators, normalizing flows,
+        autoregressive networks, and hybrid methods — have not yet
+        been benchmarked.
+      \item \textbf{No hyperparameter tuning:} For consistency and
+        comparability across models, StonkBench evaluations were
+        performed using default model configurations, without
+        performing hyperparameter optimization. This ensures a fair
+        baseline but may not reflect the absolute best performance
+        achievable by each model.
+      \item \textbf{Metric and procedure generalizability:}
+        As a consequence, some metrics or evaluation procedures may
+        not directly translate to these untested families, which
+        limits the framework's generalizability across all synthetic
+        financial time-series generation methods.
+      \item \textbf{Data Leakage from Public Datasets:} Current models
+        can potentially overfit to publicly available datasets
+        \textemdash the same datasets that Stonk Bench is using
+        \textemdash leading to inflated performance metrics that do
+        not generalize well to unseen data. One possible solution is
+        to either curate proprietary datasets or implement a grace
+        period so the model can be tested on new data that was not
+        publicly available during its development.
+      \item \textbf{Computational Resource Requirements:} The
+        comprehensive nature of Stonk Bench \textemdash particularly
+        accommodating any submitted (deep) hedging model and the deep
+        hedging utility evaluation \textemdash demands significant
+        computational resources. This may limit accessibility for
+        researchers with constrained resources.
+    \end{enumerate}
+  \subsection{Future Research Directions}
+    \subsubsection{Remaining progress} In regard to the next portion
+    of our project, we aim to expand Stonk Bench in several key areas.
+    \begin{enumerate}[label=\textbf{[F\arabic*]}]
+      \item \textbf{Multivariate time series predictions.}
+        Extend Stonk Bench to evaluate models on multivariate time
+        series data, enabling a more comprehensive assessment of their
+        performance in realistic scenarios. We wish test SDGFTS models
+        on datasets with multiple correlated assets and datasets with
+        Bid-Ask spreads and trading volume to evaluate their ability to
+        capture inter-asset dependencies and market microstructure
+        effects \cite{Takahashi24}.
+        \item \textbf{Data granularity evaluation.}
+        We wish to test SDGFTS models across multiple data granularities
+        (minute-level, daily, and weekly) to evaluate model performance
+        on different temporal scales and their ability to capture both
+        short-term and long-term dependencies. The most relevant granularities
+        that are commonly used in financial analysis and trading strategies
+        are 5-minute, 30-minute, and daily data \cite{Wang20, Cont01}.
+    \end{enumerate}
+
+    \subsubsection{Beyond the project} We envision Stonk Bench
+    evolving into a community-driven benchmark for SDGFTS evaluation.
+    As we acknowledge the shortcomings outlined in
+    §\ref{subsub:shortcomings}, we propose the following future
+    directions:
+    \begin{enumerate}[label=\textbf{[F\arabic*]}, resume]
+      \item \textbf{Continuous model inclusion.}
+      Maintain Stonk Bench as a living benchmark by incorporating
+      newly developed SDGFTS techniques (normalizing flows,
+      autoregressive generators, advanced diffusion models,
+      reinforcement-learning-based generators, and hybrids)
+      \cite{Potluru24}.
+      \item \textbf{Rigorous metric selection and ablations.}
+      As mentioned in Stenger et al., we wish to rigorously conduct
+      ablation studies to identify the most informative and robust
+      metrics for different model families and stylized facts;
+      produce guidance for a compact, interpretable metric set
+      \cite{Stenger24}.
+      \item \textbf{Categories of datasets} We wish to format Stonk
+      Bench to cover a variaty datasets categorized by asset class (
+      equities, forex, commodities, cryptocurrencies), 
+      granularity (minute, five-minute, daily), and datatypes (OHCL,
+      BAV).
+      \item \textbf{Public benchmark platform.}
+      Launch a website with documentation, code, datasets, and a
+      leaderboard for submitted SDGFTS models; provide CI-enabled
+      evaluation pipelines for reproducible comparisons.
+      \item \textbf{Community engagement.}
+      Foster collaboration via contribution guidelines, open issues,
+      and reproducible example workflows so researchers can extend
+      and validate the benchmark.
+    \end{enumerate}
+
+\begin{acks}
+  To professor Irene Huang, University of Toronto, for her
+  supervision and guidance throughout the project.
+\end{acks}
+
+
+

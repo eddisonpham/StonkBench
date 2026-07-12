@@ -1,0 +1,96 @@
+\documentclass[sigconf]{acmart}
+\usepackage{enumitem}
+\AtBeginDocument{%
+  \providecommand\BibTeX{{%
+    Bib\TeX}}}
+
+\setcopyright{acmlicensed}
+\copyrightyear{2025}
+\acmYear{2025}
+% \acmDOI{XXXXXXX.XXXXXXX}
+% \acmConference[Conference acronym 'XX]{Make sure to enter the correct
+%   conference title from your rights confirmation email}{June 03--05,
+%   2018}{Woodstock, NY}
+% \acmISBN{978-1-4503-XXXX-X/2018/06}
+
+
+
+\begin{document}
+
+
+\title{StonkBench: Unified Benchmark for Synthetic Market Data Generation for Financial Time Series}
+
+
+
+\author{Albert Ho}
+\authornote{Both authors contributed equally to this research.}
+\email{uyenlam.ho@mail.utoronto.ca}
+\author{Eddison Pham}
+\authornotemark[1]
+\email{eddison.pham@mail.utoronto.ca}
+\affiliation{%
+  \institution{University of Toronto}
+  \city{Toronto}
+  \state{Ontario}
+  \country{Canada}
+}
+
+
+
+\renewcommand{\shortauthors}{Ho and Pham}
+
+\begin{abstract}
+Synthetic data generation has become increasingly important in financial
+applications, particularly with generating market data such as
+financial securities prices. With advancements in generative
+architectures in text, image, and audio domains, practitioners and researchers
+in financial markets
+have shown growing interest in applying these techniques to generate 
+market data like time series of equity prices for 
+research and robust trading strategies backtesting. However,
+the current literture in this domain lacks a unified benchmark for 
+evaluating the quality of synthetic market data for fair and reliable 
+comparisons across different families of models. To address this gap, we
+introduce StonkBench, a unified benchmark for synthetic multivariate
+time series generation of daily equity returns through a comprehensive and 
+standardized evaluation framework that balances statistical properties, 
+domain-specific stylized facts observed in market data and 
+practical downstream tasks practioners care about, 
+such as portfolio hedging, option price delta hedging, and alpha generation.
+\end{abstract}
+
+
+\keywords{
+    Synthetic Data,
+    Market Generator,
+    Financial Time Series,
+    Benchmarking
+}
+\begin{teaserfigure}
+  \centering
+  \includegraphics[width=\textwidth,height=5.5cm,keepaspectratio,
+    trim=0 150 0 150,clip]{tse-1981.png}
+  \caption{Toronto Stock Exchange, Toronto, 1981}
+  \Description{A panoramic view of the Toronto Stock Exchange 
+    building in 1981.}
+  \label{fig:teaser}
+\end{teaserfigure}
+
+
+\maketitle
+
+\input{sections/stonk-bench-introduction}
+\input{sections/stonk-bench-preliminaries}
+\input{sections/stonk-bench-model-overview}
+\input{sections/stonk-bench-architecture}
+\input{sections/stonk-bench-results-and-analysis}
+\input{sections/stonk-bench-conclusion-and-future-work}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{stonk-bench}
+
+\appendix
+
+\input{sections/stonk-bench-appendix}
+
+\end{document}
