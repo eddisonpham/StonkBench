@@ -10,20 +10,24 @@ import torch
 
 from src.experiments.core.contracts import StandardBatch
 
-_DATA_DIR = Path("/data") if Path("/data").exists() else Path(__file__).resolve().parents[2] / "data"
-_DEFAULT_DL_SET = str(_DATA_DIR / "preprocessed" / "dl_set.pt")
-_DEFAULT_STATS_SET = str(_DATA_DIR / "preprocessed" / "statsmodel_set.pt")
+# Path resolution is canonical in src/utils/env.py. The wrappers below preserve
+# the str-return API for backward compatibility. The module-level constants are
+# DEPRECATED and capture values at import — prefer the resolve_* functions at
+# call time so STONKBENCH_* env var mutations are honored.
+from src.utils.env import get_dl_set_path, get_stats_set_path
 
 
 def resolve_dl_set_path() -> str:
-    return os.environ.get("STONKBENCH_DL_SET_PATH", _DEFAULT_DL_SET)
+    """Read the preprocessed DL-set path. Thin wrapper over env.get_dl_set_path()."""
+    return str(get_dl_set_path())
 
 
 def resolve_stats_set_path() -> str:
-    return os.environ.get("STONKBENCH_STATS_SET_PATH", _DEFAULT_STATS_SET)
+    """Read the preprocessed stats-set path. Thin wrapper over env.get_stats_set_path()."""
+    return str(get_stats_set_path())
 
 
-# Backward-compatible module constants (resolved at import; prefer resolve_* in runtime code).
+# DEPRECATED: captured at import time. New code should call resolve_* at runtime.
 DL_SET_PATH = resolve_dl_set_path()
 STATS_SET_PATH = resolve_stats_set_path()
 
@@ -39,6 +43,8 @@ def channel_norm_stats(dl_set: Dict[str, Any]) -> Optional[Tuple[torch.Tensor, t
 
 def denormalize_channels(data: torch.Tensor, mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:
     """Map z-scored windows back to raw feature space."""
+    mean = mean.to(device=data.device, dtype=data.dtype)
+    std = std.to(device=data.device, dtype=data.dtype)
     if data.ndim == 2:
         return data * std + mean
     if data.ndim == 3:
@@ -47,6 +53,8 @@ def denormalize_channels(data: torch.Tensor, mean: torch.Tensor, std: torch.Tens
 
 
 def normalize_channels(data: torch.Tensor, mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:
+    mean = mean.to(device=data.device, dtype=data.dtype)
+    std = std.to(device=data.device, dtype=data.dtype)
     if data.ndim == 2:
         return (data - mean) / std
     if data.ndim == 3:
