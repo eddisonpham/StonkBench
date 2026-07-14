@@ -3,6 +3,7 @@
 #SBATCH --account=def-yqhuang
 #SBATCH --partition=compute
 #SBATCH --nodes=1
+#SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=2
 #SBATCH --time=00:30:00
 #SBATCH --output=/scratch/%u/stonkbench/slurm_logs/hp_agg_%j.out
@@ -14,4 +15,4 @@ cd "${PROJECT_ROOT}"
 
 python -m src.experiments.hp_search \
   --aggregate_only \
-  --output_dir "${OUTPUT_ROOT}/results/hp_search"
+  --output_dir "${RESULTS_DIR}/hp_search"
