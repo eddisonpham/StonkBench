@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import traceback as _traceback
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import torch
 
+from src.experiments.core import events
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput, StandardBatch
 from src.experiments.core.io import append_jsonl, build_run_manifest, ensure_experiment_paths, write_json
 from src.experiments.core.registry import STATISTICAL_MODEL_KEYS, get_adapter
 from src.utils.device import device_to_str, get_device
-from src.utils.artifact_utils import default_metadata, save_artifact
+from src.utils.artifact_utils import compute_preprocessing_hash, default_metadata, save_artifact
 from src.utils.preprocessed_data_utils import (
     build_batch_from_dl_set,
     build_batch_from_stats_set,
@@ -67,6 +69,29 @@ def run_model_experiment(
     if training_metadata:
         metadata.update(training_metadata)
 
+    # Telemetry: emit init_config + shape_trace at pipeline.entry so log-tail
+    # watchers and JSONL replay get one canonical "training is about to start"
+    # event per model run.
+    hparams: Dict[str, Any] = {"model_key": model_key, **metadata, "device": resolved_device}
+    try:
+        events.init_config(
+            model_key=model_key,
+            hparams=hparams,
+            dataset_hash=compute_preprocessing_hash(preprocessing),
+            gpu=resolved_device,
+            log_dir=output_root / "logs",
+        )
+        events.shape_trace(
+            model_key=model_key,
+            stage="adapter.fit.start",
+            tensor_name="train_windows" if batch.train_windows is not None else "train_series",
+            tensor=batch.train_windows if batch.train_windows is not None else batch.train,
+            extra={"sequence_length": int(batch.inferred_length or generation_length)},
+            log_dir=output_root / "logs",
+        )
+    except Exception:  # noqa: BLE001 — telemetry must never crash the run.
+        print(f"[WARN] Failed to emit pipeline telemetry for {model_key}; continuing.")
+
     fit_input = AdapterFitInput(
         batch=batch,
         sequence_length=batch.inferred_length or generation_length,
@@ -75,8 +100,20 @@ def run_model_experiment(
         seed=seed,
         metadata=metadata,
     )
-    fit_info = adapter.fit(fit_input, checkpoints_dir=paths.checkpoints, logs_dir=paths.logs)
-    generated = adapter.generate(num_samples=num_samples, generation_length=generation_length, seed=seed)
+    try:
+        fit_info = adapter.fit(fit_input, checkpoints_dir=paths.checkpoints, logs_dir=paths.logs)
+        generated = adapter.generate(num_samples=num_samples, generation_length=generation_length, seed=seed)
+    except Exception as exc:  # noqa: BLE001 — emit error_halt so partial runs are debuggable.
+        try:
+            events.error_halt(
+                model_key=model_key,
+                error_msg=str(exc),
+                traceback_str=_traceback.format_exc(),
+                log_dir=output_root / "logs",
+            )
+        except Exception:  # noqa: BLE001
+            print(f"[WARN] Failed to emit error_halt for {model_key}; tearing down anyway.")
+        raise
 
     # Map model outputs from normalized training space back to raw feature space.
     if model_key not in STATISTICAL_MODEL_KEYS:
@@ -84,12 +121,28 @@ def run_model_experiment(
         stats = channel_norm_stats(dl_set)
         if stats is not None:
             mean, std = stats
+            # Keep denorm on the same device as generated samples, then persist on CPU.
+            data = denormalize_channels(generated.data, mean, std).detach().cpu()
             generated = AdapterGenerateOutput(
-                data=denormalize_channels(generated.data, mean, std),
+                data=data,
                 checkpoints=generated.checkpoints,
                 logs=generated.logs,
                 extra_metadata=generated.extra_metadata,
             )
+        else:
+            generated = AdapterGenerateOutput(
+                data=generated.data.detach().cpu(),
+                checkpoints=generated.checkpoints,
+                logs=generated.logs,
+                extra_metadata=generated.extra_metadata,
+            )
+    else:
+        generated = AdapterGenerateOutput(
+            data=generated.data.detach().cpu(),
+            checkpoints=generated.checkpoints,
+            logs=generated.logs,
+            extra_metadata=generated.extra_metadata,
+        )
 
     metadata = default_metadata(
         model_name=model_key,
