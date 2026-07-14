@@ -25,9 +25,11 @@ from src.utils.evaluation_classes_utils import (  # noqa: E402
     DiversityEvaluator,
     FidelityEvaluator,
     StylizedFactsEvaluator,
-    VisualAssessmentEvaluator,
-    UtilityEvaluator,
+    VisualAssessmentEvaluator,    UtilityEvaluator,
+    FecampDeepHedgerEvaluator,  # Phase 5: cvar / entropic / log_utility dispatch
+    _group_channel_metrics,      # Phase 5: price/volume channel grouping
 )
+
 from src.utils.preprocessed_data_utils import (  # noqa: E402
     channel_norm_stats,
     denormalize_channels,
@@ -45,6 +47,15 @@ UTILITY_VAL_RATIO = 0.9
 UTILITY_NUM_EPOCHS = 40
 UTILITY_BATCH_SIZE = 64
 UTILITY_LEARNING_RATE = 1e-3
+# Phase 2 + Phase 5 defaults (locked by user-clarified round 2).
+UTILITY_HEDGER_LOSS_DEFAULT = "cvar"  # Fecamp CVaR; alternatives: entropic / log_utility / mse
+UTILITY_LOSS_ALPHA_DEFAULT = 0.05  # CVaR tail quantile (alpha = 5%)
+UTILITY_DATA_MODES_DEFAULT: list[str] = ["synthetic_only", "test_only", "augmented"]
+UTILITY_AUGMENTED_MIX_RATIOS_DEFAULT: list[float] = [0.0, 0.2, 0.3, 0.5, 1.0]
+# Default to skipping regeneration when checkpoint regen isn't supported by the
+# adapter. Set --skip_regenerate=False (or STONKBENCH_EVAL_REGENERATE=1) to force
+# regeneration on adapters that implement load_state().
+UTILITY_SKIP_REGENERATE_DEFAULT = True
 
 
 def _to_numpy(x: Any) -> np.ndarray:
@@ -150,6 +161,9 @@ class ArtifactLoader:
             "sequence_length": int(metadata["sequence_length"]),
             "num_samples": int(metadata.get("num_samples", 0)),
             "num_channels": int(metadata.get("num_channels", 1)),
+            "asset_columns": list(metadata.get("asset_columns") or []),
+            "price_columns": list(metadata.get("price_columns") or []),
+            "model_checkpoint_manifest": list(metadata.get("model_checkpoint_manifest") or []),
         }
 
     @staticmethod
@@ -193,10 +207,58 @@ class RealDataPreparer:
 
 
 class CoreMetricsEvaluator:
-    """Evaluates core taxonomy metrics (fidelity, diversity, stylized facts, visual)."""
+    """Evaluates core taxonomy metrics (fidelity, diversity, stylized facts, visual).
 
-    def __init__(self, output_dir: Path):
+    When ``asset_columns`` and ``price_columns`` are provided, per-channel results
+    are post-processed via ``_group_channel_metrics`` so the JSON report contains
+    separate ``price_mean`` and ``volume_mean`` blocks per metric (Phase 5 lock).
+    Single-channel evaluation falls through to the legacy flat-mean layout.
+    """
+
+    def __init__(
+        self,
+        output_dir: Path,
+        asset_columns: Optional[List[str]] = None,
+        price_columns: Optional[List[str]] = None,
+    ):
         self.output_dir = output_dir
+        self.asset_columns = list(asset_columns or [])
+        self.price_columns = list(price_columns or [])
+
+    def _split_indices(self) -> Tuple[List[int], List[int]]:
+        price_set = set(self.price_columns) if self.price_columns else set()
+        price_idx: List[int] = []
+        volume_idx: List[int] = []
+        if not self.asset_columns:
+            return price_idx, volume_idx
+        for i, col in enumerate(self.asset_columns):
+            if "_volume" in col:
+                volume_idx.append(i)
+            elif col in price_set or not price_set:
+                # When no price_columns resolved, default everything that isn't a
+                # *_volume column to the price group — preserves legacy single-
+                # channel and unlabelled-multivariate layouts.
+                price_idx.append(i)
+        return price_idx, volume_idx
+
+    def _post_process(self, name: str, raw: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(raw, dict) or "per_channel" not in raw or not self.asset_columns:
+            return {name: raw} if raw else {}
+        if not isinstance(raw["per_channel"], list):
+            return {name: raw}
+        price_idx, volume_idx = self._split_indices()
+        grouped = _group_channel_metrics(raw["per_channel"], price_idx, volume_idx)
+        # Single-channel legacy: prefer the flat-mean schema the user already
+        # expects. Multi-channel: emit the new per-channel-grouped report.
+        n_channels = len(raw["per_channel"])
+        if n_channels == 1:
+            flat = {k: v for k, v in raw.items() if k != "per_channel"}
+            return {name: flat}
+        return {
+            f"{name}_price_mean": grouped["price_mean"],
+            f"{name}_volume_mean": grouped["volume_mean"],
+            f"{name}_per_channel": grouped["per_channel"],
+        }
 
     def evaluate(
         self,
@@ -217,26 +279,66 @@ class CoreMetricsEvaluator:
             evaluator_name = evaluator.__class__.__name__
             try:
                 metric_results = evaluator.evaluate()
-                if metric_results:
-                    results.update(metric_results)
             except Exception as exc:  # noqa: BLE001
                 print(f"[WARN] {evaluator_name} failed: {exc}")
+                continue
+            if not metric_results:
+                continue
+            if evaluator_name == "VisualAssessmentEvaluator":
+                # Visual assessment writes to disk and returns no per-channel metrics —
+                # keep the legacy flat-writes key so downstream tooling sees it ran.
+                results["visual_assessment"] = metric_results or {"saved": True}
+            else:
+                results.update(self._post_process(evaluator_name, metric_results))
 
         return results
 
 
 class UtilityMetricsEvaluator:
-    """Evaluates utility metrics (deep hedging)."""
+    """Evaluates utility metrics (deep hedging).
+
+    Phase 2: aggregates price_mean / volume_mean separately per metric.
+    Phase 5: dispatches to FecampDeepHedgerEvaluator (cvar / entropic / log_utility)
+    or falls back to vendor UtilityEvaluator (mse) per `--hedger_loss` flag.
+    Phase 5 (continued): per ``--data_modes`` / ``--augmented_mix_ratios``, runs
+    the hedger in ``synthetic_only``, ``test_only``, and ``augmented`` (mix-ratio
+    grid) modes. The output schema preserves legacy ``summary`` / ``price_mean``
+    / ``volume_mean`` keys (== ``synthetic_only``'s price_mean) so downstream
+    consumers don't break.
+    """
 
     def __init__(
         self,
         num_epochs: int = UTILITY_NUM_EPOCHS,
         batch_size: int = UTILITY_BATCH_SIZE,
         learning_rate: float = UTILITY_LEARNING_RATE,
+        hedger_loss: str = UTILITY_HEDGER_LOSS_DEFAULT,
+        loss_alpha: float = UTILITY_LOSS_ALPHA_DEFAULT,
+        data_modes: Optional[List[str]] = None,
+        augmented_mix_ratios: Optional[List[float]] = None,
     ):
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
+        self.hedger_loss = str(hedger_loss)
+        self.loss_alpha = float(loss_alpha)
+        # data_modes is the list of modes to run. mix_ratios is only consulted
+        # when ``augmented`` is in data_modes (validation: reject unknown modes).
+        modes = list(data_modes) if data_modes else list(UTILITY_DATA_MODES_DEFAULT)
+        valid = ("synthetic_only", "test_only", "augmented")
+        unknown = [m for m in modes if m not in valid]
+        if unknown:
+            raise ValueError(f"Unknown data_modes: {unknown}; valid options: {valid}")
+        self.data_modes = modes
+        ratios = (
+            list(augmented_mix_ratios)
+            if augmented_mix_ratios is not None
+            else list(UTILITY_AUGMENTED_MIX_RATIOS_DEFAULT)
+        )
+        for r in ratios:
+            if not 0.0 <= r <= 1.0:
+                raise ValueError(f"augmented_mix_ratios must be in [0, 1] (got {r})")
+        self.augmented_mix_ratios = ratios
 
     @staticmethod
     def _average_nested_dicts(results: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -256,96 +358,186 @@ class UtilityMetricsEvaluator:
                 averaged[key] = value
         return averaged
 
+    def _evaluate_mse_legacy(
+        self,
+        synthetic: torch.Tensor,
+        dataset: Dict[str, Any],
+        seq_length: int,
+    ) -> Dict[str, Any]:
+        """Single-pass vendor ``UtilityEvaluator`` for the mse hedger_loss path.
+
+        No data-mode dispatch — mse does not support augmented modes (it predates
+        the Fecamp additions). Returned schema is flattened-everything-as-price_mean
+        so the caller can emit the same top-level keys regardless of hedger_loss.
+        """
+        num_samples = synthetic.shape[0]
+        device = synthetic.device
+        synthetic_initials = torch.zeros(num_samples, device=device)
+        real_train_init = dataset["deep_learning_train_init"]
+        # Squeeze to (N,) when possible — legacy vendor expects initials shaped like prices.
+        if real_train_init.ndim > 1:
+            real_train_init = real_train_init.mean(dim=-1)
+        real_val_init = dataset["deep_learning_valid_init"]
+        if real_val_init.ndim > 1:
+            real_val_init = real_val_init.mean(dim=-1) if real_val_init.shape[0] else real_val_init
+        real_test_init = dataset["deep_learning_test_init"]
+        if real_test_init.ndim > 1:
+            real_test_init = real_test_init.mean(dim=-1) if real_test_init.shape[0] else real_test_init
+
+        evaluator = UtilityEvaluator(
+            real_train_log_returns=dataset["deep_learning_train"],
+            real_val_log_returns=dataset["deep_learning_valid"] if dataset["deep_learning_valid"].shape[0] else dataset["deep_learning_test"],
+            real_test_log_returns=dataset["deep_learning_test"],
+            synthetic_train_log_returns=synthetic,
+            synthetic_val_log_returns=synthetic,
+            synthetic_test_log_returns=synthetic,
+            real_train_initial=real_train_init,
+            real_val_initial=real_val_init,
+            real_test_initial=real_test_init,
+            synthetic_train_initial=synthetic_initials,
+            synthetic_val_initial=synthetic_initials,
+            synthetic_test_initial=synthetic_initials,
+            seq_length=seq_length,
+            num_epochs=self.num_epochs,
+            batch_size=self.batch_size,
+            learning_rate=self.learning_rate,
+        )
+        try:
+            raw = evaluator.evaluate()
+        except Exception as exc:  # noqa: BLE001
+            return {"utility_error": str(exc)}
+        return {
+            "summary": raw,
+            "price_mean": raw,
+            "volume_mean": {},
+            "volume_mean_reason": "mse hedger averages all channels together natively",
+            "price_indices": [],
+            "volume_indices": [],
+            "hedger_loss": "mse",
+            "loss_alpha": self.loss_alpha,
+            "data_modes": ["mse_legacy_only"],
+            "augmented_mix_ratios": [],
+            "per_channel": [],
+            "per_mode": {"mse_legacy_only": raw},
+        }
+
+    def _evaluate_fecamp_multi_mode(
+        self,
+        synthetic: torch.Tensor,
+        dataset: Dict[str, Any],
+        seq_length: int,
+        price_indices: List[int],
+        volume_indices: List[int],
+    ) -> Dict[str, Any]:
+        """Multi-mode (data_mode × mix_ratio) Fecamp hedger evaluation.
+
+        For each (mode, mix), iterate over each price channel c and call
+        ``FecampDeepHedgerEvaluator.evaluate()``. Aggregates results in
+        ``per_mode[label] = {price_mean, per_channel_results, n_channels}``.
+        The outer Schema (B) keeps legacy ``summary``/``price_mean`` keys for
+        backwards compat (== synthetic_only's price_mean).
+        """
+        synthetic_prices = synthetic[:, :, price_indices]
+        real_train_all = dataset["deep_learning_train"][:, :, price_indices]
+        real_valid_all = dataset["deep_learning_valid"][:, :, price_indices] if dataset["deep_learning_valid"].shape[0] else dataset["deep_learning_test"][:, :, price_indices]
+        real_test_all = dataset["deep_learning_test"][:, :, price_indices]
+        num_channels = synthetic_prices.shape[-1]
+        num_samples = synthetic_prices.shape[0]
+        mean_init = float(dataset["deep_learning_train_init"][:, price_indices].mean().item()) if dataset["deep_learning_train_init"].shape[0] else 0.0
+        device = synthetic_prices.device
+        synthetic_initials = torch.ones(num_samples, device=device) * mean_init
+
+        per_mode_results: Dict[str, Dict[str, Any]] = {}
+        for mode in self.data_modes:
+            mix_ratios = self.augmented_mix_ratios if mode == "augmented" else [0.0]
+            for mix in mix_ratios:
+                mode_label = f"augmented_mix{mix}" if mode == "augmented" else mode
+                channel_results: List[Dict[str, Any]] = []
+                for c in range(num_channels):
+                    syn_c = synthetic_prices[:, :, c]
+                    real_train_c = real_train_all[:, :, c]
+                    real_val_c = real_valid_all[:, :, c]
+                    real_test_c = real_test_all[:, :, c]
+                    if real_train_c.shape[0] == 0 or real_test_c.shape[0] == 0:
+                        channel_results.append({"utility_error": "Insufficient real data windows for utility evaluation."})
+                        continue
+                    fecamp_evaluator = FecampDeepHedgerEvaluator(
+                        synthetic_train=syn_c,
+                        synthetic_val=syn_c,
+                        synthetic_test=syn_c,
+                        real_train=real_train_c,
+                        real_val=real_val_c,
+                        real_test=real_test_c,
+                        seq_length=seq_length,
+                        num_epochs=self.num_epochs,
+                        batch_size=self.batch_size,
+                        learning_rate=self.learning_rate,
+                        loss_type=self.hedger_loss,
+                        loss_alpha=self.loss_alpha,
+                        transaction_cost=0.0,
+                        hedging_universe="self_only",
+                        portfolio=False,
+                        n_assets=1,
+                        data_mode=mode,
+                        mix_ratio=float(mix),
+                    )
+                    try:
+                        channel_results.append(fecamp_evaluator.evaluate())
+                    except Exception as exc:  # noqa: BLE001
+                        print(f"[WARN] FecampDeepHedgerEvaluator failed for channel {c} mode {mode_label}: {exc}")
+                        channel_results.append({"utility_error": str(exc)})
+                per_mode_results[mode_label] = {
+                    "price_mean": self._average_nested_dicts(channel_results),
+                    "per_channel_results": channel_results,
+                    "n_channels": int(num_channels),
+                }
+
+        synth_only = per_mode_results.get("synthetic_only", {})
+        return {
+            "summary": synth_only.get("price_mean", {}),
+            "price_mean": synth_only.get("price_mean", {}),
+            "volume_mean": {},
+            "volume_mean_reason": (
+                "Hedger transaction universe includes price columns only; volume "
+                "channels are evaluated by core metrics (Fidelity/Diversity) but "
+                "not hedged. See Agent Context/context.md."
+            ),
+            "price_indices": list(price_indices),
+            "volume_indices": list(volume_indices),
+            "hedger_loss": self.hedger_loss,
+            "loss_alpha": self.loss_alpha,
+            "data_modes": list(self.data_modes),
+            "augmented_mix_ratios": list(self.augmented_mix_ratios),
+            "per_channel": synth_only.get("per_channel_results", []),
+            "per_mode": per_mode_results,
+        }
+
     def evaluate(
         self,
         generated_data: np.ndarray,
         dataset: Dict[str, Any],
         seq_length: int,
     ) -> Dict[str, Any]:
-        """Run utility evaluation using deep hedging."""
+        """Run utility evaluation using deep hedging across requested data modes."""
         synthetic = torch.from_numpy(generated_data).float()
         if synthetic.ndim == 2:
             synthetic = synthetic.unsqueeze(-1)
 
-        num_samples = synthetic.shape[0]
-        train_end = int(num_samples * UTILITY_TRAIN_RATIO)
-        val_end = int(num_samples * UTILITY_VAL_RATIO)
-
         feature_columns = dataset.get("asset_columns", [])
         price_columns = dataset.get("price_columns", feature_columns)
-        price_indices = [feature_columns.index(c) for c in price_columns if c in feature_columns]
+        price_set = set(price_columns) if price_columns else set()
+        price_indices: List[int] = [
+            i for i, c in enumerate(feature_columns) if "_volume" not in c and (not price_set or c in price_set)
+        ]
+        volume_indices: List[int] = [i for i, c in enumerate(feature_columns) if "_volume" in c]
         if not price_indices:
             return {"utility_error": "No price channels available for utility evaluation."}
 
-        synthetic = synthetic[:, :, price_indices]
-        real_train_all = dataset["deep_learning_train"][:, :, price_indices]
-        real_valid_all = dataset["deep_learning_valid"][:, :, price_indices]
-        real_test_all = dataset["deep_learning_test"][:, :, price_indices]
-        real_train_init_all = dataset["deep_learning_train_init"][:, price_indices]
-        real_valid_init_all = dataset["deep_learning_valid_init"][:, price_indices]
-        real_test_init_all = dataset["deep_learning_test_init"][:, price_indices]
-
-        num_channels = synthetic.shape[-1]
-        per_channel_results: List[Dict[str, Any]] = []
-        for c in range(num_channels):
-            synthetic_c = synthetic[:, :, c]
-            synthetic_train = synthetic_c[:train_end]
-            synthetic_val = synthetic_c[train_end:val_end]
-            synthetic_test = synthetic_c[val_end:]
-
-            real_train = real_train_all[:, :, c]
-            real_val = real_valid_all[:, :, c]
-            real_test = real_test_all[:, :, c]
-            real_train_init = real_train_init_all[:, c]
-            real_val_init = real_valid_init_all[:, c]
-            real_test_init = real_test_init_all[:, c]
-
-            if real_val.shape[0] == 0:
-                real_val = real_test
-                real_val_init = real_test_init
-
-            if real_train.shape[0] == 0 or real_test.shape[0] == 0:
-                per_channel_results.append({"utility_error": "Insufficient real data windows for utility evaluation."})
-                continue
-
-            mean_initial = float(real_train_init.mean().item())
-            device = real_train_init.device
-            synthetic_initials = {
-                "train": torch.ones(train_end, device=device) * mean_initial,
-                "val": torch.ones(val_end - train_end, device=device) * mean_initial,
-                "test": torch.ones(num_samples - val_end, device=device) * mean_initial,
-            }
-
-            evaluator = UtilityEvaluator(
-                real_train_log_returns=real_train,
-                real_val_log_returns=real_val,
-                real_test_log_returns=real_test,
-                synthetic_train_log_returns=synthetic_train,
-                synthetic_val_log_returns=synthetic_val,
-                synthetic_test_log_returns=synthetic_test,
-                real_train_initial=real_train_init,
-                real_val_initial=real_val_init,
-                real_test_initial=real_test_init,
-                synthetic_train_initial=synthetic_initials["train"],
-                synthetic_val_initial=synthetic_initials["val"],
-                synthetic_test_initial=synthetic_initials["test"],
-                seq_length=seq_length,
-                num_epochs=self.num_epochs,
-                batch_size=self.batch_size,
-                learning_rate=self.learning_rate,
-            )
-
-            try:
-                per_channel_results.append(evaluator.evaluate())
-            except Exception as exc:  # noqa: BLE001
-                per_channel_results.append({"utility_error": str(exc)})
-
-        if num_channels == 1:
-            return per_channel_results[0]
-        return {
-            "summary": self._average_nested_dicts(per_channel_results),
-            "per_channel": per_channel_results,
-        }
+        if self.hedger_loss == "mse":
+            return self._evaluate_mse_legacy(synthetic, dataset, seq_length)
+        return self._evaluate_fecamp_multi_mode(
+            synthetic, dataset, seq_length, price_indices, volume_indices
+        )
 
 
 class UnifiedEvaluator:
@@ -354,6 +546,13 @@ class UnifiedEvaluator:
 
     Loads generated artifacts and evaluates them against real data using
     taxonomy metrics (fidelity, diversity, stylized facts, visual, utility).
+
+    With ``skip_regenerate=False`` (default), for each artifact the evaluator
+    attempts to regenerate a fresh `(R, L, C)` tensor from the adapter's
+    latest checkpoint via ``adapter.load_state()`` + ``adapter.generate()``.
+    Regeneration falls back to the existing artifact (with a warning) when the
+    adapter doesn't expose ``can_regenerate_from_checkpoint`` or the
+    regeneration raises.
     """
 
     def __init__(
@@ -361,18 +560,103 @@ class UnifiedEvaluator:
         generated_dir: Path,
         results_dir: Path,
         seq_length_filter: Optional[List[int]] = None,
+        hedger_loss: str = UTILITY_HEDGER_LOSS_DEFAULT,
+        loss_alpha: float = UTILITY_LOSS_ALPHA_DEFAULT,
+        data_modes: Optional[List[str]] = None,
+        augmented_mix_ratios: Optional[List[float]] = None,
+        skip_regenerate: bool = UTILITY_SKIP_REGENERATE_DEFAULT,
     ):
         self.generated_dir = Path(generated_dir)
         self.results_dir = Path(results_dir)
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.seq_length_filter = set(seq_length_filter or [])
+        self.skip_regenerate = bool(skip_regenerate)
 
         # Initialize components
         self.dataset_cache = DatasetCache()
         self.artifact_loader = ArtifactLoader()
         self.real_data_preparer = RealDataPreparer()
         self.core_metrics_evaluator = None  # Initialized per artifact
-        self.utility_metrics_evaluator = UtilityMetricsEvaluator()
+        self.utility_metrics_evaluator = UtilityMetricsEvaluator(
+            hedger_loss=hedger_loss,
+            loss_alpha=loss_alpha,
+            data_modes=data_modes,
+            augmented_mix_ratios=augmented_mix_ratios,
+        )
+
+    def _maybe_regenerate(
+        self,
+        artifact_path: Path,
+        metadata: Dict[str, Any],
+    ) -> Tuple[Path, Optional[Dict[str, Any]]]:
+        """Optionally regenerate an artifact's samples from its checkpoint.
+
+        Returns ``(artifact_path, metadata)`` unchanged when:
+          -- ``self.skip_regenerate`` is True (legacy path: eval existing artifact)
+          -- checkpoint regeneration is unsupported by the adapter
+          -- checkpoints or model_key resolution fails
+          -- ``load_state`` or ``generate`` raises
+
+        Returns ``(regen_path, regen_metadata)`` where ``regen_path`` is a sibling
+        ``<artifact>.regen.pt`` written atomically when regeneration succeeds.
+        The original pipeline output is never mutated in place (Phase 1 lock —
+        reproducibility). Set ``--skip_regenerate=False`` (or set the env var
+        ``STONKBENCH_EVAL_REGENERATE=1``) to enable; only adapters that
+        implement ``load_state`` (currently ``ChannelBootstrapAdapter``) will
+        actually regenerate.
+        """
+        if self.skip_regenerate:
+            return artifact_path, None
+
+        model_key = metadata.get("model_name") or artifact_path.parent.name
+        try:
+            from src.experiments.core.registry import get_adapter  # local import: avoid cycles at load time.
+
+            adapter = get_adapter(model_key)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[WARN] Could not load adapter for {model_key}: {exc}; using existing artifact.")
+            return artifact_path, None
+
+        if not getattr(adapter, "can_regenerate_from_checkpoint", False):
+            print(f"[INFO] Adapter for {model_key} does not support checkpoint regeneration; using existing artifact.")
+            return artifact_path, None
+
+        checkpoint_manifest = metadata.get("model_checkpoint_manifest") or []
+        ckpt_paths = [Path(p) for p in checkpoint_manifest if Path(p).exists()]
+        if not ckpt_paths:
+            print(f"[WARN] No on-disk checkpoints in manifest for {model_key}; using existing artifact.")
+            return artifact_path, None
+
+        # Eagerly construct both paths so the finally block can clean up the
+        # tmp file even if an exception fires before assignment. ``return`` in a
+        # try block always runs ``finally`` first, so the .tmp.pt is removed
+        # on both success and error paths.
+        regen_path = artifact_path.with_name(f"{artifact_path.stem}.regen.pt")
+        tmp_path = regen_path.with_suffix(".tmp.pt")
+        try:
+            from src.utils.artifact_utils import save_artifact
+
+            adapter.load_state(ckpt_paths)
+            num_samples = int(metadata.get("num_samples", 0))
+            seq_length = int(metadata.get("sequence_length", 0))
+            seed = int(metadata.get("seed", 42))
+            generated = adapter.generate(num_samples=num_samples, generation_length=seq_length, seed=seed)
+
+            regen_metadata = dict(metadata)
+            regen_metadata["regenerated_from_checkpoints"] = True
+            save_artifact(generated.data, regen_metadata, tmp_path)
+            tmp_path.replace(regen_path)
+            print(f"[INFO] Regenerated fresh samples for {model_key} -> {regen_path.name}")
+            return regen_path, regen_metadata
+        except Exception as exc:  # noqa: BLE001 — never crash the eval loop on a regeneration hiccup.
+            print(f"[WARN] Failed to regenerate samples for {model_key}: {exc}; using existing artifact.")
+            return artifact_path, None
+        finally:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    pass
 
     def _should_evaluate(self, seq_length: int) -> bool:
         """Check if sequence length should be evaluated."""
@@ -397,9 +681,18 @@ class UnifiedEvaluator:
         Returns:
             Dictionary of evaluation results, or empty dict if skipped
         """
-        # Load artifact
+        # Load artifact metadata + tensor.
         data, metadata = self.artifact_loader.load(artifact_path)
-        artifact_info = self.artifact_loader.extract_metadata(artifact_path, metadata)
+        # Optionally regenerate from latest checkpoint (Phase 1 Pending B).
+        # _maybe_regenerate returns (artifact_path, None) when nothing changes,
+        # or (regen_path, regen_metadata) on successful regeneration.
+        eval_path, regen_metadata = self._maybe_regenerate(artifact_path, metadata)
+        if regen_metadata is not None:
+            # NOTE: explicit two-step unpack so `data` ends up as the tensor
+            # alone, not the (tensor, meta) tuple returned by load().
+            data, _orig_meta = self.artifact_loader.load(eval_path)
+            metadata = regen_metadata
+        artifact_info = self.artifact_loader.extract_metadata(eval_path, metadata)
         seq_length = artifact_info["sequence_length"]
 
         # Check if should evaluate
@@ -426,7 +719,11 @@ class UnifiedEvaluator:
 
         # Prepare output directory
         output_dir = self._prepare_output_directory(seq_length, artifact_info["model_name"])
-        self.core_metrics_evaluator = CoreMetricsEvaluator(output_dir)
+        self.core_metrics_evaluator = CoreMetricsEvaluator(
+            output_dir=output_dir,
+            asset_columns=artifact_info["asset_columns"],
+            price_columns=artifact_info["price_columns"],
+        )
 
         # Run evaluation
         show_with_start_divider(
@@ -436,6 +733,7 @@ class UnifiedEvaluator:
         results: Dict[str, Any] = {
             **artifact_info,
             "metadata": metadata,
+            "regenerated_from_checkpoints": bool(regen_metadata is not None),
         }
 
         # Core metrics
@@ -516,6 +814,54 @@ def parse_args():
         default=None,
         help="Optional sequence lengths to evaluate (subset).",
     )
+    parser.add_argument(
+        "--hedger_loss",
+        type=str,
+        default=UTILITY_HEDGER_LOSS_DEFAULT,
+        choices=["cvar", "entropic", "log_utility", "mse"],
+        help=(
+            "Risk objective for the Fecamp hedger (Phase 5). "
+            "'mse' falls back to legacy vendor UtilityEvaluator "
+            "(strike-at-S(0) European option)."
+        ),
+    )
+    parser.add_argument(
+        "--loss_alpha",
+        type=float,
+        default=UTILITY_LOSS_ALPHA_DEFAULT,
+        help="CVaR tail quantile (only used when --hedger_loss=cvar).",
+    )
+    parser.add_argument(
+        "--data_modes",
+        type=str,
+        nargs="*",
+        default=UTILITY_DATA_MODES_DEFAULT,
+        choices=("synthetic_only", "test_only", "augmented"),
+        help="Data mode(s) for the Fecamp hedger (Phase 5 augmented trainer).",
+    )
+    parser.add_argument(
+        "--augmented_mix_ratios",
+        type=float,
+        nargs="*",
+        default=UTILITY_AUGMENTED_MIX_RATIOS_DEFAULT,
+        help="Mix-ratio grid when --data_modes includes 'augmented'.",
+    )
+    parser.add_argument(
+        "--skip_regenerate",
+        action="store_true",
+        default=UTILITY_SKIP_REGENERATE_DEFAULT,
+        help=(
+            "Use the existing generated artifact as-is instead of regenerating "
+            "from the latest checkpoint. Default: True (most DL adapters do "
+            "not yet expose checkpoint regeneration)."
+        ),
+    )
+    parser.add_argument(
+        "--no_skip_regenerate",
+        dest="skip_regenerate",
+        action="store_false",
+        help="Force regeneration from latest checkpoint when supported.",
+    )
     return parser.parse_args()
 
 
@@ -525,6 +871,11 @@ def main() -> None:
         generated_dir=Path(args.generated_dir),
         results_dir=Path(args.results_dir),
         seq_length_filter=args.seq_lengths,
+        hedger_loss=args.hedger_loss,
+        loss_alpha=args.loss_alpha,
+        data_modes=list(args.data_modes) if args.data_modes else None,
+        augmented_mix_ratios=list(args.augmented_mix_ratios) if args.augmented_mix_ratios else None,
+        skip_regenerate=bool(args.skip_regenerate),
     )
     evaluator.run()
 

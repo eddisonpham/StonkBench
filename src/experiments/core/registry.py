@@ -22,6 +22,8 @@ ADAPTER_REGISTRY: Dict[str, str] = {
     "timevae": "src.experiments.adapters.deep_learning.timevae_adapter.TimeVAEAdapter",
     "unconditional_tsdiffusion": "src.experiments.adapters.deep_learning.utsd_adapter.UnconditionalTSDiffusionAdapter",
     "vrnn": "src.experiments.adapters.deep_learning.vrnn_adapter.VRNNAdapter",
+    "pcf_gan": "src.experiments.adapters.deep_learning.pcf_gan_adapter.PCFGANAdapter",
+    "sig_wgan": "src.experiments.adapters.deep_learning.sig_wgan_adapter.SigWGANAdapter",
 }
 
 

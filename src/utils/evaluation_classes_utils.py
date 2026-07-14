@@ -28,6 +28,24 @@ from src.hedging_models.non_deep_hedgers.black_scholes import BlackScholes
 from src.hedging_models.non_deep_hedgers.delta_gamma import DeltaGamma
 from src.hedging_models.non_deep_hedgers.linear_regression import LinearRegression
 from src.hedging_models.non_deep_hedgers.xgboost import XGBoost
+from src.hedging_models.evaluation import FecampDeepHedgerEvaluator  # noqa: E402
+from src.hedging_models.deep_hedgers.fecamp_hedgers import FecampHedger, FecampPortfolioHedger  # noqa: E402
+from src.hedging_models.losses import cvar_loss, entropic_risk_loss, log_utility_loss  # noqa: E402
+
+__all__ = [
+    "TaxonomyEvaluator",
+    "DiversityEvaluator",
+    "FidelityEvaluator",
+    "StylizedFactsEvaluator",
+    "VisualAssessmentEvaluator",
+    "UtilityEvaluator",
+    "FecampDeepHedgerEvaluator",
+    "FecampHedger",
+    "FecampPortfolioHedger",
+    "cvar_loss",
+    "entropic_risk_loss",
+    "log_utility_loss",
+]  # noqa: E501
 
 
 def _to_2d(data: np.ndarray) -> np.ndarray:
@@ -58,6 +76,59 @@ def _aggregate_channel_metrics(channel_metrics: list[dict[str, float]]) -> dict[
         values = np.array([m[key] for m in channel_metrics], dtype=float)
         aggregated[key] = {"mean": float(np.mean(values)), "std": float(np.std(values))}
     return aggregated
+
+
+def _group_channel_metrics(
+    channel_metrics: list[dict[str, Any]],
+    price_indices: list[int],
+    volume_indices: list[int],
+) -> dict[str, Any]:
+    """Group per-channel taxonomy metrics by price vs volume columns.
+
+    Each entry of ``channel_metrics`` corresponds to one channel index (0..C-1) in
+    ``price_indices + volume_indices`` order. The helper returns separate
+    ``price_mean`` / ``volume_mean`` averages so the eval report honours the
+    policy: prices and volumes are evaluated independently, never mixed together.
+
+    Args:
+        channel_metrics: list of per-channel metric dicts, ordered by channel index.
+        price_indices: indices in [0, len(channel_metrics)) that correspond to price columns.
+        volume_indices: indices that correspond to *_volume columns.
+
+    Returns:
+        {
+            "price_mean":  {metric: averaged_value, ...}        averaged over price channels
+            "volume_mean": {metric: averaged_value, ...} or {}  averaged over volume channels
+            "per_channel": channel_metrics                     raw per-channel results (transparency)
+        }
+
+    Single-channel case (len(channel_metrics) == 1) is treated as price-only when
+    ``price_indices == [0]``. The function never raises on empty inputs.
+    """
+    n_channels = len(channel_metrics)
+    safe_price = [i for i in (price_indices or []) if 0 <= i < n_channels]
+    safe_volume = [i for i in (volume_indices or []) if 0 <= i < n_channels]
+
+    def _avg(results: list[dict[str, Any]]) -> dict[str, float]:
+        if not results:
+            return {}
+        keys = sorted({k for r in results for k in r.keys()})
+        out: dict[str, float] = {}
+        for key in keys:
+            vals: list[float] = []
+            for r in results:
+                v = r.get(key)
+                if isinstance(v, (int, float, np.floating)):
+                    vals.append(float(v))
+            if vals:
+                out[key] = float(np.mean(vals))
+        return out
+
+    return {
+        "price_mean": _avg([channel_metrics[i] for i in safe_price]),
+        "volume_mean": _avg([channel_metrics[i] for i in safe_volume]),
+        "per_channel": channel_metrics,
+    }
 
 
 class TaxonomyEvaluator(ABC):
