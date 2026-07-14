@@ -77,7 +77,7 @@ def extract_time (data):
   return time, max_seq_len
 
 
-def random_generator (batch_size, z_dim, T_mb, max_seq_len):
+def random_generator (batch_size, z_dim, T_mb, max_seq_len, mean=0.0, std=1.0):
   """Random vector generation.
   
   Args:
@@ -85,16 +85,21 @@ def random_generator (batch_size, z_dim, T_mb, max_seq_len):
     - z_dim: dimension of random vector
     - T_mb: time information for the random vector
     - max_seq_len: maximum sequence length
+    - mean, std: accepted for API compatibility (noise stays Uniform[0,1] as in paper)
     
   Returns:
-    - Z_mb: generated random vector
+    - Z_mb: generated random vector, each entry shaped (max_seq_len, z_dim)
   """
+  del mean, std  # TimeGAN latent noise is Uniform[0, 1]; keep signature for callers.
   Z_mb = list()
   for i in range(batch_size):
-    temp = np.zeros([max_seq_len, z_dim])
-    temp_Z = np.random.uniform(0., 1, [T_mb[i], z_dim])
-    temp[:T_mb[i],:] = temp_Z
-    Z_mb.append(temp_Z)
+    temp = np.zeros([max_seq_len, z_dim], dtype=np.float32)
+    t_i = int(T_mb[i]) if i < len(T_mb) else int(max_seq_len)
+    t_i = max(1, min(t_i, int(max_seq_len)))
+    temp_Z = np.random.uniform(0., 1, [t_i, z_dim]).astype(np.float32)
+    temp[:t_i, :] = temp_Z
+    # Must pad to max_seq_len so torch.tensor stacks a dense (B, L, Z) batch.
+    Z_mb.append(temp)
   return Z_mb
 
 

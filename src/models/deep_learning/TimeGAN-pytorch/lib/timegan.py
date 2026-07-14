@@ -93,7 +93,7 @@ class BaseModel():
 
     # set mini-batch
     self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
-    self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
+    self.X = torch.tensor(np.asarray(self.X0, dtype=np.float32), dtype=torch.float32).to(self.device)
 
     # train encoder & decoder
     self.optimize_params_er()
@@ -107,7 +107,7 @@ class BaseModel():
 
     # set mini-batch
     self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
-    self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
+    self.X = torch.tensor(np.asarray(self.X0, dtype=np.float32), dtype=torch.float32).to(self.device)
 
     # train encoder & decoder
     self.optimize_params_er_()
@@ -121,7 +121,7 @@ class BaseModel():
 
     # set mini-batch
     self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
-    self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
+    self.X = torch.tensor(np.asarray(self.X0, dtype=np.float32), dtype=torch.float32).to(self.device)
     
     # train superviser
     self.optimize_params_s()
@@ -137,7 +137,7 @@ class BaseModel():
 
     # set mini-batch
     self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
-    self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
+    self.X = torch.tensor(np.asarray(self.X0, dtype=np.float32), dtype=torch.float32).to(self.device)
     self.Z = random_generator(self.opt.batch_size, self.opt.z_dim, self.T, self.max_seq_len)
 
     # train superviser
@@ -154,7 +154,7 @@ class BaseModel():
 
     # set mini-batch
     self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
-    self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
+    self.X = torch.tensor(np.asarray(self.X0, dtype=np.float32), dtype=torch.float32).to(self.device)
     self.Z = random_generator(self.opt.batch_size, self.opt.z_dim, self.T, self.max_seq_len)
 
     # train superviser
@@ -227,21 +227,39 @@ class BaseModel():
     if num_samples == 0:
       return None, None
     ## Synthetic data generation
-    self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
-    self.Z = random_generator(num_samples, self.opt.z_dim, self.T, self.max_seq_len, mean, std)
-    self.Z = torch.tensor(self.Z, dtype=torch.float32).to(self.device)
-    self.E_hat = self.netg(self.Z)    # [?, 24, 24]
-    self.H_hat = self.nets(self.E_hat)  # [?, 24, 24]
-    generated_data_curr = self.netr(self.H_hat).cpu().detach().numpy()  # [?, 24, 24]
+    # Use full-length times for every sample. Previously reused a training mini-batch
+    # T (length=batch_size) and indexed ori_time[i] up to num_samples, which breaks
+    # when num_samples != batch_size / data_num.
+    T_mb = [int(self.max_seq_len)] * int(num_samples)
+    was_training = {
+      "g": self.netg.training,
+      "s": self.nets.training,
+      "r": self.netr.training,
+    }
+    self.netg.eval()
+    self.nets.eval()
+    self.netr.eval()
+    with torch.no_grad():
+      self.Z = random_generator(num_samples, self.opt.z_dim, T_mb, self.max_seq_len, mean, std)
+      self.Z = torch.tensor(np.asarray(self.Z), dtype=torch.float32).to(self.device)
+      self.E_hat = self.netg(self.Z)    # [N, L, H]
+      self.H_hat = self.nets(self.E_hat)
+      generated_data_curr = self.netr(self.H_hat).cpu().numpy()
 
     generated_data = list()
     for i in range(num_samples):
-      temp = generated_data_curr[i, :self.ori_time[i], :]
+      temp = generated_data_curr[i, :T_mb[i], :]
       generated_data.append(temp)
     
-    # Renormalization
-    generated_data = generated_data * self.max_val
-    generated_data = generated_data + self.min_val
+    # Renormalization (elementwise; list * ndarray is invalid in Python)
+    generated_data = [g * self.max_val + self.min_val for g in generated_data]
+
+    if was_training["g"]:
+      self.netg.train()
+    if was_training["s"]:
+      self.nets.train()
+    if was_training["r"]:
+      self.netr.train()
     return generated_data
 
 
@@ -312,7 +330,10 @@ class TimeGAN(BaseModel):
     def forward_g(self):
       """ Forward propagate through netG
       """
-      self.Z = torch.tensor(self.Z, dtype=torch.float32).to(self.device)
+      if not torch.is_tensor(self.Z):
+        self.Z = torch.tensor(np.asarray(self.Z, dtype=np.float32), dtype=torch.float32).to(self.device)
+      else:
+        self.Z = self.Z.to(self.device)
       self.E_hat = self.netg(self.Z)
     def forward_dg(self):
       """ Forward propagate through netD
@@ -349,7 +370,6 @@ class TimeGAN(BaseModel):
       """
       self.err_er = self.l_mse(self.X_tilde, self.X)
       self.err_er.backward(retain_graph=True)
-      print("Loss: ", self.err_er)
 
     def backward_er_(self):
       """ Backpropagate through netE
@@ -375,15 +395,12 @@ class TimeGAN(BaseModel):
                    self.err_g_V2 * self.opt.w_g + \
                    torch.sqrt(self.err_s) 
       self.err_g.backward(retain_graph=True)
-      print("Loss G: ", self.err_g)
 
     def backward_s(self):
       """ Backpropagate through netS
       """
       self.err_s = self.l_mse(self.H[:,1:,:], self.H_supervise[:,:-1,:])
       self.err_s.backward(retain_graph=True)
-      print("Loss S: ", self.err_s)
-   #   print(torch.autograd.grad(self.err_s, self.nets.parameters()))
 
     def backward_d(self):
       """ Backpropagate through netD

@@ -7,6 +7,8 @@ __all__ = [
     "TimeVAEAdapter",
     "UnconditionalTSDiffusionAdapter",
     "VRNNAdapter",
+    "PCFGANAdapter",
+    "SigWGANAdapter",
 ]
 
 
@@ -35,4 +37,12 @@ def __getattr__(name: str):
         from src.experiments.adapters.deep_learning.vrnn_adapter import VRNNAdapter
 
         return VRNNAdapter
+    if name == "PCFGANAdapter":
+        from src.experiments.adapters.deep_learning.pcf_gan_adapter import PCFGANAdapter
+
+        return PCFGANAdapter
+    if name == "SigWGANAdapter":
+        from src.experiments.adapters.deep_learning.sig_wgan_adapter import SigWGANAdapter
+
+        return SigWGANAdapter
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

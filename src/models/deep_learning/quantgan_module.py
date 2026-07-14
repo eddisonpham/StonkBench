@@ -91,7 +91,8 @@ class Discriminator(nn.Module):
         self.net = TCN(input_size, output_size)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.sigmoid(self.net(x))
+        # WGAN critic must be unbounded; sigmoid + Wasserstein loss collapses training.
+        return self.net(x)
 
 
 class UnivariateWindowDataset(Dataset):
@@ -141,10 +142,10 @@ class QuantGANTrainer:
 
     @torch.no_grad()
     def _eval_val_loss(self, loader: DataLoader) -> float:
-        if self.generator is None or self.discriminator is None:
+        """Moment-matching score (not WGAN value) for early stopping."""
+        if self.generator is None:
             raise RuntimeError("Models are not initialized.")
         self.generator.eval()
-        self.discriminator.eval()
         total = 0.0
         count = 0
         for real in loader:
@@ -152,9 +153,13 @@ class QuantGANTrainer:
             batch_size, seq_len = real.shape[0], real.shape[1]
             noise = torch.randn(batch_size, seq_len, self.cfg.noise_dim, device=self.device)
             fake = self.generator(noise)
-            loss_d = -torch.mean(self.discriminator(real)) + torch.mean(self.discriminator(fake.detach()))
-            loss_g = -torch.mean(self.discriminator(fake))
-            total += float((loss_d + loss_g).item())
+            real_flat = real.reshape(-1)
+            fake_flat = fake.reshape(-1)
+            mean_err = torch.abs(fake_flat.mean() - real_flat.mean())
+            std_err = torch.abs(fake_flat.std(unbiased=False) - real_flat.std(unbiased=False))
+            # Penalize near-zero variance collapse explicitly.
+            collapse_pen = torch.relu(torch.tensor(0.25, device=self.device) - fake_flat.std(unbiased=False))
+            total += float((mean_err + std_err + collapse_pen).item())
             count += 1
         return total / max(count, 1)
 
@@ -186,6 +191,7 @@ class QuantGANTrainer:
         best_epoch = 0
         stopped_early = False
         patience_counter = 0
+        min_epochs = max(20, self.cfg.patience * 2)
         train_history: List[float] = []
         val_history: List[float] = []
 
@@ -228,7 +234,7 @@ class QuantGANTrainer:
                     self._best_generator_state = {
                         k: v.detach().cpu().clone() for k, v in self.generator.state_dict().items()
                     }
-                else:
+                elif epoch + 1 >= min_epochs:
                     patience_counter += 1
                     if patience_counter >= self.cfg.patience:
                         stopped_early = True

@@ -49,15 +49,22 @@ class Encoder(nn.Module):
     """Embedding network between original feature space to latent space.
 
         Args:
-          - input: input time-series features. (L, N, X) = (24, ?, 6)
-          - h3: (num_layers, N, H). [3, ?, 24]
+          - input: input time-series features. (N, L, X) with batch_first=True
+          - h3: (num_layers, N, H)
 
         Returns:
           - H: embeddings
         """
     def __init__(self, opt):
         super(Encoder, self).__init__()
-        self.rnn = nn.GRU(input_size=opt.z_dim, hidden_size=opt.hidden_dim, num_layers=opt.num_layer)
+        # batch_first=True: tensors are (N, L, C). Vendor previously omitted this, so
+        # GRU treated batch as time and destroyed temporal structure (mode collapse).
+        self.rnn = nn.GRU(
+            input_size=opt.z_dim,
+            hidden_size=opt.hidden_dim,
+            num_layers=opt.num_layer,
+            batch_first=True,
+        )
        # self.norm = nn.BatchNorm1d(opt.hidden_dim)
         self.fc = nn.Linear(opt.hidden_dim, opt.hidden_dim)
         self.sigmoid = nn.Sigmoid()
@@ -83,7 +90,12 @@ class Recovery(nn.Module):
     """
     def __init__(self, opt):
         super(Recovery, self).__init__()
-        self.rnn = nn.GRU(input_size=opt.hidden_dim, hidden_size=opt.z_dim, num_layers=opt.num_layer)
+        self.rnn = nn.GRU(
+            input_size=opt.hidden_dim,
+            hidden_size=opt.z_dim,
+            num_layers=opt.num_layer,
+            batch_first=True,
+        )
         
       #  self.norm = nn.BatchNorm1d(opt.z_dim)
         self.fc = nn.Linear(opt.z_dim, opt.z_dim)
@@ -110,7 +122,12 @@ class Generator(nn.Module):
     """
     def __init__(self, opt):
         super(Generator, self).__init__()
-        self.rnn = nn.GRU(input_size=opt.z_dim, hidden_size=opt.hidden_dim, num_layers=opt.num_layer)
+        self.rnn = nn.GRU(
+            input_size=opt.z_dim,
+            hidden_size=opt.hidden_dim,
+            num_layers=opt.num_layer,
+            batch_first=True,
+        )
      #   self.norm = nn.LayerNorm(opt.hidden_dim)
         self.fc = nn.Linear(opt.hidden_dim, opt.hidden_dim)
         self.sigmoid = nn.Sigmoid()
@@ -137,7 +154,12 @@ class Supervisor(nn.Module):
     """
     def __init__(self, opt):
         super(Supervisor, self).__init__()
-        self.rnn = nn.GRU(input_size=opt.hidden_dim, hidden_size=opt.hidden_dim, num_layers=opt.num_layer)
+        self.rnn = nn.GRU(
+            input_size=opt.hidden_dim,
+            hidden_size=opt.hidden_dim,
+            num_layers=opt.num_layer,
+            batch_first=True,
+        )
       #  self.norm = nn.LayerNorm(opt.hidden_dim)
         self.fc = nn.Linear(opt.hidden_dim, opt.hidden_dim)
         self.sigmoid = nn.Sigmoid()
@@ -164,7 +186,12 @@ class Discriminator(nn.Module):
     """
     def __init__(self, opt):
         super(Discriminator, self).__init__()
-        self.rnn = nn.GRU(input_size=opt.hidden_dim, hidden_size=opt.hidden_dim, num_layers=opt.num_layer)
+        self.rnn = nn.GRU(
+            input_size=opt.hidden_dim,
+            hidden_size=opt.hidden_dim,
+            num_layers=opt.num_layer,
+            batch_first=True,
+        )
       #  self.norm = nn.LayerNorm(opt.hidden_dim)
         self.fc = nn.Linear(opt.hidden_dim, opt.hidden_dim)
         self.sigmoid = nn.Sigmoid()
