@@ -18,7 +18,7 @@ def parse_args() -> argparse.Namespace:
         default=["quantgan", "gbm_adapter"],
         help="Subset of registry keys to exercise",
     )
-    parser.add_argument("--generation_length", type=int, default=21)
+    parser.add_argument("--generation_length", type=int, default=100)
     parser.add_argument("--output_root", type=str, default="src/experiments")
     return parser.parse_args()
 

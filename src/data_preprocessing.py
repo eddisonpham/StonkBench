@@ -30,8 +30,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--window_size",
         type=int,
-        default=21,
-        help="DL sliding window size (about 1 trading month)",
+        default=100,
+        help="DL sliding window size (matches paper generation length)",
     )
     parser.add_argument("--stride", type=int, default=1, help="Sliding window stride")
     parser.add_argument("--train_ratio", type=float, default=0.8, help="Train split ratio")

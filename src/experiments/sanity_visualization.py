@@ -37,10 +37,12 @@ def _plot_channels(
     sims = simulations[:, :, channel_idx].detach().cpu().numpy()
 
     fig, ax = plt.subplots(figsize=(10, 4))
-    time_idx = range(gt.shape[0])
+    # Generation length may differ from the training/validation window length.
+    t_sim = range(sims.shape[1])
+    t_gt = range(gt.shape[0])
     for sim_idx in range(sims.shape[0]):
-        ax.plot(time_idx, sims[sim_idx], color="tab:blue", alpha=0.12, linewidth=0.8)
-    ax.plot(time_idx, gt, color="black", linewidth=2.0, label="ground truth")
+        ax.plot(t_sim, sims[sim_idx], color="tab:blue", alpha=0.12, linewidth=0.8)
+    ax.plot(t_gt, gt, color="black", linewidth=2.0, label="ground truth")
     ax.set_title(title)
     ax.set_xlabel("time step")
     ax.set_ylabel("log return / log-volume change")

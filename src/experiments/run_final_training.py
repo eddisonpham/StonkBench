@@ -4,25 +4,28 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.experiments.core.io import resolve_run_id, results_root
 from src.experiments.core.pipeline import run_model_experiment
 from src.experiments.core.registry import ADAPTER_REGISTRY, STATISTICAL_MODEL_KEYS
 from src.experiments.hp_configs import DL_MODEL_KEYS as HP_DL_MODEL_KEYS
 from src.experiments.hp_configs import full_train_metadata
 from src.utils.device import device_to_str, get_device, log_device_context
+from src.utils.env import get_output_root
 
-DEFAULT_OUTPUT_ROOT = Path("/home/epham/StonkBench/output")
-DEFAULT_HP_SUMMARY = DEFAULT_OUTPUT_ROOT / "results" / "hp_search" / "summary.json"
+DEFAULT_OUTPUT_ROOT = get_output_root()
 ALL_MODEL_KEYS = sorted(ADAPTER_REGISTRY.keys())
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train final models from HP-search winners.")
-    parser.add_argument("--hp_summary", type=str, default=str(DEFAULT_HP_SUMMARY))
+    parser.add_argument("--hp_summary", type=str, default="")
     parser.add_argument("--output_root", type=str, default=str(DEFAULT_OUTPUT_ROOT))
-    parser.add_argument("--generation_length", type=int, default=21)
+    parser.add_argument("--run_id", type=str, default="", help="Dated results subfolder (STONKBENCH_RUN_ID)")
+    parser.add_argument("--generation_length", type=int, default=100)
     parser.add_argument("--num_samples", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", type=str, default=None)
@@ -75,17 +78,24 @@ def _training_metadata(
 def main() -> None:
     args = parse_args()
     output_root = Path(args.output_root)
-    hp_summary_path = Path(args.hp_summary)
+    if args.run_id:
+        os.environ["STONKBENCH_RUN_ID"] = args.run_id
+    run_id = resolve_run_id(args.run_id or None)
+    os.environ["STONKBENCH_RUN_ID"] = run_id
+    run_results = results_root(output_root, run_id)
+    hp_summary_path = Path(args.hp_summary) if args.hp_summary else run_results / "hp_search" / "summary.json"
     hp_summary = _load_hp_summary(hp_summary_path)
 
     device = device_to_str(get_device(args.device))
     print(log_device_context())
+    print(f"Run id: {run_id}")
     print(f"HP summary: {hp_summary_path}")
     print(f"Output root: {output_root}")
+    print(f"Results dir: {run_results}")
 
     num_samples = 16 if args.smoke else args.num_samples
     num_epochs = 1 if args.smoke else 1  # adapters honor metadata max_epochs for DL models
-    sanity_dir = None if args.skip_sanity else output_root / "sanity"
+    sanity_dir = None if args.skip_sanity else output_root / "sanity" / run_id
 
     artifacts: List[Path] = []
     for model_key in args.models:

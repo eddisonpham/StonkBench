@@ -15,6 +15,7 @@ import torch
 from src.experiments.core.registry import ADAPTER_REGISTRY
 from src.experiments.core.contracts import AdapterFitInput
 from src.experiments.core.registry import get_adapter
+from src.experiments.core.io import resolve_run_id, results_root
 from src.experiments.hp_configs import (
     DL_MODEL_KEYS,
     HPConfig,
@@ -22,9 +23,11 @@ from src.experiments.hp_configs import (
     configs_for_model,
 )
 from src.utils.device import device_to_str, get_device, log_device_context
+from src.utils.env import get_output_root
 from src.utils.preprocessed_data_utils import build_batch_from_dl_set, load_dl_set, resolve_dl_set_path
 
 DEFAULT_SEED = 42
+DEFAULT_OUTPUT_ROOT = get_output_root()
 
 
 @dataclass(frozen=True)
@@ -36,7 +39,7 @@ class TrialSpec:
 
     def metadata(self, smoke: bool = False) -> Dict[str, Any]:
         max_epochs = 2 if smoke else HP_SEARCH_EPOCHS[self.model_key]
-        return self.config.metadata(max_epochs=max_epochs)
+        return self.config.metadata(max_epochs=max_epochs, model_key=self.model_key)
 
     def label(self) -> str:
         meta = self.metadata()
@@ -56,7 +59,12 @@ class TrialSpec:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run DL HP search with validation-loss selection.")
     parser.add_argument("--dl_set_path", type=str, default=None, help="Override dl_set.pt path")
-    parser.add_argument("--output_dir", type=str, default="/home/epham/StonkBench/output/results/hp_search")
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="",
+        help="HP output dir (default: $OUTPUT/results/$STONKBENCH_RUN_ID/hp_search)",
+    )
     parser.add_argument(
         "--device",
         type=str,
@@ -200,8 +208,14 @@ def main() -> None:
         print(f"total_trials={len(specs)}")
         return
 
-    output_dir = Path(args.output_dir)
+    output_dir = Path(args.output_dir) if args.output_dir else results_root(DEFAULT_OUTPUT_ROOT) / "hp_search"
+    # Keep RUN_ID consistent when output_dir was passed explicitly under results/<id>/hp_search
+    if not args.output_dir:
+        import os
+
+        os.environ.setdefault("STONKBENCH_RUN_ID", resolve_run_id())
     output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"HP output_dir: {output_dir}")
 
     if args.aggregate_only:
         trial_dir = output_dir / "trials"
