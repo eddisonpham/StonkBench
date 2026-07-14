@@ -25,3 +25,7 @@ lightning==2.6.5
 pytorch-lightning==2.6.5
 einops==0.8.2
 opt_einsum==3.4.0
+# PCF-GAN vendor import (config helpers)
+ml_collections>=0.1.1
+# Sig-Wasserstein-GANs prefers signatory (torch-coupled wheels; unavailable for torch 2.6).
+# Adapter falls back to a pure-PyTorch truncated signature when signatory is missing.

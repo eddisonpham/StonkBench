@@ -33,3 +33,5 @@ data/*
 */**/run_manifest.json
 
 notebooks/*
+# Agent Context (gitignored planner working folder)
+Agent Context
