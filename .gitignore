@@ -35,3 +35,6 @@ data/*
 notebooks/*
 # Agent Context (gitignored planner working folder)
 Agent Context
+/src/models/deep_learning/*/.git/
+/src/models/deep_learning/*/.gitignore
+/src/models/deep_learning/*/.gitattributes
