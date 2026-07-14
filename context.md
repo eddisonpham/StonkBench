@@ -11,10 +11,10 @@ src/data_preprocessing.py
   -> data/preprocessed/statsmodel_set.pt
 
 src/experiments/run_benchmark.py
-  -> src/experiments/<model>/artifacts/*.pt
+  -> output/<RUN_ID>/results/<model>/artifacts/<model>_seq_<L>.pt
 
 src/unified_evaluator.py
-  -> results/seq_<L>/<model>/metrics.json
+  -> output/<RUN_ID>/evaluation/seq_<L>/<model>/metrics.json
 ```
 
 ## Transform logic
@@ -22,7 +22,7 @@ src/unified_evaluator.py
 - Price columns (non-`_volume`) are transformed to log returns.
 - Volume columns (`*_volume`) are transformed to log(volume).
 - Train/test split is 80/20.
-- DL preprocessing uses sliding windows with `window_size=21`, `stride=1`.
+- DL preprocessing uses sliding windows with `window_size=100`, `stride=1`.
 - A temporal gap of `window_size - 1` is inserted between train and test to avoid overlap leakage.
 - Statistical preprocessing keeps full transformed train/test series (no windowing for fit).
 

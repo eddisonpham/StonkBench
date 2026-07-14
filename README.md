@@ -34,7 +34,7 @@ python src/data_downloader.py --index SPY QQQ IWM XLF XLV AAPL MSFT NVDA AVGO JP
 python src/data_preprocessing.py \
   --input_csv data/combined_data.csv \
   --output_dir data/preprocessed \
-  --window_size 21 \
+  --window_size 100 \
   --stride 1 \
   --train_ratio 0.8
 ```
@@ -49,7 +49,7 @@ Outputs:
 ```bash
 python -m src.experiments.run_benchmark \
   --models quantgan gbm_adapter \
-  --generation_length 52 \
+  --generation_length 100 \
   --num_samples 128 \
   --num_epochs 3 \
   --smoke_test
@@ -57,7 +57,27 @@ python -m src.experiments.run_benchmark \
 
 Device is resolved automatically (`cuda` when available, else `cpu`). Override with `--device cpu` or `export STONKBENCH_DEVICE=cuda`.
 
-### 4. Submit to Slurm (Neptune nodes)
+### 4. Evaluate
+
+```bash
+python -m src.unified_evaluator \
+  --generated_dir output/<RUN_ID>/results \
+  --results_dir output/<RUN_ID>/evaluation \
+  --seq_lengths 100 \
+  --skip_regenerate \
+  --data_modes synthetic_only test_only augmented \
+  --augmented_mix_ratios 0.0 0.2 0.3 0.5 1.0
+```
+
+Flags:
+
+- `--hedger_loss {cvar,entropic,log_utility,mse}` — risk objective (default `cvar`).
+- `--loss_alpha 0.05` — CVaR tail quantile.
+- `--data_modes ...` — hedger training-data modes. `augmented` mixes real_train and synthetic_train per ratio.
+- `--augmented_mix_ratios 0.0 0.2 0.3 0.5 1.0` — mix-ratio grid for `augmented`.
+- `--skip_regenerate` / `--no_skip_regenerate` — use existing artifacts as-is vs. regenerate from latest checkpoint. Only adapters that implement `ModelAdapter.load_state` (currently `ChannelBootstrapAdapter`) regenerate.
+
+### 5. Submit to Slurm (Neptune nodes)
 
 CCDB Trillium has **no GPU GRES** in Slurm (`sinfo` shows `GRES=(null)` on all partitions). The largest CPU nodes are **Neptune** (`compute_neptune`, 160 logical cores, ~467 GiB) and **tri** (`compute`, 192 cores, ~745 GiB). Neptune jobs require `--qos=neptune`.
 
