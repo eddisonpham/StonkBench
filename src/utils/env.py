@@ -19,7 +19,9 @@ from typing import Optional
 # callers (tests, SLURM env-detect scripts, etc.) do not require torch.
 
 
-DEFAULT_OUTPUT_ROOT_NAME = "output"
+# Canonical output root lives at <repo>/outputs/. STONKBENCH_OUTPUT_ROOT env
+# still wins over this default; explicit CLI flags win over both.
+DEFAULT_OUTPUT_ROOT_NAME = "outputs"
 DEFAULT_DL_SET_RELATIVE = "data/preprocessed/dl_set.pt"
 DEFAULT_STATS_SET_RELATIVE = "data/preprocessed/statsmodel_set.pt"
 
@@ -42,7 +44,7 @@ def _resolve_path(explicit: Optional[Path], env_name: str, default: Path) -> Pat
 
 
 def get_output_root(explicit: Optional[Path] = None) -> Path:
-    """Output root directory. Priority: explicit > ``STONKBENCH_OUTPUT_ROOT`` > ``<repo>/output``."""
+    """Output root directory. Priority: explicit > ``STONKBENCH_OUTPUT_ROOT`` > ``<repo>/outputs``."""
     return _resolve_path(
         explicit,
         "STONKBENCH_OUTPUT_ROOT",

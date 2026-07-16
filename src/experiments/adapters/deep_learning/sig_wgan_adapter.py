@@ -119,7 +119,9 @@ class SigWGANAdapter(ModelAdapter):
             )
 
         _ensure_signatory_shim()
-        root = Path(__file__).resolve().parents[3] / "models" / "deep_learning" / "Sig-Wasserstein-GANs"
+        # parents[4] = repo root (NOT src/). Vendored Sig-WGAN package lives at
+        # <repo>/models/deep_learning/Sig-Wasserstein-GANs, NOT under src/.
+        root = Path(__file__).resolve().parents[4] / "models" / "deep_learning" / "Sig-Wasserstein-GANs"
         root_str = str(root)
         if root_str not in sys.path:
             sys.path.insert(0, root_str)

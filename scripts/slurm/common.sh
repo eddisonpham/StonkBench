@@ -2,7 +2,11 @@
 set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-$HOME/StonkBench}"
-CANONICAL_OUTPUT="/home/epham/StonkBench/output"
+# Canonical output sits at <repo>/outputs/ (matches the runtime default
+# STONKBENCH_OUTPUT_ROOT in src/utils/env.py). Override via $STONKBENCH_OUTPUT_ROOT
+# or the per-script --output_root flag if you must point elsewhere.
+CANONICAL_OUTPUT="${STONKBENCH_OUTPUT_ROOT:-${PROJECT_ROOT}/outputs}"
+LEGACY_CANONICAL_OUTPUT="/home/epham/StonkBench/output"
 SCRATCH_ROOT="${SCRATCH:-/scratch/$USER}"
 STAGING_ROOT="${SCRATCH_ROOT}/stonkbench/output"
 if [[ "${STONKBENCH_SMOKE:-0}" == "1" ]]; then
@@ -16,6 +20,11 @@ export STONKBENCH_RUN_ID
 
 if [[ -n "${SLURM_JOB_ID:-}" ]]; then
   OUTPUT_ROOT="${STAGING_ROOT}"
+elif [[ -d "${LEGACY_CANONICAL_OUTPUT}" && ! -d "${CANONICAL_OUTPUT}" ]]; then
+  # Temporary back-compat: keep writing to the old hard-coded path until
+  # existing artifacts move over. Remove once `/home/epham/...` is gone.
+  echo "[slurm:common] WARN: falling back to legacy output dir ${LEGACY_CANONICAL_OUTPUT}" >&2
+  OUTPUT_ROOT="${LEGACY_CANONICAL_OUTPUT}"
 else
   OUTPUT_ROOT="${CANONICAL_OUTPUT}"
 fi

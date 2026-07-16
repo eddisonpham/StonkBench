@@ -16,6 +16,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import time
 
 
 def _now_iso() -> str:
@@ -147,6 +148,38 @@ def squeue_progress(
         "epoch": int(epoch),
         "total_epochs": int(total_epochs),
     }, log_dir=log_dir)
+
+
+def run_start(
+    model_key: str,
+    hparams: Optional[Dict[str, Any]] = None,
+    log_dir: Optional[Path] = None,
+) -> None:
+    """Emit a `run_start` event marking the fit+generate wall-clock origin."""
+    emit(model_key, "run_start", {
+        "hparams": dict(hparams or {}),
+        "ts_start": _now_iso(),
+        "perf_counter": time.perf_counter(),
+    }, log_dir=log_dir)
+
+
+def run_end(
+    model_key: str,
+    elapsed_sec: float,
+    fit_summary: Optional[Dict[str, Any]] = None,
+    error: Optional[str] = None,
+    log_dir: Optional[Path] = None,
+) -> None:
+    """Emit a `run_end` event capturing wall-clock + a brief fit_summary."""
+    payload: Dict[str, Any] = {
+        "elapsed_sec": float(elapsed_sec),
+        "ts_end": _now_iso(),
+    }
+    if fit_summary:
+        payload["fit_summary"] = dict(fit_summary)
+    if error:
+        payload["error"] = str(error)
+    emit(model_key, "run_end", payload, log_dir=log_dir)
 
 
 def error_halt(

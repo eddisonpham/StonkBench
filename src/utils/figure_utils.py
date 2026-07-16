@@ -172,13 +172,12 @@ def load_ablation_data(results_dir: Path, sequence_lengths: Optional[List[int]] 
 
     Args:
         results_dir: Base results directory.
-        sequence_lengths: List of sequence lengths to load. If None, uses default [60, 120, 180, 240, 300].
+        sequence_lengths: List of sequence lengths to load. If None, uses default [60, 120, 180, 252, 300].
 
     Returns:
         Dictionary with structure: {seq_name: {model_name: metrics_dict}}.
     """
-    if sequence_lengths is None:
-        sequence_lengths = [60, 120, 180, 240, 300]
+    if sequence_lengths is None:        sequence_lengths = [60, 120, 180, 252, 300]   
     
     ablation_data = {}
     for seq_len in sequence_lengths:

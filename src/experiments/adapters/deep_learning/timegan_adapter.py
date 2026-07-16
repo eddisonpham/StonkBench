@@ -44,8 +44,10 @@ class TimeGANAdapter(ModelAdapter):
 
     @staticmethod
     def _import_timegan():
+        # parents[4] = repo root (NOT src/). Vendored TimeGAN package lives at
+        # <repo>/models/deep_learning/TimeGAN-pytorch, NOT under src/.
         root = (
-            Path(__file__).resolve().parents[3]
+            Path(__file__).resolve().parents[4]
             / "models"
             / "deep_learning"
             / "TimeGAN-pytorch"

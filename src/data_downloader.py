@@ -2,7 +2,7 @@
 
 Run from repo root:
 
-    python src/data_downloader.py --start 2015-01-01 --end 2025-01-01 --index SPY QQQ IWM XLF XLV AAPL MSFT NVDA AVGO JPM LLY UNH AMZN TSLA CAT UNP META NFLX PG COST XOM CVX NEE PLD LIN
+    python src/data_downloader.py --start 2010-01-01 --end 2025-01-01 --index SPY QQQ IWM XLF XLV AAPL MSFT NVDA AVGO JPM LLY UNH AMZN TSLA CAT UNP META NFLX PG COST XOM CVX NEE PLD LIN
 """
 
 from pathlib import Path

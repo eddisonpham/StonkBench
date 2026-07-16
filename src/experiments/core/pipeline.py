@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import time
 import traceback as _traceback
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 import torch
 
@@ -56,7 +57,6 @@ def run_model_experiment(
     output_root: Path,
     training_metadata: Optional[Dict[str, Any]] = None,
     sanity_output_dir: Optional[Path] = None,
-    sanity_price_assets: Tuple[str, str] = ("SPY", "AAPL"),
 ) -> Path:
     _setup_seed(seed)
     resolved_device = device_to_str(get_device(device))
@@ -100,11 +100,40 @@ def run_model_experiment(
         seed=seed,
         metadata=metadata,
     )
+    # Wall-clock: capture per-model fit+generate duration. Emitted as
+    # `run_start` + `run_end` events so log replay and run.jsonl summaries
+    # can compute time-taken per model without scanning stdout.
+    t_start = time.perf_counter()
+    events.run_start(
+        model_key=model_key,
+        hparams=hparams,
+        log_dir=output_root / "logs",
+    )
     try:
         fit_info = adapter.fit(fit_input, checkpoints_dir=paths.checkpoints, logs_dir=paths.logs)
         generated = adapter.generate(num_samples=num_samples, generation_length=generation_length, seed=seed)
+        elapsed_sec = float(time.perf_counter() - t_start)
+        events.run_end(
+            model_key=model_key,
+            elapsed_sec=elapsed_sec,
+            fit_summary={"best_val_loss": float(fit_info.get("best_val_loss", float("nan"))),
+                          "best_epoch": int(fit_info.get("best_epoch", 0)),
+                          "stopped_early": bool(fit_info.get("stopped_early", False)),
+                          "num_channels": int(fit_info.get("num_channels", 1))},
+            log_dir=output_root / "logs",
+        )
+        # Stash wall-clock in fit_info so it propagates into the artifact metadata.
+        fit_info = dict(fit_info)
+        fit_info["wall_clock_seconds"] = elapsed_sec
     except Exception as exc:  # noqa: BLE001 — emit error_halt so partial runs are debuggable.
+        elapsed_sec = float(time.perf_counter() - t_start)
         try:
+            events.run_end(
+                model_key=model_key,
+                elapsed_sec=elapsed_sec,
+                error=str(exc),
+                log_dir=output_root / "logs",
+            )
             events.error_halt(
                 model_key=model_key,
                 error_msg=str(exc),
@@ -179,17 +208,24 @@ def run_model_experiment(
     if sanity_output_dir is not None and model_key not in STATISTICAL_MODEL_KEYS:
         from src.experiments.sanity_visualization import render_model_sanity
 
+        # Always render ALL channels (price + volume for every asset). The
+        # ``price_assets`` parameter is left at default=None so the new
+        # all-channel branch fires. Per-channel subfolders + per-channel
+        # summary CSV are produced under ``sanity_output_dir/<model_key>``.
         sanity_paths = render_model_sanity(
             adapter=adapter,
             batch=batch,
             output_dir=sanity_output_dir / model_key,
             generation_length=generation_length,
             seed=seed,
-            price_assets=sanity_price_assets,
         )
         write_json(
             sanity_output_dir / model_key / "manifest.json",
-            {"model_key": model_key, "plots": [str(p) for p in sanity_paths]},
+            {
+                "model_key": model_key,
+                "channel_count": len(sanity_paths),
+                "files": [str(p) for p in sanity_paths],
+            },
         )
 
     return artifact_path
@@ -205,7 +241,6 @@ def run_benchmark(
     output_root: Path,
     training_metadata: Optional[Dict[str, Any]] = None,
     sanity_output_dir: Optional[Path] = None,
-    sanity_price_assets: Tuple[str, str] = ("SPY", "AAPL"),
 ) -> List[Path]:
     artifacts = []
     for model_key in model_keys:

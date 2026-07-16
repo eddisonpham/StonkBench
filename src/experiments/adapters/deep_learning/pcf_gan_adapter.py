@@ -67,7 +67,9 @@ class PCFGANAdapter(ModelAdapter):
         if "LSTMGenerator" in cls._vendor_cache and "char_func_path" in cls._vendor_cache:
             return cls._vendor_cache["LSTMGenerator"], cls._vendor_cache["char_func_path"]
 
-        root = Path(__file__).resolve().parents[3] / "models" / "deep_learning" / "PCF-GAN"
+        # parents[4] = repo root (NOT src/). The vendored PCF-GAN package lives at
+        # <repo>/models/deep_learning/PCF-GAN, NOT under src/. Use parents[4].
+        root = Path(__file__).resolve().parents[4] / "models" / "deep_learning" / "PCF-GAN"
         root_str = str(root)
 
         saved = {k: sys.modules[k] for k in list(sys.modules) if k == "src" or k.startswith("src.")}

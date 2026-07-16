@@ -25,20 +25,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hp_summary", type=str, default="")
     parser.add_argument("--output_root", type=str, default=str(DEFAULT_OUTPUT_ROOT))
     parser.add_argument("--run_id", type=str, default="", help="Dated results subfolder (STONKBENCH_RUN_ID)")
-    parser.add_argument("--generation_length", type=int, default=100)
+    # Default sequence length = 252 (≈1 trading year of daily bars). This
+    # only sets the per-model `--generation_length` flag; the actual train
+    # window L comes from `dl_set["window_size"]` set during preprocessing
+    # (`python -m src.data_preprocessing --window_size 252`). If those two
+    # values disagree, the adapter will silently stitch short windows up
+    # to 252 on every generate() call. Keep them in sync.
+    parser.add_argument("--generation_length", type=int, default=252)
     parser.add_argument("--num_samples", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--models", nargs="+", default=ALL_MODEL_KEYS)
     parser.add_argument("--smoke", action="store_true", help="Tiny sample/epoch budget for validation")
     parser.add_argument("--skip_sanity", action="store_true")
-    parser.add_argument(
-        "--price_assets",
-        nargs=2,
-        default=["SPY", "AAPL"],
-        metavar=("ASSET1", "ASSET2"),
-        help="Two price assets for sanity plots (price + volume each)",
-    )
     return parser.parse_args()
 
 
@@ -119,7 +118,6 @@ def main() -> None:
             output_root=output_root,
             training_metadata=training_metadata,
             sanity_output_dir=sanity_dir,
-            sanity_price_assets=tuple(args.price_assets),
         )
         artifacts.append(artifact)
 

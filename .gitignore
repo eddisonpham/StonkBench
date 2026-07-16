@@ -38,3 +38,6 @@ Agent Context
 /src/models/deep_learning/*/.git/
 /src/models/deep_learning/*/.gitignore
 /src/models/deep_learning/*/.gitattributes
+
+# Canonical pipeline artifacts (regenerable, kept locally under <repo>/outputs/ on each run)
+/outputs/
