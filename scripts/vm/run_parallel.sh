@@ -77,6 +77,12 @@ if ! [[ "${STONKBENCH_LOCAL_JOBS}" =~ ^(0|[1-9][0-9]*)$ ]]; then
     STONKBENCH_LOCAL_JOBS=4
 fi
 export STONKBENCH_LOCAL_JOBS
+# Dynamic-cap control file. launch() reads this on every invocation, so
+# external `echo N > ${STONKBENCH_LOCAL_JOBS_FILE}` updates take effect on
+# the NEXT launch without restarting the orchestrator. Default location:
+# /tmp/stonkbench_local_jobs. Set STONKBENCH_LOCAL_JOBS_FILE to override.
+export STONKBENCH_LOCAL_JOBS_FILE="${STONKBENCH_LOCAL_JOBS_FILE:-/tmp/stonkbench_local_jobs}"
+echo "${STONKBENCH_LOCAL_JOBS}" > "${STONKBENCH_LOCAL_JOBS_FILE}"
 
 RUN_ID="${STONKBENCH_RUN_ID:-$(date +%F)_vm}"
 # Default sequence length = 252 (≈1 trading year of daily bars). This bash
@@ -221,6 +227,49 @@ mkdir -p "${OUTPUT_ROOT}/logs/${RUN_ID}/hp_search" \
 # launch <slot> <log_path> -- command args...
 launch() {
     local slot="$1"; local log="$2"; shift 2
+    # Dynamic-cap read (control file). On every launch() invocation, peek at
+    # STONKBENCH_LOCAL_JOBS_FILE so external `echo N > <file>` updates take
+    # effect WITHOUT restarting the orchestrator. The control file is the
+    # canonical channel for live cap changes; copying to it overrides the
+    # env-set value until the next restart. Falls back silently if missing
+    # or malformed so a transient file-state doesn't break the gate.
+    if [[ -r "${STONKBENCH_LOCAL_JOBS_FILE:-/tmp/stonkbench_local_jobs}" ]]; then
+        local file_cap
+        file_cap=$(cat "${STONKBENCH_LOCAL_JOBS_FILE:-/tmp/stonkbench_local_jobs}" 2>/dev/null | tr -d '[:space:]')
+        if [[ "${file_cap}" =~ ^(0|[1-9][0-9]*)$ ]] && [[ "${file_cap}" != "${STONKBENCH_LOCAL_JOBS}" ]]; then
+            echo "[run_parallel] DYNAMIC CAP CHANGE: ${STONKBENCH_LOCAL_JOBS} -> ${file_cap} (read from ${STONKBENCH_LOCAL_JOBS_FILE})" >&2
+            STONKBENCH_LOCAL_JOBS="${file_cap}"
+        fi
+    fi
+    # GPU memory gate: refuse to launch a new trial until at least
+    # STONKBENCH_GPU_GATE_MIB MiB of GPU memory is free. Prevents launching
+    # a new DL trial on top of an in-flight TimeGAN-class trial (~22 GiB peak
+    # at bs=128) that would OOM a 24 GB GPU. Fails open if nvidia-smi errors
+    # (transient); sleeps 30s per retry, gives up after 60 retries (~30 min)
+    # to avoid starving the pipeline forever on a hard GPU hold. Override
+    # via env var; set to 0 to disable the gate entirely.
+    local gpu_gate_mib="${STONKBENCH_GPU_GATE_MIB:-10000}"
+    if [[ "${gpu_gate_mib}" =~ ^[0-9]+$ ]] && [[ "${gpu_gate_mib}" -gt 0 ]] \
+        && command -v nvidia-smi >/dev/null 2>&1; then
+        local probe_attempts=0
+        while [[ ${probe_attempts} -lt 60 ]]; do
+            local gpu_free probe_rc=0
+            gpu_free=$(timeout 5 nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | head -1) || probe_rc=$?
+            if [[ ${probe_rc} -ne 0 || -z "${gpu_free}" || ! "${gpu_free}" =~ ^[0-9]+$ ]]; then
+                echo "[run_parallel] GPU GATE WARN: probe failed (rc=${probe_rc}: ${gpu_free:-N/A}); passing through." >&2
+                break
+            fi
+            if (( gpu_free >= gpu_gate_mib )); then
+                break
+            fi
+            echo "[run_parallel] GPU GATE: ${gpu_free} MiB free < ${gpu_gate_mib} MiB threshold; sleeping 30s and re-probing (attempt $((probe_attempts + 1))/60)" >&2
+            sleep 30
+            probe_attempts=$((probe_attempts + 1))
+        done
+        if [[ ${probe_attempts} -ge 60 ]]; then
+            echo "[run_parallel] GPU GATE WARN: gave up after 60 retries (~30 min); proceeding anyway." >&2
+        fi
+    fi
     # Concurrency gate: block if BG_PIDS already has STONKBENCH_LOCAL_JOBS
     # alive children. While blocked, `wait -n` reaps one child and we
     # (a) record any non-zero rc into REAPED_FAILURES so wait_for_jobs
