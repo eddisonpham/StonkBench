@@ -64,18 +64,13 @@ python -m src.unified_evaluator \
   --generated_dir output/<RUN_ID>/results \
   --results_dir output/<RUN_ID>/evaluation \
   --seq_lengths 100 \
-  --skip_regenerate \
-  --data_modes synthetic_only test_only augmented \
-  --augmented_mix_ratios 0.0 0.2 0.3 0.5 1.0
+  --skip_regenerate
 ```
 
 Flags:
 
-- `--hedger_loss {cvar,entropic,log_utility,mse}` — risk objective (default `cvar`).
-- `--loss_alpha 0.05` — CVaR tail quantile.
-- `--data_modes ...` — hedger training-data modes. `augmented` mixes real_train and synthetic_train per ratio.
-- `--augmented_mix_ratios 0.0 0.2 0.3 0.5 1.0` — mix-ratio grid for `augmented`.
 - `--skip_regenerate` / `--no_skip_regenerate` — use existing artifacts as-is vs. regenerate from latest checkpoint. Only adapters that implement `ModelAdapter.load_state` (currently `ChannelBootstrapAdapter`) regenerate.
+- The unified evaluator uses the legacy vendor `UtilityEvaluator` (mse-only) post-Fecamp-revert (commit `9c4b980` was reverted in this branch). The `--hedger_loss/--loss_alpha/--data_modes/--augmented_mix_ratios` flags from earlier docs have been removed.
 
 ### 5. Submit to Slurm (Neptune nodes)
 

@@ -28,9 +28,6 @@ from src.hedging_models.non_deep_hedgers.black_scholes import BlackScholes
 from src.hedging_models.non_deep_hedgers.delta_gamma import DeltaGamma
 from src.hedging_models.non_deep_hedgers.linear_regression import LinearRegression
 from src.hedging_models.non_deep_hedgers.xgboost import XGBoost
-from src.hedging_models.evaluation import FecampDeepHedgerEvaluator  # noqa: E402
-from src.hedging_models.deep_hedgers.fecamp_hedgers import FecampHedger, FecampPortfolioHedger  # noqa: E402
-from src.hedging_models.losses import cvar_loss, entropic_risk_loss, log_utility_loss  # noqa: E402
 
 __all__ = [
     "TaxonomyEvaluator",
@@ -39,12 +36,6 @@ __all__ = [
     "StylizedFactsEvaluator",
     "VisualAssessmentEvaluator",
     "UtilityEvaluator",
-    "FecampDeepHedgerEvaluator",
-    "FecampHedger",
-    "FecampPortfolioHedger",
-    "cvar_loss",
-    "entropic_risk_loss",
-    "log_utility_loss",
 ]  # noqa: E501
 
 

@@ -25,9 +25,9 @@ from src.utils.evaluation_classes_utils import (  # noqa: E402
     DiversityEvaluator,
     FidelityEvaluator,
     StylizedFactsEvaluator,
-    VisualAssessmentEvaluator,    UtilityEvaluator,
-    FecampDeepHedgerEvaluator,  # Phase 5: cvar / entropic / log_utility dispatch
-    _group_channel_metrics,      # Phase 5: price/volume channel grouping
+    VisualAssessmentEvaluator,
+    UtilityEvaluator,
+    _group_channel_metrics,
 )
 
 from src.utils.preprocessed_data_utils import (  # noqa: E402
@@ -47,11 +47,9 @@ UTILITY_VAL_RATIO = 0.9
 UTILITY_NUM_EPOCHS = 40
 UTILITY_BATCH_SIZE = 64
 UTILITY_LEARNING_RATE = 1e-3
-# Phase 2 + Phase 5 defaults (locked by user-clarified round 2).
-UTILITY_HEDGER_LOSS_DEFAULT = "cvar"  # Fecamp CVaR; alternatives: entropic / log_utility / mse
-UTILITY_LOSS_ALPHA_DEFAULT = 0.05  # CVaR tail quantile (alpha = 5%)
-UTILITY_DATA_MODES_DEFAULT: list[str] = ["synthetic_only", "test_only", "augmented"]
-UTILITY_AUGMENTED_MIX_RATIOS_DEFAULT: list[float] = [0.0, 0.2, 0.3, 0.5, 1.0]
+# Legacy mse UtilityEvaluator is the only active hedger-evaluation path post-Fecamp-revert
+# (commit 9c4b980 was reverted and the FecampDeepHedgerEvaluator was removed). Strikes at
+# S(0) European option per the legacy vendor UtilityEvaluator.
 # Default to skipping regeneration when checkpoint regen isn't supported by the
 # adapter. Set --skip_regenerate=False (or STONKBENCH_EVAL_REGENERATE=1) to force
 # regeneration on adapters that implement load_state().
@@ -298,13 +296,10 @@ class UtilityMetricsEvaluator:
     """Evaluates utility metrics (deep hedging).
 
     Phase 2: aggregates price_mean / volume_mean separately per metric.
-    Phase 5: dispatches to FecampDeepHedgerEvaluator (cvar / entropic / log_utility)
-    or falls back to vendor UtilityEvaluator (mse) per `--hedger_loss` flag.
-    Phase 5 (continued): per ``--data_modes`` / ``--augmented_mix_ratios``, runs
-    the hedger in ``synthetic_only``, ``test_only``, and ``augmented`` (mix-ratio
-    grid) modes. The output schema preserves legacy ``summary`` / ``price_mean``
-    / ``volume_mean`` keys (== ``synthetic_only``'s price_mean) so downstream
-    consumers don't break.
+    Post-revert (commit 9c4b980): the only active path is the legacy vendor
+    ``UtilityEvaluator`` (mse, strikes at S(0) European option). The previous
+    FecampDeepHedgerEvaluator (cvar / entropic / log_utility with synthetic /
+    test / augmented data modes) was removed alongside that commit.
     """
 
     def __init__(
@@ -312,33 +307,10 @@ class UtilityMetricsEvaluator:
         num_epochs: int = UTILITY_NUM_EPOCHS,
         batch_size: int = UTILITY_BATCH_SIZE,
         learning_rate: float = UTILITY_LEARNING_RATE,
-        hedger_loss: str = UTILITY_HEDGER_LOSS_DEFAULT,
-        loss_alpha: float = UTILITY_LOSS_ALPHA_DEFAULT,
-        data_modes: Optional[List[str]] = None,
-        augmented_mix_ratios: Optional[List[float]] = None,
     ):
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
-        self.hedger_loss = str(hedger_loss)
-        self.loss_alpha = float(loss_alpha)
-        # data_modes is the list of modes to run. mix_ratios is only consulted
-        # when ``augmented`` is in data_modes (validation: reject unknown modes).
-        modes = list(data_modes) if data_modes else list(UTILITY_DATA_MODES_DEFAULT)
-        valid = ("synthetic_only", "test_only", "augmented")
-        unknown = [m for m in modes if m not in valid]
-        if unknown:
-            raise ValueError(f"Unknown data_modes: {unknown}; valid options: {valid}")
-        self.data_modes = modes
-        ratios = (
-            list(augmented_mix_ratios)
-            if augmented_mix_ratios is not None
-            else list(UTILITY_AUGMENTED_MIX_RATIOS_DEFAULT)
-        )
-        for r in ratios:
-            if not 0.0 <= r <= 1.0:
-                raise ValueError(f"augmented_mix_ratios must be in [0, 1] (got {r})")
-        self.augmented_mix_ratios = ratios
 
     @staticmethod
     def _average_nested_dicts(results: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -364,11 +336,10 @@ class UtilityMetricsEvaluator:
         dataset: Dict[str, Any],
         seq_length: int,
     ) -> Dict[str, Any]:
-        """Single-pass vendor ``UtilityEvaluator`` for the mse hedger_loss path.
-
-        No data-mode dispatch — mse does not support augmented modes (it predates
-        the Fecamp additions). Returned schema is flattened-everything-as-price_mean
-        so the caller can emit the same top-level keys regardless of hedger_loss.
+        """Single-pass vendor ``UtilityEvaluator`` — only active hedger-evaluation
+        path post-Fecamp revert. Returned schema is flattened-everything-as-price_mean
+        so the caller can emit the same top-level keys regardless of which loss
+        path is in use.
         """
         num_samples = synthetic.shape[0]
         device = synthetic.device
@@ -411,105 +382,6 @@ class UtilityMetricsEvaluator:
             "price_mean": raw,
             "volume_mean": {},
             "volume_mean_reason": "mse hedger averages all channels together natively",
-            "price_indices": [],
-            "volume_indices": [],
-            "hedger_loss": "mse",
-            "loss_alpha": self.loss_alpha,
-            "data_modes": ["mse_legacy_only"],
-            "augmented_mix_ratios": [],
-            "per_channel": [],
-            "per_mode": {"mse_legacy_only": raw},
-        }
-
-    def _evaluate_fecamp_multi_mode(
-        self,
-        synthetic: torch.Tensor,
-        dataset: Dict[str, Any],
-        seq_length: int,
-        price_indices: List[int],
-        volume_indices: List[int],
-    ) -> Dict[str, Any]:
-        """Multi-mode (data_mode × mix_ratio) Fecamp hedger evaluation.
-
-        For each (mode, mix), iterate over each price channel c and call
-        ``FecampDeepHedgerEvaluator.evaluate()``. Aggregates results in
-        ``per_mode[label] = {price_mean, per_channel_results, n_channels}``.
-        The outer Schema (B) keeps legacy ``summary``/``price_mean`` keys for
-        backwards compat (== synthetic_only's price_mean).
-        """
-        synthetic_prices = synthetic[:, :, price_indices]
-        real_train_all = dataset["deep_learning_train"][:, :, price_indices]
-        real_valid_all = dataset["deep_learning_valid"][:, :, price_indices] if dataset["deep_learning_valid"].shape[0] else dataset["deep_learning_test"][:, :, price_indices]
-        real_test_all = dataset["deep_learning_test"][:, :, price_indices]
-        num_channels = synthetic_prices.shape[-1]
-        num_samples = synthetic_prices.shape[0]
-        mean_init = float(dataset["deep_learning_train_init"][:, price_indices].mean().item()) if dataset["deep_learning_train_init"].shape[0] else 0.0
-        device = synthetic_prices.device
-        synthetic_initials = torch.ones(num_samples, device=device) * mean_init
-
-        per_mode_results: Dict[str, Dict[str, Any]] = {}
-        for mode in self.data_modes:
-            mix_ratios = self.augmented_mix_ratios if mode == "augmented" else [0.0]
-            for mix in mix_ratios:
-                mode_label = f"augmented_mix{mix}" if mode == "augmented" else mode
-                channel_results: List[Dict[str, Any]] = []
-                for c in range(num_channels):
-                    syn_c = synthetic_prices[:, :, c]
-                    real_train_c = real_train_all[:, :, c]
-                    real_val_c = real_valid_all[:, :, c]
-                    real_test_c = real_test_all[:, :, c]
-                    if real_train_c.shape[0] == 0 or real_test_c.shape[0] == 0:
-                        channel_results.append({"utility_error": "Insufficient real data windows for utility evaluation."})
-                        continue
-                    fecamp_evaluator = FecampDeepHedgerEvaluator(
-                        synthetic_train=syn_c,
-                        synthetic_val=syn_c,
-                        synthetic_test=syn_c,
-                        real_train=real_train_c,
-                        real_val=real_val_c,
-                        real_test=real_test_c,
-                        seq_length=seq_length,
-                        num_epochs=self.num_epochs,
-                        batch_size=self.batch_size,
-                        learning_rate=self.learning_rate,
-                        loss_type=self.hedger_loss,
-                        loss_alpha=self.loss_alpha,
-                        transaction_cost=0.0,
-                        hedging_universe="self_only",
-                        portfolio=False,
-                        n_assets=1,
-                        data_mode=mode,
-                        mix_ratio=float(mix),
-                    )
-                    try:
-                        channel_results.append(fecamp_evaluator.evaluate())
-                    except Exception as exc:  # noqa: BLE001
-                        print(f"[WARN] FecampDeepHedgerEvaluator failed for channel {c} mode {mode_label}: {exc}")
-                        channel_results.append({"utility_error": str(exc)})
-                per_mode_results[mode_label] = {
-                    "price_mean": self._average_nested_dicts(channel_results),
-                    "per_channel_results": channel_results,
-                    "n_channels": int(num_channels),
-                }
-
-        synth_only = per_mode_results.get("synthetic_only", {})
-        return {
-            "summary": synth_only.get("price_mean", {}),
-            "price_mean": synth_only.get("price_mean", {}),
-            "volume_mean": {},
-            "volume_mean_reason": (
-                "Hedger transaction universe includes price columns only; volume "
-                "channels are evaluated by core metrics (Fidelity/Diversity) but "
-                "not hedged. See Agent Context/context.md."
-            ),
-            "price_indices": list(price_indices),
-            "volume_indices": list(volume_indices),
-            "hedger_loss": self.hedger_loss,
-            "loss_alpha": self.loss_alpha,
-            "data_modes": list(self.data_modes),
-            "augmented_mix_ratios": list(self.augmented_mix_ratios),
-            "per_channel": synth_only.get("per_channel_results", []),
-            "per_mode": per_mode_results,
         }
 
     def evaluate(
@@ -533,11 +405,7 @@ class UtilityMetricsEvaluator:
         if not price_indices:
             return {"utility_error": "No price channels available for utility evaluation."}
 
-        if self.hedger_loss == "mse":
-            return self._evaluate_mse_legacy(synthetic, dataset, seq_length)
-        return self._evaluate_fecamp_multi_mode(
-            synthetic, dataset, seq_length, price_indices, volume_indices
-        )
+        return self._evaluate_mse_legacy(synthetic, dataset, seq_length)
 
 
 class UnifiedEvaluator:
@@ -560,10 +428,6 @@ class UnifiedEvaluator:
         generated_dir: Path,
         results_dir: Path,
         seq_length_filter: Optional[List[int]] = None,
-        hedger_loss: str = UTILITY_HEDGER_LOSS_DEFAULT,
-        loss_alpha: float = UTILITY_LOSS_ALPHA_DEFAULT,
-        data_modes: Optional[List[str]] = None,
-        augmented_mix_ratios: Optional[List[float]] = None,
         skip_regenerate: bool = UTILITY_SKIP_REGENERATE_DEFAULT,
     ):
         self.generated_dir = Path(generated_dir)
@@ -577,12 +441,7 @@ class UnifiedEvaluator:
         self.artifact_loader = ArtifactLoader()
         self.real_data_preparer = RealDataPreparer()
         self.core_metrics_evaluator = None  # Initialized per artifact
-        self.utility_metrics_evaluator = UtilityMetricsEvaluator(
-            hedger_loss=hedger_loss,
-            loss_alpha=loss_alpha,
-            data_modes=data_modes,
-            augmented_mix_ratios=augmented_mix_ratios,
-        )
+        self.utility_metrics_evaluator = UtilityMetricsEvaluator()
 
     def _maybe_regenerate(
         self,
@@ -815,38 +674,6 @@ def parse_args():
         help="Optional sequence lengths to evaluate (subset).",
     )
     parser.add_argument(
-        "--hedger_loss",
-        type=str,
-        default=UTILITY_HEDGER_LOSS_DEFAULT,
-        choices=["cvar", "entropic", "log_utility", "mse"],
-        help=(
-            "Risk objective for the Fecamp hedger (Phase 5). "
-            "'mse' falls back to legacy vendor UtilityEvaluator "
-            "(strike-at-S(0) European option)."
-        ),
-    )
-    parser.add_argument(
-        "--loss_alpha",
-        type=float,
-        default=UTILITY_LOSS_ALPHA_DEFAULT,
-        help="CVaR tail quantile (only used when --hedger_loss=cvar).",
-    )
-    parser.add_argument(
-        "--data_modes",
-        type=str,
-        nargs="*",
-        default=UTILITY_DATA_MODES_DEFAULT,
-        choices=("synthetic_only", "test_only", "augmented"),
-        help="Data mode(s) for the Fecamp hedger (Phase 5 augmented trainer).",
-    )
-    parser.add_argument(
-        "--augmented_mix_ratios",
-        type=float,
-        nargs="*",
-        default=UTILITY_AUGMENTED_MIX_RATIOS_DEFAULT,
-        help="Mix-ratio grid when --data_modes includes 'augmented'.",
-    )
-    parser.add_argument(
         "--skip_regenerate",
         action="store_true",
         default=UTILITY_SKIP_REGENERATE_DEFAULT,
@@ -871,10 +698,6 @@ def main() -> None:
         generated_dir=Path(args.generated_dir),
         results_dir=Path(args.results_dir),
         seq_length_filter=args.seq_lengths,
-        hedger_loss=args.hedger_loss,
-        loss_alpha=args.loss_alpha,
-        data_modes=list(args.data_modes) if args.data_modes else None,
-        augmented_mix_ratios=list(args.augmented_mix_ratios) if args.augmented_mix_ratios else None,
         skip_regenerate=bool(args.skip_regenerate),
     )
     evaluator.run()
