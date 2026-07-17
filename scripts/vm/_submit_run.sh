@@ -44,6 +44,15 @@ mkdir -p "${LOG_DIR}"
 export STONKBENCH_RUN_ID="${STONKBENCH_RUN_ID:-$(date -u +%Y-%m-%d)_run}"
 LOG_FILE="${LOG_DIR}/stonkbench_run_${STONKBENCH_RUN_ID}.log"
 
+# Per-stage concurrency cap. Defaults to 2 (Option A — proven safe for
+# our 24 GiB GPU at L=252: two concurrent trials × ~6–8 GiB peak ≈ 14 GiB,
+# safely under the 24 GiB limit even during PyTorch CUDA init spikes).
+# Bumped down from 3 after the 2026-07-16 hp_search FATAL where 3
+# concurrent allocs raced past 24 GiB and 43 of 46 trials OOMed. Override
+# with `STONKBENCH_LOCAL_JOBS=N` in the calling shell if you want a
+# different cap.
+export STONKBENCH_LOCAL_JOBS="${STONKBENCH_LOCAL_JOBS:-2}"
+
 # === CRITICAL: set BOTH stamps so every consumer resolves to the same root. ===
 # Capture any user-supplied STONKBENCH_OUTPUT_ROOT BEFORE we defensively
 # unset, so a shell-profile export survives the tmux-server cache wipe.
