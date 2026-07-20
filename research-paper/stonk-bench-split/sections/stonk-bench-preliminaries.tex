@@ -1,12 +1,12 @@
 \section{Preliminaries}
-  \subsection{Problem Definition}
+  \subsection{Problem Definition}\label{prelim:definition}
     Let us formally define the markt generation problem.
-    Given a financial time series of asset price movements
+    Given a financial time series of asset prices movements
     $\textbf{X} = (\textbf{x}_1,...,\textbf{x}_K)^T \in \mathbb R^{T\times K}$ 
     with $K$ individual securites spanning time $T$. Let 
     $p(\textbf{x}_1,...,\textbf{x}_K)$ denote the real distribution 
-    of the given time series $\textbf{X}$. The objective of SDG 
-    for FTS is to generate a synthetic time series 
+    of the given time series $\textbf{X}$. The objective 
+    of the market generator is to synthesize a time series
     $\mathbf{\hat{X}} = (\mathbf{\hat{x}}_1, \ldots, 
     \mathbf{\hat{x}}_n)^{T}$ such that its distribution 
     $p(\mathbf{\hat{x}}_1, \ldots, \mathbf{\hat{x}}_n)$ 

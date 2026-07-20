@@ -1,0 +1,137 @@
+\section{Market Generator Framework}
+It is important to have standardized generation framework as
+part of our efforts to create a unified benchmark \ref{contribute:3};
+this section outines the details of the dataset used, preprocessing, and
+ generation framework used by StonkBench for models to train on 
+ historical market data.
+
+\subsection{Dataset Specifications}
+    The dataset contains daily close prices and trading volume for 20 U.S.
+    large-cap stocks and 5 large index-tracking ETFs. The stock universe spans
+    technology, financials, healthcare, consumer discretionary, industrials,
+    communication services, consumer staples, energy, utilities, real estate,
+    and materials. The ETF universe consists of broad-market and
+    sector-focused funds. The dataset spans 15 years, from start of 2010
+    to the start of 2025 from Yahoo Finance.
+
+    For the generation framework, we focus on daily close-price time series.
+    We represent the real dataset as
+    $D\coloneq \{\mathbf{x}_i\}_{i=1}^T = (x_{i,1}, x_{i,2}, \ldots, x_{i,K})^T$.
+
+    \begin{table}[t]
+        \centering
+        \caption{Asset classification used in StonkBench.}
+        \label{tab:asset-classification}
+        \begin{tabular}{l l l l}
+        \hline
+        Ticker & Name & Stock/ETF & Industry/Exposure \\
+        \hline
+
+        AAPL & Apple & Stock & Technology \\
+        MSFT & Microsoft & Stock & Technology \\
+        NVDA & NVIDIA & Stock & Technology \\
+        AVGO & Broadcom & Stock & Technology \\
+        JPM & JPMorgan Chase & Stock & Financials \\
+        LLY & Eli Lilly & Stock & Healthcare \\
+        UNH & UnitedHealth Group & Stock & Healthcare \\
+        AMZN & Amazon & Stock & Consumer Disc. \\
+        TSLA & Tesla & Stock & Consumer Disc. \\
+        CAT & Caterpillar & Stock & Industrials \\
+        UNP & Union Pacific & Stock & Industrials \\
+        META & Meta Platforms & Stock & Communication \\
+        NFLX & Netflix & Stock & Communication \\
+        PG & Procter \& Gamble & Stock & Consumer Staples \\
+        COST & Costco Wholesale & Stock & Consumer Staples \\
+        XOM & Exxon Mobil & Stock & Energy \\
+        CVX & Chevron & Stock & Energy \\
+        NEE & NextEra Energy & Stock & Utilities \\
+        PLD & Prologis & Stock & Real Estate \\
+        LIN & Linde & Stock & Materials \\
+        SPY & S\&P 500& ETF & S\&P 500 \\
+        QQQ & Nasdaq-100& ETF & Nasdaq-100 \\
+        XLF & Finance & ETF & U.S. Financials \\
+        IWM & Russell 2000& ETF & Small Caps \\
+        XLV & Health Care & ETF & U.S. Healthcare \\
+        \hline
+        \end{tabular}
+    \end{table}
+\subsection{Data preprocessing}\label{subsec:data-preprocess}
+    \subsubsection{Dataset Split and Transformation}
+    Given our stock price dataset, we perform a chronological 
+    seventy-ten-twenty partition to a training, validation and testing
+    datatset $D=D^{train}, , D^{validation}, D^{test}$, denoting concatenation. 
+    This means $D^{train}$ spans the first 11.5 years (2010-mid2021), $D^{validation}$, 
+    $D^{test}$ spans the last 3 years (2022-2025) of our datasets.
+    
+    \subsubsection{Log Return Transformation}
+    We then transform the price time series for both sets into a log return time series, 
+    which is a common practice in financial modeling to stabilize variance 
+    and make the data more suitable for analysis. The return \( r_t \) at time \( t \) is calculated as:
+    \begin{equation}
+    r_t := \log\left(\frac{x_t}{x_{t-1}}\right) = \log(x_t) - \log(x_{t-1}),
+    \end{equation}
+    where \( x_t \) is the daily closing price at day \( t \). From now, on we refer to $D$ as the 
+    log return time series dataset.
+    
+    \subsubsection{Sliding Window Transformation}
+    For $D^{train}$, given a pre-determined
+    window length $L\in\mathbb{N}$, we applying a sliding window operation $W_L$ over the time
+    series as follows.
+    \begin{equation}
+        W_L: \{\mathbf{x_i}\}_{i=1}^T \mapsto \{ (\mathbf{x}_i,\mathbf{x}_{i+1},\dots, \mathbf{x}_{i+L}): 1\leq i \leq T-L\}
+    \end{equation}
+    For the purpose of research, we expirment our generation training with windown lenghts $L\in\{5, 21, 252\}$ , represeneting
+    general the number of trading days in a week, month and year, respectively
+    \footnote{TSGBench determined the window length for deep learning training 
+    and generation depending on the dataset by finding the maximum auto-correlation of that time
+    series dataset \cite{Ang23}}.
+
+
+\subsection{Market Generator Training and Generation}\label{subsec:generator-training}
+    We provide a standard framework for training market generators over market data.
+    Given a market generator $G_j, j\in\mathcal{J}$, where $\mathcal{J}$ denotes the index
+    set of market generators to be trained and tested, 
+    we train the model on the log return training dataset with the objective to 
+    learn and generate sample $k$ of synthetic log return time series $D^{(n)}_{G_j} \sim G_j(D^{train})$ that 
+    approximates the real log return time series $D^{train}$. For this paper
+    we generate $N=1000$ samples from the market generators and evaluate the generator
+    based on the samples, denoted as $\mathcal{D}_{G_j}=\{D_{G_j}^{(n)}\}_{n=1}^N$.
+
+    \subsubsection{Non-deep Learning Model Generation}
+    For the context of the paper, the parametric and bootstrap market generators consired
+    can train on the full time series $D^{train}$. For a parametric generator $G_j$,
+    it learns a set of parameters $\hat\theta$ from $D^{train}$ and generate 
+    $D^{(n)}_{G_j} \sim G_j(\hat\theta\vert D^{train})$ such that $D^{(n)}_{G_j}$ and $D^{train}$ 
+    span over the same time length T.
+
+    For the block-boostrap generator $G_j$, it applies a random-sampling operation over the
+    entire training data $D^{train}$ defined by the model to sample 
+    $D^{(n)}_{G_j} \sim G_j(D^{train})$ such that $D^{(n)}_{G_j}$ and $D^{train}$ 
+    span over the same time length T.
+
+    \subsubsection{Deep Learning Model Generation}
+    The deep learning frameworks considred in this paper (i.e. GAN, VAE, DDPM, signature-based)
+    requires to be trained on the sliding window transformation $W_LD^{train}$ (see \ref{subsec:data-preprocess})
+    such that these model learn to generate a window of lenght $L$ from $\mathbf{\mathit{p}}(W_LD^{train})$.
+    We propose, for a given deep learning model $G_j$ that samples a window 
+    $\tilde{x}_{G_j}^{(L)} \sim G_j(\tilde{x}^{(L)}\vert W_L D^{train})$, to sample $(T \% L)+1$ samples,
+    where $\%$ denotes integer division,
+    concatenate them sequentially, and trim out the right tail of the time series such that the resulting
+    generated time series span the same time span $T$ as the trained time series; we repeat this process
+    for $N=1000$ times to obtain $\mathcal{D}_{G_j}$. Formally:
+    \begin{align}
+        \left\{\tilde{x}_m: \tilde{x}_m=\left(\tilde{x}_{G_j}^{(L)}\right)_m\right\}_{m=1}^{(T\%L)+1} &\quad \tilde{x}_m \sim G_j(\tilde{x}^{(L)}\vert W_L D^{train}) \\
+        \tilde{D}^{(n)}_{G_j} \coloneq \tilde{x}_1,\dots,\tilde{x}_{(T\%L)+1} =& (\mathbf{x}_1, \dots, \mathbf{x}_{T-1}, \mathbf{x}_T,\dots, \mathbf{x}_{T+L\mathrm{mod} T}) \\
+        D_{G_j}^{(n)} =& (\mathbf{x}_1, \dots, \mathbf{x}_{T-1}, \mathbf{x}_T)\\
+        \mathcal{D}_{G_j} \coloneq& \left\{D_{G_j}^{(n)}\right\}_{n=1}^N
+    \end{align}
+
+
+
+
+
+
+
+
+
+

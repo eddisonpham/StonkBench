@@ -1,6 +1,6 @@
 \section{Introduction}
   Synthetic market data generation has emerged as a crucial tool in
-  financial markets, particularly market data such as time series
+  financial markets, particularly time series
   of financial asset returns, trading volume, and limit order books
   \cite{Potluru24, Horvath2025}, emerged from the rising popularity 
   of generative models in other domains over the past decade. 
@@ -31,14 +31,16 @@
     There are generally two primary reasons \cite{Horvath2025} why academic 
     researchers and practitioners are interested in generating synthetic market data:
     \begin{enumerate}
-      \item \textbf{Forecasting and Prediction:} Synthetic market data can be used to train 
-      and evaluate forecasting models, enabling researchers to test their algorithms on a 
+      \item \textbf{Forecasting and Prediction:} Synthetic market data can generate future market paths
+      to used for training
+      and evaluation of forecasting models, enabling researchers to test their algorithms on a 
       wide range of scenarios. With recent advances in deep learning, generative models 
       like GANs and VAEs, particularly their conditional variants, gives more desireable results
       as they can learn conditional distributions of financial time series data as opposed to 
       point estimators \cite{Horvath2025}.
       \item \textbf{Simulating Market Scenarios:} The ability to generate synthetic market 
-      data allows researchers and practitioners to simulate various market scenarios, 
+      data allows researchers and practitioners to simulate various market scenarios alternativly
+      from historical data, 
       including extreme events and rare occurrences. This is particularly valuable for 
       stress testing trading strategies, risk management models, and financial algorithms 
       under different market conditions. It comes to no surpise as other domains like computer 
@@ -103,7 +105,7 @@
       \end{enumerate}
 
   \subsection{Our Contributions}
-  In this paper, we developed a unified market generator for financial time series on 
+  In this paper, we developed a unified market generator for historical  financial time series on 
   equity returns by adopting the time series evaluation
   taxonomy outlined from Stenger et al. \cite{Stenger24}, implementing the time series
   generation framework from Ang et al. \cite{Ang23}, and extending the utility

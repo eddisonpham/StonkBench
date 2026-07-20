@@ -1,0 +1,198 @@
+
+  \section{Statistical Evaluation Measures}\label{sec:stat-eval}
+    The statistical metrics considered in this paper are used to
+    evaluate either the realism of synthetic market data to its
+    trained history or generative novelty in market scenarios.
+    The following subsections describes the metrics considered and
+    the evaluatiom framework applied.
+    
+    \subsection{Statistical Measures}\label{subsec:stats-measure}
+    As described in \ref{limitation:metrics}, our contribution 
+    \ref{contribute:1} is based on a well-established taxonomy framework
+    \cite{Stenger24} while introducing our industry-specific stylized
+    facts to holistically evaluate the characteristics of synthetic
+    market data. We divide our statistical metrics
+    \subsubsection{Fidelity Measures}
+    These metrics quantify how well synthetic data captures key 
+    marginal and second-order properties of real data. We employ
+    the following feature-based metrics:
+
+      \begin{enumerate}[label=\textbf{[M\arabic*]}]
+        \item \label{metric:mdd} \textbf{Marginal Distribution 
+        Difference (MDD):}  
+        To measure the distance between empirical marginal distributions
+        of real versus synthetic data, we use the 1-Wasserstein distance
+        (a.k.a. Earth Mover's distance). This was chosen over the 
+        popular Kullback-Leibler divergence or the derivatives
+        Jensen-Shannon divergence due to its better numerical stability
+        and ability to capture distributional differences even when
+        supports do not overlap \cite{Arjovsky17}.
+        \[
+        \begin{aligned}
+          \mathrm{MDD} &= W_1\big(\widehat{F}_{\text{real}}, 
+          \widehat{F}_{\text{synth}}\big), \\
+          W_1(F, G) &= \int_0^1 \big|F^{-1}(u) - G^{-1}(u)\big|\,du,
+          \end{aligned}
+          \]
+          where \(\widehat{F}_{\text{real}}\) and \(\widehat{F}_{\text{synth}}\) 
+          are empirical CDFs.
+          
+          \end{enumerate}
+          The following four metrics capture differences in the first four
+          statistical (central) moments between real and synthetic data.
+          \begin{enumerate}[label=\textbf{[M\arabic*]}, resume]
+          
+          \item \label{metric:md} \textbf{Mean Difference (MD):}  
+          \[
+          \mathrm{MD} = \big|\mu_{\text{real}} - \mu_{\text{synth}}\big|.
+          \]
+          
+          \item \label{metric:sdd} \textbf{Standard Deviation Difference (SDD):}  
+          \[
+          \mathrm{SDD} = \big|\sigma_{\text{real}} - \sigma_{\text{synth}}\big|.
+          \]
+
+          \item \label{metric:skewness} \textbf{Skewness Difference (SD):}  
+          \begin{align*}
+          \mathrm{SD} =& \big|\gamma(r_{\text{real}}) - \gamma(r_{\text{synth}})\big|, \\
+          \gamma(r) =& \frac{\mathbb{E}[(r - \mu)^3]}{(\sigma)^3}.
+          \end{align*}
+          
+          \item \label{metric:kd} \textbf{Kurtosis Difference (KD):}  
+          \begin{align*}
+          \mathrm{KD} &= \big|\kappa^{\mathrm{ex}}(r_{\text{real}}) 
+          - \kappa^{\mathrm{ex}}(r_{\text{synth}})\big|, \\
+          \kappa^{\mathrm{ex}}(r) &= \frac{\mathbb{E}[(r - \mu)^4]}{(\sigma)^4} - 3.
+          \end{align*}
+          
+          \end{enumerate}
+          
+          \subsubsection{Visualization Methods} \label{sec:visualization_methods}
+          Visual tools complement numeric metrics for face-validity and 
+          communication \cite{Ang23}.
+          \begin{enumerate}[label=\textbf{[M\arabic*]}, resume]
+          \item \label{metric:tsne} \textbf{t-SNE:}  
+          2D embeddings of window-level features for real 
+          versus synthetic overlap and cluster structure.
+          
+          \item \label{metric:dist} \textbf{Distribution:}  
+          Histograms of returns to visualize empirical 
+          distribution.
+          \end{enumerate}
+          
+          \subsubsection{Diversity Measures}
+          We are also interested if the SDGFTS can generate data
+          not observed but follow the same distribution as the real data.
+          Therefore, we include the following intra-class distance
+          metrics. The inclusion of
+          these metrics are chose to ensure that mode collapse 
+          is prevented. 
+
+          
+          \begin{enumerate}[label=\textbf{[M\arabic*]}, resume]
+          \item \label{metric:ed} \textbf{Intra-Class Euclidean 
+          Distance (ICD-ED):}  
+          \[
+          \mathrm{ICD\text{-}ED} = \frac{2}{R(R-1)} 
+          \sum_{1 \le a < b \le R} \left\| \textbf{r}_a - 
+          \textbf{r}_b \right\|_2,
+          \]
+          where \(\textbf{r}_a \in \mathbb{R}^{L}\) is the \(a\)-th 
+          sample.
+          
+          \item \label{metric:dtw} \textbf{Intra-Class Dynamic Time 
+          Warping (ICD-DTW):}  
+          \[
+          \mathrm{ICD\text{-}DTW} = \frac{2}{R(R-1)} 
+          \sum_{1 \le a < b \le R} d_{\mathrm{DTW}}\bigl(
+          \textbf{r}_a, \textbf{r}_b\bigr).
+          \]
+          \end{enumerate}
+          
+          \subsubsection{Efficiency Measures}
+          Generation efficiency is crucial for practical applications,
+          especially in high-frequency trading or real-time risk
+          management, where rapid data synthesis is required.
+          Thus, we include the following efficiency metric \cite{Stenger24}.
+          \begin{enumerate}[label=\textbf{[M\arabic*]}, resume]
+          \item \label{metric:gentime} \textbf{Generation Time:}  
+          Wall-clock time to generate \(S\) samples:
+          \[
+          T_{\mathrm{gen}} = t_1 - t_0 \quad (\text{seconds for } 1,000
+          \text{ samples}).
+          \]
+          \end{enumerate}
+          
+          \subsubsection{Stylized Facts Measures} \label{sec:stylized-facts}
+          Canonical stylized facts:
+          
+          \begin{enumerate}[label=\textbf{[M\arabic*]}, resume]
+
+          \item \label{metric:acd} \textbf{Autocorrelation Difference 
+          (ACD):}  
+          Absolute difference in lag-1 autocorrelation:
+          \[
+          \begin{aligned}
+          \rho(1) &= \frac{\sum_{t=2}^{L} (r_t - \bar{r})
+          (r_{t-1} - \bar{r})}
+               {\sum_{t=1}^{L} (r_t - \bar{r})^2}, \\
+          \mathrm{ACD} &= \big|\rho_{\text{real}}(1) - 
+          \rho_{\text{synth}}(1)\big|.
+          \end{aligned}
+          \]
+          
+          \item \label{metric:volclustering} \textbf{Volatility 
+          Clustering (VC):}  
+          Lag-1 autocorrelation of squared or absolute returns measures 
+          volatility clustering, a stylized fact where large price movements 
+          tend to cluster in time \cite{Cont01}:
+          \[
+          \begin{aligned}
+          \rho_{r^2}(1) &= \mathrm{Corr}\big((r_t)^2, 
+          (r_{t-1})^2\big), \\
+          \rho_{|r|}(1) &= \mathrm{Corr}\big(|r_t|, 
+          |r_{t-1}|\big).
+          \end{aligned}
+          \]
+
+        \item \label{metric:slow_decay} \textbf{Long Memory / Slow Decay (LMSD):}  
+        To quantify long-range dependence in volatility, we follow
+        Cont (2001) \cite{Cont01} and study the autocorrelation of
+        absolute (or squared) returns:
+        \[
+        C_\alpha(\tau) \,=\, \mathrm{corr}\!\big(|r_{t+\tau}|^\alpha,\,
+        |r_t|^\alpha\big), \qquad \alpha \in \{1,2\}.
+        \]
+        Empirically, this correlation decays slowly according to a
+        power law,
+        \[
+        C_\alpha(\tau) \,\sim\, \frac{A}{\tau^{\beta}}, \qquad
+        \beta \in [0.2,\,0.4],
+        \]
+        indicating persistent volatility fluctuations (long memory).
+        For evaluation, we estimate the decay exponent by a
+        log--log linear fit over lags 
+        \(\tau \in \{1,\ldots, \tau_{\max}\}\) where
+        \(C_\alpha(\tau) > 0\):
+        \[
+        \widehat{\beta} \,=\, -\,\text{slope}\Big(\log C_\alpha(\tau)
+        \;\text{vs.}\; \log \tau\Big).
+        \]
+        Our metric is the absolute difference between decay exponents
+        estimated on real and synthetic data:
+        \[
+        \mathrm{LMSD} \,=\, \big|\widehat{\beta}_{\text{real}} -
+        \widehat{\beta}_{\text{synth}}\big|.
+        \]
+        Unless otherwise stated, we set \(\alpha=1\) (absolute returns)
+        and report \(\widehat{\beta}\) together with the goodness-of-fit
+        of the linear regression.
+        \end{enumerate}
+    
+    \subsection{Statistical Evaluation Framework}
+    We compare the statistical measures outlined above between the synthetic
+    market data to the trained historical dataset. Consider a market generator
+    $G_j, j\in\mathcal{J}$ trained on the dataset $D^{train}$ and its generated data
+    $\mathcal{D}_{G_j}$ as specified in \ref{subsec:generator-training},
+    we can apply an evaluation metric E, as mentioned in \ref{subsec:stats-measure}, defined an measurable function 
+    $\mathbb{R}^{T\times K}\to \mathbb{R}$.
