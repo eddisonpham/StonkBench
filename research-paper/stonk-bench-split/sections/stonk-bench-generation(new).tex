@@ -59,28 +59,31 @@ this section outines the details of the dataset used, preprocessing, and
     \subsubsection{Dataset Split and Transformation}
     Given our stock price dataset, we perform a chronological 
     seventy-ten-twenty partition to a training, validation and testing
-    datatset $D=D^{train}, , D^{validation}, D^{test}$, denoting concatenation. 
-    This means $D^{train}$ spans the first 11.5 years (2010-mid2021), $D^{validation}$, 
+    datatset $D=D^{train}, , D^{val}, D^{test}$, denoting concatenation. 
+    This means $D^{train}$ spans the first 11.5 years (2010-mid2021), $D^{val}$, 
     $D^{test}$ spans the last 3 years (2022-2025) of our datasets.
+    This deviates from the training scheme proposed by TSGBench \cite{Ang23}; we wish to 
+    hold out our testing time-horizon from the training set completely
+    to evaluate model generalization capabilities.
     
     \subsubsection{Log Return Transformation}
     We then transform the price time series for both sets into a log return time series, 
     which is a common practice in financial modeling to stabilize variance 
     and make the data more suitable for analysis. The return \( r_t \) at time \( t \) is calculated as:
     \begin{equation}
-    r_t := \log\left(\frac{x_t}{x_{t-1}}\right) = \log(x_t) - \log(x_{t-1}),
+    r_t := \log\left(\frac{\mathbf{x}_t}{\mathbf{x}_{t-1}}\right) = \log(\mathbf{x}_t) - \log(\mathbf{x}_{t-1}),
     \end{equation}
     where \( x_t \) is the daily closing price at day \( t \). From now, on we refer to $D$ as the 
     log return time series dataset.
     
-    \subsubsection{Sliding Window Transformation}
+    \subsubsection{Sliding Window Transformation}\label{subsub:sliding-window}
     For $D^{train}$, given a pre-determined
     window length $L\in\mathbb{N}$, we applying a sliding window operation $W_L$ over the time
     series as follows.
     \begin{equation}
         W_L: \{\mathbf{x_i}\}_{i=1}^T \mapsto \{ (\mathbf{x}_i,\mathbf{x}_{i+1},\dots, \mathbf{x}_{i+L}): 1\leq i \leq T-L\}
     \end{equation}
-    For the purpose of research, we expirment our generation training with windown lenghts $L\in\{5, 21, 252\}$ , represeneting
+    For the purpose of research, we expirment our generation training with windown lenghts $L\in\{ 21, 126, ,252\}$ , represeneting
     general the number of trading days in a week, month and year, respectively
     \footnote{TSGBench determined the window length for deep learning training 
     and generation depending on the dataset by finding the maximum auto-correlation of that time
