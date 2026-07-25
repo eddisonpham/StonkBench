@@ -58,10 +58,8 @@ this section outines the details of the dataset used, preprocessing, and
 \subsection{Data preprocessing}\label{subsec:data-preprocess}
     \subsubsection{Dataset Split and Transformation}
     Given our stock price dataset, we perform a chronological 
-    seventy-ten-twenty partition to a training, validation and testing
-    datatset $D=D^{train}, , D^{val}, D^{test}$, denoting concatenation. 
-    This means $D^{train}$ spans the first 11.5 years (2010-mid2021), $D^{val}$, 
-    $D^{test}$ spans the last 3 years (2022-2025) of our datasets.
+    ten-two-three year partition to a training from 2010 to 2025, validation and testing
+    datatset $D=D^{train}, D^{val}, D^{test}$, denoting concatenation.
     This deviates from the training scheme proposed by TSGBench \cite{Ang23}; we wish to 
     hold out our testing time-horizon from the training set completely
     to evaluate model generalization capabilities.
@@ -83,8 +81,8 @@ this section outines the details of the dataset used, preprocessing, and
     \begin{equation}
         W_L: \{\mathbf{x_i}\}_{i=1}^T \mapsto \{ (\mathbf{x}_i,\mathbf{x}_{i+1},\dots, \mathbf{x}_{i+L}): 1\leq i \leq T-L\}
     \end{equation}
-    For the purpose of research, we expirment our generation training with windown lenghts $L\in\{ 21, 126, ,252\}$ , represeneting
-    general the number of trading days in a week, month and year, respectively
+    For the purpose of research, we expirment our generation training with windown lenghts $L\in\{ 21, 63, 126 ,252\}$ , represeneting
+    general the number of trading days in a month, a quarter, half a year and a year, respectively
     \footnote{TSGBench determined the window length for deep learning training 
     and generation depending on the dataset by finding the maximum auto-correlation of that time
     series dataset \cite{Ang23}}.
