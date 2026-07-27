@@ -773,7 +773,7 @@ class Figure5Generator(BaseFigureGenerator):
         fig_dir = output_dir / "figure_5_fidelity_vs_diversity"
         fig_dir.mkdir(exist_ok=True, parents=True)
         
-        models = [m for m in self.main_data.keys() if m != "TimeVAE"]
+        models = list(self.main_data.keys())
         n_models = len(models)
         pastel_palette = sns.color_palette('pastel', n_colors=n_models)
         color_map = {model: pastel_palette[i % len(pastel_palette)] 
@@ -854,7 +854,7 @@ class Figure6Generator(BaseFigureGenerator):
         fig_dir = output_dir / "figure_6_stylized_facts_vs_diversity"
         fig_dir.mkdir(exist_ok=True, parents=True)
         
-        models = [m for m in self.main_data.keys() if m != "TimeVAE"]
+        models = list(self.main_data.keys())
         n_models = len(models)
         pastel_palette = sns.color_palette('pastel', n_colors=n_models)
         color_map = {model: pastel_palette[i % len(pastel_palette)] 

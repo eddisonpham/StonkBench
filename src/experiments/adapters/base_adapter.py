@@ -22,6 +22,7 @@ class ModelAdapter(ABC):
 
     model_name: str = "unknown_model"
     can_regenerate_from_checkpoint: bool = False
+    supports_arbitrary_generation: bool = False
 
     def __init__(self) -> None:
         self._is_fitted = False

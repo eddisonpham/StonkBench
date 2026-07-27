@@ -24,6 +24,7 @@ class StatisticalGBMAdapter(ModelAdapter):
     """
 
     model_name = "GBMAdapter"
+    supports_arbitrary_generation = True
 
     def __init__(self) -> None:
         super().__init__()
@@ -70,6 +71,7 @@ class _IndependentStatisticalAdapter(ModelAdapter):
     model_cls: Type = GeometricBrownianMotion
     generator_label = "independent_per_channel"
     model_name = "StatisticalAdapter"
+    supports_arbitrary_generation = True
 
     def __init__(self) -> None:
         super().__init__()
@@ -144,6 +146,7 @@ class BlockBootstrapAdapter(ModelAdapter):
     """
 
     model_name = "BlockBootstrapAdapter"
+    supports_arbitrary_generation = True
 
     def __init__(self, block_size: int = 32) -> None:
         super().__init__()

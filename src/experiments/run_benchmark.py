@@ -16,7 +16,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--models",
         nargs="+",
-        default=["quantgan", "timegan", "timegrad", "timevae", "unconditional_tsdiffusion", "vrnn", "pcf_gan", "sig_wgan"],
+        default=["quantgan", "timegrad", "kalman_vae", "unconditional_tsdiffusion", "vrnn", "pcf_gan", "cond_sig_wgan"],
     )
     parser.add_argument("--generation_length", type=int, required=True)
     parser.add_argument("--num_samples", type=int, default=128)

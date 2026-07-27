@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import torch
 
 from src.experiments.adapters.base_adapter import ModelAdapter
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
-from src.utils.artifact_utils import stitch_sequences
 
 
 class ChannelBootstrapAdapter(ModelAdapter):
@@ -73,7 +72,9 @@ class ChannelBootstrapAdapter(ModelAdapter):
         self._is_fitted = True
         return {"num_channels": int(self.base_sequences.shape[-1]), "restored": True}
 
-    def generate(self, num_samples: int, generation_length: int, seed: int) -> AdapterGenerateOutput:
+    def generate(self, num_samples: int, _generation_length: int, seed: int) -> AdapterGenerateOutput:
+        # The requested target length is intentionally ignored; this adapter always
+        # emits the trained window length and the pipeline handles stitching/trimming.
         if not self._is_fitted or self.base_sequences is None:
             raise RuntimeError("Call fit() before generate().")
 
@@ -84,13 +85,9 @@ class ChannelBootstrapAdapter(ModelAdapter):
         indices = torch.randint(0, n_windows, (num_samples,), generator=generator)
         sampled = self.base_sequences[indices]  # (R, base_len, C)
 
-        if generation_length != base_len:
-            stitched_channels = []
-            for c in range(n_channels):
-                stitched_c = stitch_sequences(sampled[:, :, c], generation_length, seed + c)
-                stitched_channels.append(stitched_c.unsqueeze(-1))
-            sampled = torch.cat(stitched_channels, dim=-1)
-
+        # The pipeline is responsible for stitching/trimming fixed-window
+        # outputs to the requested generation length; this adapter always emits
+        # windows of the trained window size.
         return AdapterGenerateOutput(
             data=sampled.float(),
             checkpoints=self.checkpoints,

@@ -12,7 +12,7 @@ from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutpu
 from src.experiments.core.io import append_jsonl, build_run_manifest, ensure_experiment_paths, write_json
 from src.experiments.core.registry import STATISTICAL_MODEL_KEYS, get_adapter
 from src.utils.device import device_to_str, get_device
-from src.utils.artifact_utils import compute_preprocessing_hash, default_metadata, save_artifact
+from src.utils.artifact_utils import compute_preprocessing_hash, default_metadata, save_artifact, stitch_sequences
 from src.utils.preprocessed_data_utils import (
     build_batch_from_dl_set,
     build_batch_from_stats_set,
@@ -64,6 +64,11 @@ def run_model_experiment(
     paths = ensure_experiment_paths(output_root, model_key)
     preprocessing = _preprocessing_metadata(model_key)
     batch = _prepare_standard_batch(model_key, generation_length)
+    if generation_length > batch.test.shape[0]:
+        raise ValueError(
+            f"{model_key}: generation_length={generation_length} exceeds test series length "
+            f"{batch.test.shape[0]}. Choose a shorter horizon or a longer dataset."
+        )
 
     metadata: Dict[str, Any] = {"generation_length": generation_length}
     if training_metadata:
@@ -111,7 +116,21 @@ def run_model_experiment(
     )
     try:
         fit_info = adapter.fit(fit_input, checkpoints_dir=paths.checkpoints, logs_dir=paths.logs)
-        generated = adapter.generate(num_samples=num_samples, generation_length=generation_length, seed=seed)
+        # Fixed-window adapters are trained at the dataset's native window length and
+        # must be stitched/trimmed to the requested generation length. Arbitrary-length
+        # adapters receive the requested length directly.
+        if adapter.supports_arbitrary_generation:
+            native_length = generation_length
+        else:
+            native_length = int(batch.inferred_length or generation_length)
+        generated = adapter.generate(num_samples=num_samples, generation_length=native_length, seed=seed)
+        if generated.data.shape[1] != generation_length:
+            generated = AdapterGenerateOutput(
+                data=stitch_sequences(generated.data, generation_length, seed=seed),
+                checkpoints=generated.checkpoints,
+                logs=generated.logs,
+                extra_metadata=generated.extra_metadata,
+            )
         elapsed_sec = float(time.perf_counter() - t_start)
         events.run_end(
             model_key=model_key,
@@ -192,8 +211,29 @@ def run_model_experiment(
         },
     )
 
-    artifact_path = paths.artifacts / f"{model_key}_seq_{generation_length}.pt"
+    artifact_path = paths.artifacts / f"{model_key}_seq{generation_length}.pt"
     save_artifact(generated.data, metadata, artifact_path)
+
+    # Persist ground-truth test windows once per generation length so the
+    # evaluator loads the exact same shape as generated artifacts.
+    if batch.test_windows is not None and batch.test_windows.shape[0] > 0:
+        gt_path = output_root / "ground_truth" / f"ground_truth_seq{generation_length}.pt"
+        if not gt_path.exists():
+            gt_metadata = default_metadata(
+                model_name="ground_truth",
+                model_type="ground_truth",
+                sequence_length=generation_length,
+                num_samples=int(batch.test_windows.shape[0]),
+                seed=seed,
+                preprocessing_cfg=preprocessing,
+                extra={
+                    "num_channels": int(batch.test_windows.shape[-1]),
+                    "asset_columns": batch.asset_columns,
+                    "price_columns": batch.price_columns,
+                    "is_multivariate": True,
+                },
+            )
+            save_artifact(batch.test_windows.float(), gt_metadata, gt_path)
 
     manifest = build_run_manifest(
         model_name=model_key,
@@ -208,10 +248,6 @@ def run_model_experiment(
     if sanity_output_dir is not None and model_key not in STATISTICAL_MODEL_KEYS:
         from src.experiments.sanity_visualization import render_model_sanity
 
-        # Always render ALL channels (price + volume for every asset). The
-        # ``price_assets`` parameter is left at default=None so the new
-        # all-channel branch fires. Per-channel subfolders + per-channel
-        # summary CSV are produced under ``sanity_output_dir/<model_key>``.
         sanity_paths = render_model_sanity(
             adapter=adapter,
             batch=batch,
@@ -255,7 +291,6 @@ def run_benchmark(
                 output_root=output_root,
                 training_metadata=training_metadata,
                 sanity_output_dir=sanity_output_dir,
-                sanity_price_assets=sanity_price_assets,
             )
         )
     return artifacts
