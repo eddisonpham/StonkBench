@@ -10,7 +10,7 @@
 #   hp_search    - Launch all HP trials in parallel (count derived from
 #                  src/experiments.hp_configs); aggregate when done.
 #   aggregate    - Re-build summary.json from existing trial outputs (no GPUs).
-#   final_train  - Train all 14 models (8 DL + 6 statistical) using HP winners.
+#   final_train  - Train all 13 models (7 DL + 6 statistical) using HP winners.
 #   eval         - Run unified_evaluator SERIALLY over artifacts under
 #                  results/<RUN_ID>. Serial because every parallel instance
 #                  would race on `<results_dir>/complete_evaluation.json`.
@@ -84,7 +84,50 @@ export STONKBENCH_LOCAL_JOBS
 export STONKBENCH_LOCAL_JOBS_FILE="${STONKBENCH_LOCAL_JOBS_FILE:-/tmp/stonkbench_local_jobs}"
 echo "${STONKBENCH_LOCAL_JOBS}" > "${STONKBENCH_LOCAL_JOBS_FILE}"
 
-RUN_ID="${STONKBENCH_RUN_ID:-$(date +%F)_vm}"
+# RUN_ID resolution — shared with _submit_run.sh via scripts/vm/_run_id.sh.
+# Cookie lives at ${PROJECT_ROOT}/outputs/.active_run_id (reboot-stable,
+# gitignored via the project's outputs/ rule). Cookie holds a BARE UTC date
+# (e.g. "2026-07-17"); this script appends the "_vm" suffix on consumption
+# (vs _submit_run.sh which appends "_run", so the two scripts agree on the
+# date but emit distinct run ids). Post-refactor behavior:
+#   1. Explicit env STONKBENCH_RUN_ID wins (highest priority).
+#   2. Else cookie present + in-TTL -> reuse bare date, append "_vm".
+#   3. Else write today's UTC date to cookie; append "_vm".
+# To FORCE a new run id (start a fresh pipeline session), delete the cookie:
+#   rm /home/phamnhut/StonkBench/outputs/.active_run_id
+export STONKBENCH_RUN_ID_LOCK_FILE="${STONKBENCH_RUN_ID_LOCK_FILE:-${PROJECT_ROOT}/outputs/.active_run_id}"
+export STONKBENCH_RUN_ID_LOCK_TTL_DAYS="${STONKBENCH_RUN_ID_LOCK_TTL_DAYS:-14}"
+
+# Sourced AFTER PROJECT_ROOT resolved (the helper uses $PROJECT_ROOT for
+# the default lock path).
+# shellcheck source=scripts/vm/_run_id.sh
+source "${PROJECT_ROOT}/scripts/vm/_run_id.sh"
+
+# Same one-time legacy-cookie migration as _submit_run.sh. Idempotent: if the
+# new cookie already exists (e.g. previous launch by _submit_run.sh seeded
+# it), the `! -f` short-circuits this entire block.
+if [[ ! -f "${STONKBENCH_RUN_ID_LOCK_FILE}" && -f /tmp/stonkbench_active_run_id ]]; then
+    legacy_val=$(tr -d '[:space:]' < /tmp/stonkbench_active_run_id)
+    if [[ -n "${legacy_val}" ]]; then
+        bare=$(printf '%s' "${legacy_val}" | sed -E 's/_(run|vm)$//')
+        if [[ "${bare}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            # Best-effort migration — guard against set -e abort by ignoring mkdir/printf failures.
+            # Migration is signaling; the cookie will be re-written on the first fresh-date branch
+            # inside sb_init_run_id anyway.
+            mkdir -p "$(dirname "${STONKBENCH_RUN_ID_LOCK_FILE}")" 2>/dev/null || true
+            printf '%s\n' "${bare}" > "${STONKBENCH_RUN_ID_LOCK_FILE}" 2>/dev/null || true
+            if [[ -f "${STONKBENCH_RUN_ID_LOCK_FILE}" ]] && cmp -s <(printf '%s\n' "${bare}") "${STONKBENCH_RUN_ID_LOCK_FILE}"; then
+                echo "[run_parallel] migrated legacy cookie (/tmp/stonkbench_active_run_id: '${legacy_val}') -> ${STONKBENCH_RUN_ID_LOCK_FILE} (bare: '${bare}')" >&2
+            fi
+        fi
+    fi
+fi
+
+# Honor explicit override OR resolve via cookie. sb_init_run_id mutates
+# STONKBENCH_RUN_ID in the caller scope (function is `export -f`'d).
+: "${STONKBENCH_RUN_ID:=}"
+sb_init_run_id "vm"
+RUN_ID="${STONKBENCH_RUN_ID}"
 # Default sequence length = 252 (≈1 trading year of daily bars). This bash
 # default only flows into `stage_final_train` (`--generation_length`) and
 # `stage_eval` (`--seq-lengths ${SEQ_LENGTHS}`). HP search ignores this env
@@ -110,7 +153,8 @@ BG_PIDS=()
 # silent in-gate failure cannot pass the stage as healthy.
 REAPED_FAILURES=()
 
-MODELS_DL=(quantgan timegan timegrad timevae unconditional_tsdiffusion vrnn pcf_gan sig_wgan)
+# MODELS_DL mirrors DL_MODEL_KEYS in src/experiments/hp_configs.py.
+MODELS_DL=(quantgan timegrad kalman_vae unconditional_tsdiffusion vrnn pcf_gan cond_sig_wgan)
 MODELS_STAT=(gbm_adapter block_bootstrap ou_process merton_jump_diffusion de_jump_diffusion garch11)
 MODELS_ALL=("${MODELS_DL[@]}" "${MODELS_STAT[@]}")
 
@@ -135,7 +179,7 @@ Usage: $(basename "$0") <stage> [options]
 Stages (positional, required):
   hp_search   Run all ${N_HP_TRIALS} HP trials in parallel; aggregate on completion.
   aggregate   Rebuild summary.json from existing trial outputs (CPU).
-  final_train Train all 14 models using HP winners.
+  final_train Train all 14 models (8 DL + 6 statistical) using HP winners.
   eval        Run unified_evaluator SERIALLY over artifacts under results/<RUN_ID>.
   all         hp_search -> final_train -> eval (sequential phases).
 
@@ -405,7 +449,7 @@ stage_final_train() {
                 "${smoke_args[@]}"
         i=$(( i + 1 ))
     done
-    if ! wait_for_jobs "Final train (14 models)"; then
+    if ! wait_for_jobs "Final train (${#MODELS_ALL[@]} models)"; then
         return 1
     fi
 }

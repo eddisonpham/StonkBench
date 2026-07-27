@@ -41,3 +41,11 @@ Agent Context
 
 # Canonical pipeline artifacts (regenerable, kept locally under <repo>/outputs/ on each run)
 /outputs/
+/outputs_legacy/
+
+# Ignore every folder of the form output*/*/** (depth >= 2 contents under any output* dir).
+# Covers /outputs/, /outputs_legacy/, /outputs_legacy2/, /output_v3/, etc., at any depth in the
+# tree. The leading-/less pattern matches nested output* dirs (e.g. src/output_foo/sub/x.pt)
+# in addition to top-level ones. Keep this additive to /outputs/ + /outputs_legacy/ above so the
+# existing canonical rules remain explicit.
+output*/*/**

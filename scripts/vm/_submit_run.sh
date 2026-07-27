@@ -40,8 +40,51 @@ readonly PROJECT_ROOT
 LOG_DIR="${STONKBENCH_LOG_DIR:-/tmp/stonkbench-logs}"
 mkdir -p "${LOG_DIR}"
 
-# Default run id to today's date so daily reruns land in distinct outputs/.
-export STONKBENCH_RUN_ID="${STONKBENCH_RUN_ID:-$(date -u +%Y-%m-%d)_run}"
+# RUN_ID resolution — date-locked at first submit, sticky across overnight restarts.
+# The pipeline MUST consolidate into ONE dates/<latest>_run folder per logical
+# session, even if a restart crosses midnight. The cookie lives at
+# ${PROJECT_ROOT}/outputs/.active_run_id (NOT /tmp — survives reboots; covered
+# by the project's `outputs/` gitignore). Cookie holds a BARE UTC date
+# (e.g. "2026-07-17"); this script appends the "_run" suffix on consumption.
+# Sharing with run_parallel.sh via scripts/vm/_run_id.sh, which appends "_vm".
+# To FORCE a new run id (e.g. user wants to start a brand-new pipeline session),
+# delete the cookie:
+#   rm /home/phamnhut/StonkBench/outputs/.active_run_id
+export STONKBENCH_RUN_ID_LOCK_FILE="${STONKBENCH_RUN_ID_LOCK_FILE:-${PROJECT_ROOT}/outputs/.active_run_id}"
+export STONKBENCH_RUN_ID_LOCK_TTL_DAYS="${STONKBENCH_RUN_ID_LOCK_TTL_DAYS:-14}"
+
+# Sourced AFTER PROJECT_ROOT is resolved (the helper uses $PROJECT_ROOT for
+# the default lock path).
+# shellcheck source=scripts/vm/_run_id.sh
+source "${PROJECT_ROOT}/scripts/vm/_run_id.sh"
+
+# One-time migration from pre-refactor cookie format. The previous cookie at
+# /tmp/stonkbench_active_run_id held a full run id (e.g. "2026-07-17_run");
+# the new cookie holds a bare date ("2026-07-17"). Idempotent — only fires
+# when the new cookie is missing AND the legacy cookie exists with a known
+# suffix; safe to re-run.
+if [[ ! -f "${STONKBENCH_RUN_ID_LOCK_FILE}" && -f /tmp/stonkbench_active_run_id ]]; then
+    legacy_val=$(tr -d '[:space:]' < /tmp/stonkbench_active_run_id)
+    if [[ -n "${legacy_val}" ]]; then
+        bare=$(printf '%s' "${legacy_val}" | sed -E 's/_(run|vm)$//')
+        if [[ "${bare}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            # Best-effort migration — guard against set -e abort by ignoring mkdir/printf failures.
+            # Migration is signaling; the cookie will be re-written on the first fresh-date branch
+            # inside sb_init_run_id anyway.
+            mkdir -p "$(dirname "${STONKBENCH_RUN_ID_LOCK_FILE}")" 2>/dev/null || true
+            printf '%s\n' "${bare}" > "${STONKBENCH_RUN_ID_LOCK_FILE}" 2>/dev/null || true
+            if [[ -f "${STONKBENCH_RUN_ID_LOCK_FILE}" ]] && cmp -s <(printf '%s\n' "${bare}") "${STONKBENCH_RUN_ID_LOCK_FILE}"; then
+                echo "[submit_run] migrated legacy cookie (/tmp/stonkbench_active_run_id: '${legacy_val}') -> ${STONKBENCH_RUN_ID_LOCK_FILE} (bare: '${bare}')" >&2
+            fi
+        fi
+    fi
+fi
+
+# Honor explicit override OR resolve via cookie. sb_init_run_id sets
+# STONKBENCH_RUN_ID in the caller scope.
+: "${STONKBENCH_RUN_ID:=}"
+sb_init_run_id "run"
+export STONKBENCH_RUN_ID
 LOG_FILE="${LOG_DIR}/stonkbench_run_${STONKBENCH_RUN_ID}.log"
 
 # Per-stage concurrency cap. Defaults to 2 (Option A — proven safe for
