@@ -1,0 +1,270 @@
+#!/usr/bin/env python3
+"""Generate a self-contained mock StonkBench bundle from GBM data.
+
+The bundle is suitable for passing to a peer and includes:
+
+  outputs/mock_bundle/
+    data/
+      mock_dl_set.pt
+      mock_statsmodel_set.pt
+    ground_truth/
+      ground_truth_seq50.pt
+      ground_truth_seq100.pt
+      ground_truth_seq252.pt
+    results/
+      <model>/artifacts/<model>_seq<L>.pt   (if --smoke_models is set)
+
+Usage:
+  python scripts/generate_mock_data.py
+  python scripts/generate_mock_data.py --smoke_models quantgan gbm_adapter
+  python scripts/generate_mock_data.py --seq_lengths 50 100 252 --num_assets 8
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Sequence
+
+import numpy as np
+import torch
+
+# Make sure the repo root is first on PYTHONPATH so src.* imports resolve.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_pp = os.environ.get("PYTHONPATH", "")
+if str(PROJECT_ROOT) not in _pp.split(":"):
+    _pp = f"{PROJECT_ROOT}:{_pp}".rstrip(":")
+    os.environ["PYTHONPATH"] = _pp
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.experiments.core.pipeline import run_model_experiment
+from src.utils.artifact_utils import default_metadata, save_artifact
+from src.utils.preprocessed_data_utils import sliding_window_2d
+
+
+DEFAULT_SEED = 42
+DEFAULT_SEQ_LENGTHS = (50, 100, 252)
+DEFAULT_NUM_ASSETS = 8
+DEFAULT_TOTAL_STEPS = 6_000
+DEFAULT_TRAIN_FRAC = 0.60
+DEFAULT_WINDOW_SIZE = 100
+
+
+def _generate_gbm(
+    num_steps: int,
+    num_assets: int,
+    seed: int,
+    *,
+    annual_return: float = 0.05,
+    annual_vol: float = 0.20,
+    correlation: float = 0.3,
+) -> torch.Tensor:
+    """Generate a multivariate GBM price series as (T, C) log returns."""
+    rng = np.random.default_rng(seed)
+    # Convert annualised quantities to daily scale.
+    mu = annual_return / 252.0
+    sigma = annual_vol / np.sqrt(252.0)
+    cov = np.full((num_assets, num_assets), correlation * sigma**2)
+    np.fill_diagonal(cov, sigma**2)
+    returns = rng.multivariate_normal(np.full(num_assets, mu / 252.0), cov, size=num_steps)
+    # Normalise to roughly zero-mean log returns so the generated windows are stationary.
+    returns = returns - returns.mean(axis=0, keepdims=True)
+    return torch.from_numpy(returns).float()
+
+
+def _build_dl_set(
+    train_series: torch.Tensor,
+    test_series: torch.Tensor,
+    feature_columns: List[str],
+    window_size: int,
+) -> Dict[str, Any]:
+    # Hold out the last 15% of the train series for validation windows.
+    # Both train and validation splits must be long enough to yield at least one
+    # sliding window of the requested size.
+    if train_series.shape[0] < 2 * window_size:
+        raise ValueError(
+            f"train_series length ({train_series.shape[0]}) must be >= 2*window_size "
+            f"({2 * window_size}) to create non-empty train/validation windows."
+        )
+    n = train_series.shape[0]
+    split = int(n * 0.85)
+    train_split = train_series[:split]
+    valid_split = train_series[split:]
+    # Guard pathological short train splits: ensure at least one validation window.
+    if valid_split.shape[0] < window_size:
+        valid_split = train_series[-window_size:]
+    train_windows = sliding_window_2d(train_split, window_size, stride=1)
+    valid_windows = sliding_window_2d(valid_split, window_size, stride=1)
+    return {
+        "feature_columns": feature_columns,
+        "price_columns": feature_columns,
+        "window_size": window_size,
+        "stride": 1,
+        "train_series": train_series,
+        "valid_series": valid_split,
+        "test_series": test_series,
+        "train_windows": train_windows,
+        "valid_windows": valid_windows,
+    }
+
+
+def _build_stats_set(
+    train_series: torch.Tensor,
+    test_series: torch.Tensor,
+    feature_columns: List[str],
+) -> Dict[str, Any]:
+    return {
+        "feature_columns": feature_columns,
+        "price_columns": feature_columns,
+        "train_series": train_series,
+        "test_series": test_series,
+        "full_series": test_series,
+    }
+
+
+def _save_ground_truth(
+    test_series: torch.Tensor,
+    seq_length: int,
+    feature_columns: List[str],
+    out_dir: Path,
+    seed: int,
+) -> Path:
+    windows = sliding_window_2d(test_series, seq_length, stride=1)
+    if windows.shape[0] == 0:
+        raise ValueError(f"Cannot create windows of length {seq_length} from test series length {test_series.shape[0]}")
+    metadata = default_metadata(
+        model_name="ground_truth",
+        model_type="ground_truth",
+        sequence_length=seq_length,
+        num_samples=int(windows.shape[0]),
+        seed=seed,
+        preprocessing_cfg={"mock": True, "num_assets": len(feature_columns)},
+        extra={
+            "num_channels": int(windows.shape[-1]),
+            "asset_columns": feature_columns,
+            "price_columns": feature_columns,
+            "is_multivariate": True,
+        },
+    )
+    path = out_dir / f"ground_truth_seq{seq_length}.pt"
+    save_artifact(windows.float(), metadata, path)
+    return path
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Generate a GBM-based StonkBench mock bundle.")
+    parser.add_argument("--out_root", type=Path, default=PROJECT_ROOT / "outputs" / "mock_bundle")
+    parser.add_argument("--seq_lengths", type=int, nargs="+", default=DEFAULT_SEQ_LENGTHS)
+    parser.add_argument("--num_assets", type=int, default=DEFAULT_NUM_ASSETS)
+    parser.add_argument("--num_steps", type=int, default=DEFAULT_TOTAL_STEPS)
+    parser.add_argument("--train_frac", type=float, default=DEFAULT_TRAIN_FRAC)
+    parser.add_argument("--window_size", type=int, default=DEFAULT_WINDOW_SIZE)
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument(
+        "--smoke_models",
+        nargs="*",
+        default=None,
+        help="Model keys to run a quick smoke generation for each seq length.",
+    )
+    parser.add_argument("--smoke_samples", type=int, default=16)
+    parser.add_argument("--smoke_epochs", type=int, default=1)
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    out_root = args.out_root.resolve()
+    data_dir = out_root / "data"
+    gt_dir = out_root / "ground_truth"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    gt_dir.mkdir(parents=True, exist_ok=True)
+
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+
+    # 1. Generate raw GBM returns.
+    returns = _generate_gbm(args.num_steps, args.num_assets, args.seed)
+    split_idx = int(args.num_steps * args.train_frac)
+    train_series = returns[:split_idx]
+    test_series = returns[split_idx:]
+
+    feature_columns = [f"asset_{i:02d}" for i in range(args.num_assets)]
+
+    # 2. Build and save the two preprocessed sets.
+    dl_set = _build_dl_set(train_series, test_series, feature_columns, args.window_size)
+    stats_set = _build_stats_set(train_series, test_series, feature_columns)
+
+    dl_path = data_dir / "mock_dl_set.pt"
+    stats_path = data_dir / "mock_statsmodel_set.pt"
+    torch.save(dl_set, dl_path)
+    torch.save(stats_set, stats_path)
+    print(f"Saved dl_set -> {dl_path}")
+    print(f"Saved stats_set -> {stats_path}")
+
+    # 3. Save ground-truth test windows for each requested length.
+    for seq_len in args.seq_lengths:
+        gt_path = _save_ground_truth(test_series, seq_len, feature_columns, gt_dir, args.seed)
+        print(f"Saved ground_truth -> {gt_path}")
+
+    # 4. Optional quick smoke generation for selected models.
+    if args.smoke_models:
+        os.environ["STONKBENCH_DL_SET_PATH"] = str(dl_path)
+        os.environ["STONKBENCH_STATS_SET_PATH"] = str(stats_path)
+        for model_key in args.smoke_models:
+            for seq_len in args.seq_lengths:
+                print(f"Smoke: {model_key} @ {seq_len} ...")
+                try:
+                    artifact = run_model_experiment(
+                        model_key=model_key,
+                        generation_length=seq_len,
+                        num_samples=args.smoke_samples,
+                        num_epochs=args.smoke_epochs,
+                        seed=args.seed,
+                        device="cpu",
+                        output_root=out_root,
+                    )
+                    print(f"  -> {artifact}")
+                except Exception as exc:
+                    print(f"  -> FAILED: {exc}")
+
+    # 5. README.
+    readme = out_root / "README.md"
+    readme.write_text(
+        f"""# Mock StonkBench bundle
+
+Generated by `scripts/generate_mock_data.py` from a multivariate GBM process.
+
+## Contents
+
+- `data/mock_dl_set.pt`
+- `data/mock_statsmodel_set.pt`
+- `ground_truth/ground_truth_seq{{L}}.pt` for L in {list(args.seq_lengths)}
+- `results/<model>/artifacts/<model>_seq{{L}}.pt` (produced only when
+  `--smoke_models` is used; otherwise generate synthetic stand-ins via
+  `scripts/mock_eval_inputs.py`)
+
+## Columns
+
+{', '.join(feature_columns)}
+
+## Run evaluation
+
+```bash
+export STONKBENCH_DL_SET_PATH={dl_path}
+export STONKBENCH_STATS_SET_PATH={stats_path}
+python src/unified_evaluator.py \\
+  --generated_dir {out_root}/results \\
+  --results_dir {out_root}/results/evaluation \\
+  --seq_lengths {' '.join(str(x) for x in args.seq_lengths)}
+```
+""",
+        encoding="utf-8",
+    )
+    print(f"Bundle ready: {out_root}")
+
+
+if __name__ == "__main__":
+    main()

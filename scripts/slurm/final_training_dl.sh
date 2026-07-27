@@ -6,7 +6,7 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=1-00:00:00
-#SBATCH --array=0-7%4
+#SBATCH --array=0-6%4
 #SBATCH --output=/scratch/%u/stonkbench/slurm_logs/train_dl_%A_%a.out
 #SBATCH --error=/scratch/%u/stonkbench/slurm_logs/train_dl_%A_%a.err
 
@@ -17,13 +17,12 @@ cd "${PROJECT_ROOT}"
 
 MODELS=(
   quantgan
-  timegan
   timegrad
-  timevae
+  kalman_vae
   unconditional_tsdiffusion
   vrnn
   pcf_gan
-  sig_wgan
+  cond_sig_wgan
 )
 
 MODEL="${MODELS[${SLURM_ARRAY_TASK_ID}]}"

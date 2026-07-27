@@ -6,24 +6,23 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=1-00:00:00
-#SBATCH --array=0-13%4
+#SBATCH --array=0-12%4
 #SBATCH --output=/scratch/%u/stonkbench/slurm_logs/train_%A_%a.out
 #SBATCH --error=/scratch/%u/stonkbench/slurm_logs/train_%A_%a.err
 
-# One model per GPU. 14 models total (8 DL + 6 statistical).
+# One model per GPU. 13 models total (7 DL + 6 statistical).
 set -euo pipefail
 source "${PROJECT_ROOT:-$HOME/StonkBench}/scripts/slurm/common.sh"
 cd "${PROJECT_ROOT}"
 
 MODELS=(
   quantgan
-  timegan
   timegrad
-  timevae
+  kalman_vae
   unconditional_tsdiffusion
   vrnn
   pcf_gan
-  sig_wgan
+  cond_sig_wgan
   gbm_adapter
   block_bootstrap
   ou_process

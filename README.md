@@ -29,7 +29,7 @@ Device resolution is automatic via `src/utils/device.py` (`cuda` when available,
 ### 2. Download and preprocess data
 
 ```bash
-python src/data_downloader.py --index SPY QQQ IWM XLF XLV AAPL MSFT NVDA AVGO JPM LLY UNH AMZN TSLA CAT UNP META NFLX PG COST XOM CVX NEE PLD LIN --start 2023-01-01 --end 2025-01-01
+python src/data_downloader.py --index SPY QQQ IWM XLF XLV AAPL MSFT NVDA AVGO JPM LLY UNH AMZN TSLA CAT UNP META NFLX PG COST XOM CVX NEE PLD LIN --start 2010-01-01 --end 2025-01-01
 
 python src/data_preprocessing.py \
   --input_csv data/combined_data.csv \
@@ -120,7 +120,7 @@ sbatch scripts/hp_search_slurm.sh
 | Kind | Preprocessed file | Tensor shape | Used by |
 |------|-------------------|--------------|---------|
 | Statistical | `statsmodel_set.pt` | `(T, C)` train series | GBM, GARCH, bootstrap, … |
-| Deep learning | `dl_set.pt` | `(N, L, C)` windows | QuantGAN, TimeGAN, TimeVAE, … |
+| Deep learning | `dl_set.pt` | `(N, L, C)` windows | QuantGAN, TimeGAN, … |
 
 `data_preprocessing.py` writes both artifacts from one CSV pass; adapters select the correct format via `STATISTICAL_MODEL_KEYS` in the pipeline.
 
