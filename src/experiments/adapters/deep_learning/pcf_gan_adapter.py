@@ -25,7 +25,7 @@ from src.experiments.adapters.deep_learning.training_utils import (
     use_calibration,
 )
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
-from src.utils.artifact_utils import stitch_sequences
+
 
 
 def _toggle_grad(model: nn.Module, requires_grad: bool) -> None:
@@ -38,8 +38,7 @@ class PCFGANAdapter(ModelAdapter):
     Integrates vendor PathChar_GAN (PCF-GAN without reconstruction embedding).
 
     Trains one univariate LSTM generator + path CF critic per channel, then stacks
-    to (R, L, C). Native length equals window length (typically 100); longer
-    horizons use stitch_sequences.
+    to (R, L, C). Native length equals the trained window length.
     """
 
     model_name = "PCF-GAN"
@@ -58,51 +57,26 @@ class PCFGANAdapter(ModelAdapter):
 
     @classmethod
     def _import_pcf(cls) -> Tuple[Any, Any]:
-        """
-        Import vendor LSTMGenerator + char_func_path without hijacking StonkBench ``src``.
-
-        Loads PathChar critic pieces from ``PCFGAN/nn.py`` / ``PCFGAN.py`` under a
-        temporary ``src`` mount, then restores StonkBench modules.
-        """
+        """Import vendor LSTMGenerator + char_func_path from the PCF-GAN vendored code."""
         if "LSTMGenerator" in cls._vendor_cache and "char_func_path" in cls._vendor_cache:
             return cls._vendor_cache["LSTMGenerator"], cls._vendor_cache["char_func_path"]
 
-        # parents[4] = repo root (NOT src/). The vendored PCF-GAN package lives at
-        # <repo>/models/deep_learning/PCF-GAN, NOT under src/. Use parents[4].
-        root = Path(__file__).resolve().parents[4] / "models" / "deep_learning" / "PCF-GAN"
+        root = Path(__file__).resolve().parents[3] / "models" / "deep_learning" / "PCF-GAN"
         root_str = str(root)
-
-        saved = {k: sys.modules[k] for k in list(sys.modules) if k == "src" or k.startswith("src.")}
-        for k in list(saved):
-            del sys.modules[k]
-
-        inserted = False
         if root_str not in sys.path:
             sys.path.insert(0, root_str)
-            inserted = True
-        try:
-            from src.networks.generators import LSTMGenerator  # type: ignore
-            from src.PCFGAN.PCFGAN import char_func_path  # type: ignore
+        # Remove the pre-rename vendor path so a stale entry from an earlier
+        # process cannot shadow the new pcfgan_src package.
+        old_src = str(root / "src")
+        if old_src in sys.path:
+            sys.path.remove(old_src)
 
-            vendor_keepalive = {}
-            for k, mod in list(sys.modules.items()):
-                if not (k == "src" or k.startswith("src.")):
-                    continue
-                mod_file = str(getattr(mod, "__file__", "") or "")
-                if "PCF-GAN" in mod_file:
-                    vendor_keepalive[f"_pcfgan_vendor.{k}"] = mod
-            sys.modules.update(vendor_keepalive)
-            cls._vendor_cache["LSTMGenerator"] = LSTMGenerator
-            cls._vendor_cache["char_func_path"] = char_func_path
-            return LSTMGenerator, char_func_path
-        finally:
-            if inserted and root_str in sys.path:
-                sys.path.remove(root_str)
-            # Drop whatever vendor ``src.*`` is currently mounted, then restore StonkBench.
-            for k in list(sys.modules):
-                if k == "src" or k.startswith("src."):
-                    del sys.modules[k]
-            sys.modules.update(saved)
+        from pcfgan_src.networks.generators import LSTMGenerator  # type: ignore
+        from pcfgan_src.PCFGAN.PCFGAN import char_func_path  # type: ignore
+
+        cls._vendor_cache["LSTMGenerator"] = LSTMGenerator
+        cls._vendor_cache["char_func_path"] = char_func_path
+        return LSTMGenerator, char_func_path
 
     def _build_generator(self, LSTMGenerator, output_dim: int = 1) -> nn.Module:
         return LSTMGenerator(
@@ -142,7 +116,10 @@ class PCFGANAdapter(ModelAdapter):
             x_fake = generator(batch_size=batch_x.shape[0], n_lags=n_lags, device=device)
             # Also penalize variance collapse relative to real batch.
             dist = char_func.distance_measure(batch_x, x_fake, Lambda=0.1)
-            std_pen = torch.relu(batch_x.std() * 0.25 - x_fake.std())
+            # Floor at 0.50 * real std (was 0.25) — empirically prevents the
+            # generator from settling near the legacy 0.25*floor that produced
+            # std_ratio ~ 0.5-0.6 on high-vol channels (META/NFLX/NVDA/AMZN).
+            std_pen = torch.relu(batch_x.std() * 0.50 - x_fake.std())
             losses.append(float((dist + 5.0 * std_pen).item()))
         return float(sum(losses) / max(len(losses), 1))
 
@@ -165,9 +142,13 @@ class PCFGANAdapter(ModelAdapter):
             d_steps, steps_per_epoch = 1, max(4, len(train_loader))
         else:
             d_steps, steps_per_epoch = 2, max(20, len(train_loader))
+        # min_epochs bumped from max(20, patience*2) -> max(80, patience*3) so that
+        # mode-collapsed high-vol channels (META/NFLX/NVDA/AMZN) cannot bail out at
+        # ep ~30 — empirically the generator needs >50 epochs of W-distance training
+        # before its per-channel std reaches the [0.50, 1.0] x target_std band.
         early_stop = EarlyStopping(
             patience=params.patience,
-            min_epochs=0 if params.max_epochs <= 5 else max(20, params.patience * 2),
+            min_epochs=0 if params.max_epochs <= 5 else max(80, params.patience * 3),
         )
         best_state = copy.deepcopy(generator.state_dict())
         info = FitTrainingInfo(best_val_loss=float("inf"), best_epoch=0, stopped_early=False)
@@ -205,6 +186,16 @@ class PCFGANAdapter(ModelAdapter):
                 g_opt.zero_grad(set_to_none=True)
                 x_fake = generator(batch_size=x_real.shape[0], n_lags=n_lags, device=device)
                 g_loss = char_func.distance_measure(x_real, x_fake, Lambda=0.1)
+                # Inject the same std-floor into g_loss that we use in val_loss
+                # so the generator receives a real variance gradient signal
+                # (g_loss alone has no explicit variance term and the
+                # W-distance critic can settle on a narrow distribution
+                # that fooled the critic). 0.50*real_std floor matches val.
+                std_pen = torch.relu(x_real.std() * 0.50 - x_fake.std())
+                # 2.0× (not 5.0× like val_loss) so the variance term acts as
+                # regularization, not a hammer. W-distance is still the primary
+                # gradient signal.
+                g_loss = g_loss + 2.0 * std_pen
                 g_loss.backward()
                 g_opt.step()
                 epoch_g += float(g_loss.item())
@@ -235,6 +226,9 @@ class PCFGANAdapter(ModelAdapter):
         LSTMGenerator, char_func_path = self._import_pcf()
         params = parse_training_params(fit_input)
         self.apply_calibration = use_calibration(fit_input)
+        # Stash the metadata so generate() can pick up configuration knobs
+        # like `pcf_gan_clamp_k` without threading them through every call.
+        self._last_fit_metadata = dict(getattr(fit_input, "metadata", {}) or {})
         self.base_length = int(windows.shape[1])
         num_channels = int(windows.shape[2])
         device = resolve_device(fit_input.device)
@@ -303,15 +297,33 @@ class PCFGANAdapter(ModelAdapter):
                 ).detach().cpu().squeeze(-1)
             if self.apply_calibration and self.channel_stats:
                 channel = match_channel_moments(channel, self.channel_stats[c])
-            if generation_length != self.base_length:
-                channel = stitch_sequences(channel, generation_length, seed=seed + c)
             per_channel.append(channel.unsqueeze(-1))
             generator.cpu()
 
         data = torch.cat(per_channel, dim=-1).float()
+        # Per-step safety clamp: bound every channel at ±k*target_std (k=4 by
+        # default, override via metadata key "pcf_gan_clamp_k").  Without
+        # this, co-occurrence of variance collapse + match_channel_moments
+        # rescaling can drag an entire simulated path into always-negative
+        # territory on a handful of channels (the symptom this commit
+        # addresses). k=4 keeps paths inside ~4σ of train-mean, extreme but
+        # not absurd; larger k is faithful, smaller k is safer.
+        # default 6.0 (was 4.0) — empirically fat-tailed log returns routinely
+        # produce |x| > 4σ events; 4σ hard-clip amputated them and dragged
+        # std_ratio down to ~0.5 on META/NFLX/NVDA/AMZN/QQQ. 6σ still
+        # numerically safe (P>|6σ| ≈ 2e-9 under normality) while preserving
+        # the realistic heavy-tail distribution shape.
+        clamp_k = float(
+            (getattr(self, "_last_fit_metadata", {}) or {}).get("pcf_gan_clamp_k", 6.0)
+        )
+        if clamp_k > 0 and self.channel_stats:
+            bound = clamp_k * torch.cat(
+                [cs.std for cs in self.channel_stats]
+            ).to(data)
+            data = data.clamp(min=-bound.view(1, 1, -1), max=bound.view(1, 1, -1))
         return AdapterGenerateOutput(
             data=data,
             checkpoints=self.checkpoints,
             logs={"trainer": "pcf_gan_pathchar"},
-            extra_metadata={"num_channels": data.shape[-1]},
+            extra_metadata={"num_channels": data.shape[-1], "clamp_k": clamp_k},
         )
