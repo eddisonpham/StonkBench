@@ -19,7 +19,7 @@ from src.experiments.adapters.deep_learning.training_utils import (
     parse_training_params,
     resolve_device,
 )
-from src.utils.artifact_utils import stitch_sequences
+
 
 
 class UnconditionalTSDiffusionAdapter(ModelAdapter):
@@ -188,8 +188,6 @@ class UnconditionalTSDiffusionAdapter(ModelAdapter):
             with torch.no_grad():
                 sampled = model.sample_n(num_samples=num_samples, return_lags=False)
             channel = torch.from_numpy(sampled).float()
-            if generation_length != channel.shape[1]:
-                channel = stitch_sequences(channel, generation_length, seed=seed + c)
             per_channel.append(channel.unsqueeze(-1))
 
         data = torch.cat(per_channel, dim=-1)

@@ -14,13 +14,6 @@ adjacent regions so the LAST window of ``train_fit`` is fully disjoint
 from the FIRST window of ``val``, and the LAST window of ``val`` is fully
 disjoint from the FIRST window of ``test``.
 
-  * ``train_fit = features[0 : int(0.7*N)]``
-  * ``val       = features[int(0.7*N) + gap : int(0.8*N) + gap]``
-  * ``test      = features[int(0.8*N) + 2*gap : N]``
-
-The channel-mean/std are computed from ``train_fit`` only (leak-free),
-then applied to ``val`` / ``test``.
-
 Output artifacts
 ================
 
@@ -42,9 +35,6 @@ import pandas as pd
 import torch
 
 
-# Chronological 70/10/20 split defaults. The ``--train_ratio`` / ``--val_ratio``
-# CLI flags now mean "fraction of TOTAL feature length". ``--gap`` defaults to
-# ``window_size - 1`` so windows cannot leak across boundaries.
 DEFAULT_TRAIN_RATIO = 0.7
 DEFAULT_VAL_RATIO = 0.1
 DEFAULT_WINDOW_SIZE = 252
@@ -68,9 +58,6 @@ def parse_args() -> argparse.Namespace:
         default="data/preprocessed",
         help="Directory for preprocessed .pt files",
     )
-    # Defaults are tuned to the canonical StonkBench setup: 1 trading year of
-    # daily bars (≈252) per window, around one full year of train + 36 d of
-    # val + 1 yr of test.
     parser.add_argument(
         "--window_size",
         type=int,
@@ -115,14 +102,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _split_feature_columns(columns: List[str]) -> Tuple[List[str], List[str]]:
-    price_cols = [c for c in columns if c != "timestamp" and not c.endswith("_volume")]
-    volume_cols = [c for c in columns if c.endswith("_volume")]
-    if not price_cols or not volume_cols:
-        raise ValueError("Expected both price columns and *_volume columns in CSV.")
-    return price_cols, volume_cols
-
-
 def _sliding_windows(series: torch.Tensor, window_size: int, stride: int) -> torch.Tensor:
     if series.ndim != 2:
         raise ValueError(f"Expected 2D tensor (T, C), got {tuple(series.shape)}")
@@ -141,12 +120,7 @@ def _split_boundaries(
     val_ratio: float,
     gap: int,
 ) -> Tuple[int, int, int, int]:
-    """Return (train_end, val_start, val_end, test_start) absolute indices.
-
-    All four indices are ABSOLUTE positions in the original series. The val and
-    test regions follow their respective gap so windows cannot overlap across
-    the boundary.
-    """
+    """Return (train_end, val_start, val_end, test_start) absolute indices."""
     if not 0.0 < train_ratio < 1.0:
         raise ValueError("--train_ratio must be in (0, 1)")
     if not 0.0 < val_ratio < 1.0:
@@ -162,27 +136,21 @@ def _split_boundaries(
     val_start = train_end + gap
     val_end = val_start + int(n_total * val_ratio)
     test_start = val_end + gap
-
-    # Region length sanity (must hold for sliding-window slide to produce at
-    # least one window). With default args (L=252, gap=251) and N > ~1500 this
-    # is always satisfied; if not we surface a helpful error.
     return train_end, val_start, val_end, test_start
 
 
-def _build_transformed_frame(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str], List[str]]:
-    price_cols, volume_cols = _split_feature_columns(list(df.columns))
-    for col in price_cols + volume_cols:
-        if (df[col] <= 0).any():
-            raise ValueError(f"Column '{col}' has non-positive values; log transform is undefined.")
+def _build_transformed_frame(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
+    feature_columns = [c for c in df.columns if c != "timestamp"]
+    if not feature_columns:
+        raise ValueError("Expected at least one non-timestamp column in CSV.")
+    if (df[feature_columns] <= 0).any().any():
+        bad = df.columns[(df[feature_columns] <= 0).any()].tolist()
+        raise ValueError(f"Columns have non-positive values; log transform is undefined: {bad}")
 
-    price_log_returns = np.log(df[price_cols]).diff().iloc[1:].reset_index(drop=True)
-    # Log-volume changes (not levels) so volume features are stationary like returns.
-    volume_log_changes = np.log(df[volume_cols]).diff().iloc[1:].reset_index(drop=True)
+    price_log_returns = np.log(df[feature_columns]).diff().iloc[1:].reset_index(drop=True)
     timestamps = df["timestamp"].iloc[1:].reset_index(drop=True)
-
-    transformed = pd.concat([timestamps, price_log_returns, volume_log_changes], axis=1)
-    feature_columns = price_cols + volume_cols
-    return transformed, price_cols, feature_columns
+    transformed = pd.concat([timestamps, price_log_returns], axis=1)
+    return transformed, feature_columns
 
 
 def main() -> None:
@@ -195,7 +163,7 @@ def main() -> None:
         raise FileNotFoundError(f"Input CSV not found: {input_csv}")
 
     df = pd.read_csv(input_csv)
-    transformed_df, price_columns, feature_columns = _build_transformed_frame(df)
+    transformed_df, feature_columns = _build_transformed_frame(df)
     features = torch.tensor(transformed_df[feature_columns].values, dtype=torch.float32)
     timestamps = torch.tensor(transformed_df["timestamp"].values, dtype=torch.long)
 
@@ -208,26 +176,16 @@ def main() -> None:
 
     n_total = int(features.shape[0])
 
-    # Auto-fit relaxation (only when the user did not pass --gap explicitly):
-    # if a strict gap = window_size - 1 would leave the test region too small
-    # for even one sliding window, shrink gap to the largest value such that
-    # EACH of train/val/test can still host at least one window. Chronology
-    # (train < val < test) and the "no future-data leakage" property (training
-    # windows never include val/test rows) are preserved at all times. We
-    # only relax the *temporal adjacency* of windows across split boundaries.
     relaxed_gap_msg = None
     if not user_gap and n_total > 0:
         test_frac = max(0.0, 1.0 - train_ratio - val_ratio)
         test_available = int(n_total * test_frac)
-        # We need train_len, val_len, test_len >= window_size; the gaps total
-        # to 2*gap, so solve for the largest gap that keeps regions wide enough.
         max_gap = max(0, (test_available - window_size) // 2)
         if gap > max_gap:
             relaxed_gap_msg = (
                 f"Strict gap (= window_size - 1 = {window_size - 1}) would leave the "
                 f"test region smaller than window_size ({window_size}). "
-                f"Auto-fitting gap to {max_gap} (largest value such that all three "
-                f"regions still contain at least one window; chronology preserved)."
+                f"Auto-fitting gap to {max_gap}."
             )
             gap = max_gap
 
@@ -238,8 +196,6 @@ def main() -> None:
         gap=gap,
     )
 
-    # Refuse splits that would leave any region without enough samples for one
-    # sliding window.
     train_len = train_end
     val_len = val_end - val_start
     test_len = n_total - test_start
@@ -257,7 +213,6 @@ def main() -> None:
             f"payload is too large for the available feature rows."
         )
 
-    # ===== SPLIT FIRST (chronological, with gaps) =====
     train_fit_series = features[:train_end]
     valid_series = features[val_start:val_end]
     test_series = features[test_start:]
@@ -269,8 +224,6 @@ def main() -> None:
     assert valid_series.shape[0] == val_len
     assert test_series.shape[0] == test_len
 
-    # ===== THEN SLIDING-WINDOW INSIDE EACH REGION =====
-    # Per-channel z-score from train_fit split only (leak-free).
     channel_mean = train_fit_series.mean(dim=0)
     channel_std = train_fit_series.std(dim=0, unbiased=True).clamp(min=1e-8)
     train_series_norm = (train_fit_series - channel_mean) / channel_std
@@ -281,10 +234,6 @@ def main() -> None:
     dl_valid_windows = _sliding_windows(valid_series_norm, window_size, stride)
     dl_test_windows = _sliding_windows(test_series_norm, window_size, stride)
 
-    # Optional leakage audit: assert adjacent windows cannot overlap across
-    # region boundaries. The gap >= window_size-1 makes this hold by
-    # construction, but a runtime check protects against future maintenance
-    # drift.
     if args.check_leakage and dl_train_windows.shape[0] and dl_valid_windows.shape[0]:
         last_train_ts = train_fit_timestamps[-1].item()
         first_val_ts = valid_timestamps[0].item()
@@ -296,7 +245,7 @@ def main() -> None:
 
     dl_set: Dict[str, object] = {
         "feature_columns": feature_columns,
-        "price_columns": price_columns,
+        "price_columns": feature_columns,
         "window_size": window_size,
         "stride": stride,
         "train_ratio": train_ratio,
@@ -324,7 +273,7 @@ def main() -> None:
 
     statsmodel_set: Dict[str, object] = {
         "feature_columns": feature_columns,
-        "price_columns": price_columns,
+        "price_columns": feature_columns,
         "train_ratio": train_ratio,
         "val_ratio": val_ratio,
         "gap": gap,

@@ -22,7 +22,7 @@ from src.experiments.adapters.deep_learning.training_utils import parse_training
 
 from src.models.deep_learning.quantgan_module import QuantGANConfig, QuantGANTrainer
 
-from src.utils.artifact_utils import stitch_sequences
+
 
 
 
@@ -157,17 +157,9 @@ class QuantGANAdapter(ModelAdapter):
         per_channel = []
 
         for c, trainer in enumerate(self.trainers):
-
             channel = trainer.generate(num_samples, self.base_length, seed=seed + c)
-
             if self.apply_calibration and self.channel_stats:
-
                 channel = match_channel_moments(channel, self.channel_stats[c])
-
-            if generation_length != self.base_length:
-
-                channel = stitch_sequences(channel, generation_length, seed=seed + c)
-
             per_channel.append(channel.unsqueeze(-1))
 
         data = torch.cat(per_channel, dim=-1)

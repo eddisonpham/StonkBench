@@ -29,6 +29,7 @@ class VRNNAdapter(ModelAdapter):
     """Multivariate VRNN on continuous z-scored returns (Gaussian emission)."""
 
     model_name = "VRNN"
+    supports_arbitrary_generation = True
 
     def __init__(self) -> None:
         super().__init__()
