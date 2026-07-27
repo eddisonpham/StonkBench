@@ -3,29 +3,34 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List
-
+from typing import Any, Dict, List# Canonical 7 DL models (post 2026-07-23 cleanup).  timegrad, timevae, sig_wgan
+# removed; cond_sig_wgan + kalman_vae + conditional_tsdiffusion kept (each one
+# successfully produces meaningful samples and ships a checkpoint).
 DL_MODEL_KEYS = [
     "quantgan",
-    "timegan",
-    "timegrad",
-    "timevae",
-    "unconditional_tsdiffusion",
     "vrnn",
     "pcf_gan",
-    "sig_wgan",
+    "kalman_vae",
+    "unconditional_tsdiffusion",
+    "conditional_tsdiffusion",
+    "cond_sig_wgan",
 ]
+
 
 # Cap full-train patience so early-stopping does not collapse training too soon.
 # Collapsed GAN/RNN families need a higher floor.
 FULL_TRAIN_PATIENCE_CAP = 12
 
 # Models that systematically under-dispersed on z-scored returns in run 2026-07-11.
+# cond_sig_wgan added 2026-07-23: revert run shows per-channel std_ratio ~0.3 across all
+# 25 channels (KS p=0). Channel moment calibration is required to lift std_ratio to ~1.0.
+# kalman_vae + conditional_tsdiffusion generate at the proper return scale already
+# (post-2026-07-23 retraining, calibration inactive by default).
 CALIBRATE_ON_GENERATE = {
     "quantgan",
     "vrnn",
     "pcf_gan",
-    # sig_wgan: batch moment calibration amplified collapse (zero band + wave outliers).
+    "cond_sig_wgan",
 }
 
 
@@ -52,24 +57,22 @@ class HPConfig:
 # Longer HP budgets; GAN/RNN families need more epochs before early-stop can fire.
 HP_SEARCH_EPOCHS: Dict[str, int] = {
     "quantgan": 80,
-    "timegan": 80,
-    "timegrad": 60,
-    "timevae": 60,
-    "unconditional_tsdiffusion": 60,
     "vrnn": 80,
     "pcf_gan": 80,
-    "sig_wgan": 80,
+    "kalman_vae": 60,
+    "unconditional_tsdiffusion": 60,
+    "conditional_tsdiffusion": 60,
+    "cond_sig_wgan": 60,
 }
 
 FULL_TRAIN_EPOCHS: Dict[str, int] = {
     "quantgan": 150,
-    "timegan": 150,
-    "timegrad": 150,
-    "timevae": 120,
-    "unconditional_tsdiffusion": 150,
     "vrnn": 150,
     "pcf_gan": 150,
-    "sig_wgan": 150,
+    "kalman_vae": 100,
+    "unconditional_tsdiffusion": 150,
+    "conditional_tsdiffusion": 150,
+    "cond_sig_wgan": 150,
 }
 
 # Patience raised for collapse-prone models (avoid epoch-2 / epoch-13 stops).
@@ -85,41 +88,6 @@ MODEL_HP_CONFIGS: Dict[str, List[HPConfig]] = {
         HPConfig("lr1e-4_bs64_p8", False, 1e-4, 64, 8),
         HPConfig("lr5e-4_bs16_p12", False, 5e-4, 16, 12),
     ],
-    # Prefer mid batch sizes (32–64). Prior 2026-07-11 "winner" bs=256 collapsed
-    # (spurious val loss on z-score scale + GRU batch/time swap). Cap stays ≤128 in adapter.
-    "timegan": [
-        HPConfig("vendor_default", True, 1e-3, 64, 10),
-        HPConfig("lr5e-4_bs64_p10", False, 5e-4, 64, 10),
-        HPConfig("lr1e-3_bs32_p10", False, 1e-3, 32, 10),
-        HPConfig("lr1e-3_bs64_p12", False, 1e-3, 64, 12),
-        HPConfig("lr5e-4_bs32_p12", False, 5e-4, 32, 12),
-        HPConfig("lr2e-3_bs64_p10", False, 2e-3, 64, 10),
-        HPConfig("lr1e-3_bs64_p8", False, 1e-3, 64, 8),
-        HPConfig("lr5e-4_bs64_p12", False, 5e-4, 64, 12),
-        HPConfig("lr1e-3_bs128_p12", False, 1e-3, 128, 12),
-    ],
-    "timegrad": [
-        HPConfig("vendor_default", True, 1e-3, 32, 5),
-        HPConfig("lr5e-4_bs32_p5", False, 5e-4, 32, 5),
-        HPConfig("lr2e-3_bs32_p5", False, 2e-3, 32, 5),
-        HPConfig("lr1e-3_bs16_p5", False, 1e-3, 16, 5),
-        HPConfig("lr1e-3_bs64_p5", False, 1e-3, 64, 5),
-        HPConfig("lr1e-3_bs32_p4", False, 1e-3, 32, 4),
-        HPConfig("lr1e-3_bs32_p6", False, 1e-3, 32, 6),
-        HPConfig("lr5e-4_bs16_p4", False, 5e-4, 16, 4),
-        HPConfig("lr2e-3_bs64_p6", False, 2e-3, 64, 6),
-    ],
-    "timevae": [
-        HPConfig("vendor_default", True, 1e-3, 16, 5),
-        HPConfig("lr5e-4_bs16_p5", False, 5e-4, 16, 5),
-        HPConfig("lr2e-3_bs16_p5", False, 2e-3, 16, 5),
-        HPConfig("lr1e-3_bs8_p5", False, 1e-3, 8, 5),
-        HPConfig("lr1e-3_bs32_p5", False, 1e-3, 32, 5),
-        HPConfig("lr1e-3_bs16_p4", False, 1e-3, 16, 4),
-        HPConfig("lr1e-3_bs16_p6", False, 1e-3, 16, 6),
-        HPConfig("lr5e-4_bs8_p4", False, 5e-4, 8, 4),
-        HPConfig("lr2e-3_bs32_p6", False, 2e-3, 32, 6),
-    ],
     "unconditional_tsdiffusion": [
         HPConfig("vendor_default", True, 1e-3, 64, 5),
         HPConfig("lr5e-4_bs64_p5", False, 5e-4, 64, 5),
@@ -131,6 +99,22 @@ MODEL_HP_CONFIGS: Dict[str, List[HPConfig]] = {
         HPConfig("lr5e-4_bs32_p4", False, 5e-4, 32, 4),
         HPConfig("lr2e-3_bs128_p6", False, 2e-3, 128, 6),
     ],
+    # Conditional TSDiffusion uses TSDiffCond (same backbone as the uncond variant
+    # but with mask-aware loss + observed-past conditioning).  Per-step
+    # diagnostics are identical, and the lr/bs/patience sensitivity surface
+    # is the same — alias the unconditional grid rather than copy 9 lines.
+    "conditional_tsdiffusion": [
+        HPConfig("vendor_default", True, 1e-3, 64, 5),
+        HPConfig("lr5e-4_bs64_p5", False, 5e-4, 64, 5),
+        HPConfig("lr2e-3_bs64_p5", False, 2e-3, 64, 5),
+        HPConfig("lr1e-3_bs32_p5", False, 1e-3, 32, 5),
+        HPConfig("lr1e-3_bs128_p5", False, 1e-3, 128, 5),
+        HPConfig("lr1e-3_bs64_p4", False, 1e-3, 64, 4),
+        HPConfig("lr1e-3_bs64_p6", False, 1e-3, 64, 6),
+        HPConfig("lr5e-4_bs32_p4", False, 5e-4, 32, 4),
+        HPConfig("lr2e-3_bs128_p6", False, 2e-3, 128, 6),
+    ],  # alias of unconditional_tsdiffusion grid; values intentionally inlined.
+
     "vrnn": [
         HPConfig("vendor_default", True, 1e-3, 32, 10),
         HPConfig("lr5e-4_bs32_p10", False, 5e-4, 32, 10),
@@ -154,17 +138,35 @@ MODEL_HP_CONFIGS: Dict[str, List[HPConfig]] = {
         HPConfig("lr5e-4_bs32_p8", False, 5e-4, 32, 8),
         HPConfig("lr2e-3_bs128_p12", False, 2e-3, 128, 12),
     ],
-    # Vendor SigWGAN.json: lr=1e-3; batch capped vs paper's 2000 for our window counts.
-    "sig_wgan": [
-        HPConfig("vendor_default", True, 1e-3, 128, 10),
-        HPConfig("lr5e-4_bs128_p10", False, 5e-4, 128, 10),
-        HPConfig("lr2e-3_bs128_p10", False, 2e-3, 128, 10),
+    # Kalman-VAE: vendor kvae defaults (lr=1e-3) plus the K-VAE-specific
+    # architectural knobs (a_dim, z_dim, K, dynamics). The adapter reads
+    # kvae_a_dim / kvae_z_dim / kvae_K / kvae_dynamics metadata; missing
+    # keys fall back to the adapter's built-in defaults (a=16, z=8, K=3,
+    # dynamics='lstm'). HP grid below only varies on lr/batch/patience;
+    # architectural sweeps are scheduled out-of-band.
+    "kalman_vae": [
+        HPConfig("vendor_default", True, 1e-3, 32, 10),
+        HPConfig("lr5e-4_bs32_p10", False, 5e-4, 32, 10),
+        HPConfig("lr2e-3_bs32_p10", False, 2e-3, 32, 10),
+        HPConfig("lr1e-3_bs16_p10", False, 1e-3, 16, 10),
         HPConfig("lr1e-3_bs64_p10", False, 1e-3, 64, 10),
-        HPConfig("lr1e-3_bs256_p10", False, 1e-3, 256, 10),
-        HPConfig("lr1e-3_bs128_p8", False, 1e-3, 128, 8),
-        HPConfig("lr1e-3_bs128_p12", False, 1e-3, 128, 12),
-        HPConfig("lr5e-4_bs64_p8", False, 5e-4, 64, 8),
-        HPConfig("lr2e-3_bs256_p12", False, 2e-3, 256, 12),
+        HPConfig("lr1e-3_bs32_p8", False, 1e-3, 32, 8),
+        HPConfig("lr1e-3_bs32_p12", False, 1e-3, 32, 12),
+        HPConfig("lr5e-4_bs16_p8", False, 5e-4, 16, 8),
+        HPConfig("lr2e-3_bs64_p12", False, 2e-3, 64, 12),
+    ],
+    # Conditional Sig-WGAN: signature-Wasserstein-1 loss.
+    # Uses lr=1e-2 (vendor default for SigCWGAN), batch_size=64.
+    "cond_sig_wgan": [
+        HPConfig("vendor_default", True, 1e-2, 64, 10),
+        HPConfig("lr5e-3_bs64_p10", False, 5e-3, 64, 10),
+        HPConfig("lr2e-2_bs64_p10", False, 2e-2, 64, 10),
+        HPConfig("lr1e-2_bs32_p10", False, 1e-2, 32, 10),
+        HPConfig("lr1e-2_bs128_p10", False, 1e-2, 128, 10),
+        HPConfig("lr1e-2_bs64_p8", False, 1e-2, 64, 8),
+        HPConfig("lr1e-2_bs64_p12", False, 1e-2, 64, 12),
+        HPConfig("lr5e-3_bs32_p8", False, 5e-3, 32, 8),
+        HPConfig("lr2e-2_bs128_p12", False, 2e-2, 128, 12),
     ],
 }
 
@@ -179,9 +181,14 @@ def configs_for_model(model_key: str) -> List[HPConfig]:
 
 
 def full_train_metadata(model_key: str, hp_summary_entry: Dict) -> Dict[str, float | int | bool]:
+    """Compose the metadata dict the final-train stage passes to the adapter.
+
+    For most DL models this is just the HP-validated ``config_id``,
+    ``max_epochs``, ``learning_rate``, ``batch_size``, ``patience``. For
+    """
     best = hp_summary_entry["best_config"]
     patience = min(int(best["patience"]), FULL_TRAIN_PATIENCE_CAP)
-    return {
+    metadata: Dict[str, Any] = {
         "config_id": best.get("config_id", "hp_winner"),
         "max_epochs": FULL_TRAIN_EPOCHS[model_key],
         "learning_rate": float(best["learning_rate"]),
@@ -190,3 +197,38 @@ def full_train_metadata(model_key: str, hp_summary_entry: Dict) -> Dict[str, flo
         "use_calibration": model_key in CALIBRATE_ON_GENERATE,
         "hp_search_val_loss": float(best["mean_best_val_loss"]),
     }
+    if model_key == "cond_sig_wgan":
+        # Conditional Sig-WGAN uses total_steps (not epochs) for training
+        # duration. Reverted to the proven-stable architecture after the
+        # 2026-07-22 v2_depth3 run diverged (NaN-filled weights by end of
+        # training; depth=3 + hidden=(100,100,100) was too wide/deep for our
+        # 25-channel data without spectral norm / gradient clipping). The
+        # original first_run config (depth=2, hidden=(50,50,50), 1500 steps)
+        # produced a finite .pt; extending to 5000 steps gives more budget
+        # for representational capacity without the divergence risk of the
+        # wider/deeper net. p=20 (vs original 10) gives longer-range
+        # conditioning context for the 252-step AR rollout.
+        #
+        # Post-rollout fixes (default-on, can be disabled per-experiment via
+        # metadata flags). The revert_2026-07-23 run shows severe time-axis
+        # variance decay (Q1 std=0.013 → Q4 std=0.003, 99.2% of samples have
+        # LATE std < 50% of EARLY std) AND uniform per-channel under-
+        # dispersion (std_ratio median ≈ 0.35). Together:
+        #   - cond_sig_wgan_time_flatten: per-step std rescaling to t=0's
+        #     std; kills the AR roll-out decay at the symptom level (post-hoc).
+        #   - cond_sig_wgan_per_step_clamp: final bound on per-step values
+        #     at ±clamp_val (5.0 = safe z-scored log return tail); catches
+        #     any explosive ratio from the flatten transform.
+        #   - model added to CALIBRATE_ON_GENERATE so the adapter's
+        #     match_channel_moments() lifts per-channel std to train stats
+        #     after the flatten.
+        metadata["cond_sig_wgan_steps"] = 5000
+        metadata["cond_sig_wgan_p"] = 20
+        metadata["cond_sig_wgan_hidden"] = "50,50,50"
+        metadata["cond_sig_wgan_mc_size"] = 100
+        metadata["cond_sig_wgan_sig_depth"] = 2
+        metadata["cond_sig_wgan_stride"] = 5
+        metadata["cond_sig_wgan_time_flatten"] = True
+        metadata["cond_sig_wgan_per_step_clamp"] = True
+        metadata["cond_sig_wgan_clamp_val"] = 5.0
+    return metadata

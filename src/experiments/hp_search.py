@@ -249,7 +249,32 @@ def main() -> None:
     if args.trial_id is not None:
         if args.trial_id < 0 or args.trial_id >= len(specs):
             raise ValueError(f"trial_id must be in [0, {len(specs) - 1}]")
-        results = [run_trial(specs[args.trial_id], dl_set, device, output_dir, smoke=args.smoke)]
+        # Resume-by-skip: if the trial JSON for this id already exists on
+        # disk (from a previous orchestrator run that completed or from a
+        # sibling that's already produced the artifact), short-circuit with
+        # a one-line log instead of re-running the full ~30-min training.
+        # Critical for cross-restart recovery: without this check, the
+        # orchestrator would re-train every previously-completed trial
+        # before producing its first *new* result (effectively undoing all
+        # prior compute). The orchestrator re-reads this module on every
+        # child launch, so this takes effect on the NEXT trial without
+        # requiring an orchestrator restart.
+        spec = specs[args.trial_id]
+        expected_path = output_dir / "trials" / f"{spec.trial_id:05d}_{spec.label()}.json"
+        # Skip only if JSON exists AND parses (defensive against 0-byte
+        # or truncated JSONs from prior kill-mid-write cycles; missing
+        # the JSONDecodeError catch would silently skip those trials
+        # forever, undoing the resume-by-skip intent).
+        if expected_path.exists():
+            try:
+                with expected_path.open("r", encoding="utf-8") as _prev:
+                    json.load(_prev)
+                print(f"Trial {spec.trial_id} already complete at {expected_path}; skipping.")
+                return
+            except (json.JSONDecodeError, OSError, ValueError):
+                # Truncated or corrupted JSON; fall through to re-run.
+                pass
+        results = [run_trial(spec, dl_set, device, output_dir, smoke=args.smoke)]
     else:
         results = []
         for spec in specs:
