@@ -17,13 +17,12 @@ ADAPTER_REGISTRY: Dict[str, str] = {
     "de_jump_diffusion": "src.experiments.adapters.statistical_adapter.StatisticalDEJDAdapter",
     "garch11": "src.experiments.adapters.statistical_adapter.StatisticalGARCH11Adapter",
     "quantgan": "src.experiments.adapters.deep_learning.quantgan_adapter.QuantGANAdapter",
-    "timegan": "src.experiments.adapters.deep_learning.timegan_adapter.TimeGANAdapter",
-    "timegrad": "src.experiments.adapters.deep_learning.timegrad_adapter.TimeGradAdapter",
-    "timevae": "src.experiments.adapters.deep_learning.timevae_adapter.TimeVAEAdapter",
+    "kalman_vae": "src.experiments.adapters.deep_learning.kalman_vae_adapter.KalmanVAEAdapter",
     "unconditional_tsdiffusion": "src.experiments.adapters.deep_learning.utsd_adapter.UnconditionalTSDiffusionAdapter",
+    "conditional_tsdiffusion": "src.experiments.adapters.deep_learning.cond_tsd_adapter.ConditionalTSDiffusionAdapter",
     "vrnn": "src.experiments.adapters.deep_learning.vrnn_adapter.VRNNAdapter",
     "pcf_gan": "src.experiments.adapters.deep_learning.pcf_gan_adapter.PCFGANAdapter",
-    "sig_wgan": "src.experiments.adapters.deep_learning.sig_wgan_adapter.SigWGANAdapter",
+    "cond_sig_wgan": "src.experiments.adapters.deep_learning.cond_sig_wgan_adapter.ConditionalSigWGANAdapter",
 }
 
 

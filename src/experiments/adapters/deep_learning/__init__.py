@@ -2,13 +2,12 @@
 
 __all__ = [
     "QuantGANAdapter",
-    "TimeGANAdapter",
     "TimeGradAdapter",
-    "TimeVAEAdapter",
+    "KalmanVAEAdapter",
     "UnconditionalTSDiffusionAdapter",
     "VRNNAdapter",
     "PCFGANAdapter",
-    "SigWGANAdapter",
+    "ConditionalSigWGANAdapter",
 ]
 
 
@@ -17,18 +16,14 @@ def __getattr__(name: str):
         from src.experiments.adapters.deep_learning.quantgan_adapter import QuantGANAdapter
 
         return QuantGANAdapter
-    if name == "TimeGANAdapter":
-        from src.experiments.adapters.deep_learning.timegan_adapter import TimeGANAdapter
-
-        return TimeGANAdapter
     if name == "TimeGradAdapter":
         from src.experiments.adapters.deep_learning.timegrad_adapter import TimeGradAdapter
 
         return TimeGradAdapter
-    if name == "TimeVAEAdapter":
-        from src.experiments.adapters.deep_learning.timevae_adapter import TimeVAEAdapter
+    if name == "KalmanVAEAdapter":
+        from src.experiments.adapters.deep_learning.kalman_vae_adapter import KalmanVAEAdapter
 
-        return TimeVAEAdapter
+        return KalmanVAEAdapter
     if name == "UnconditionalTSDiffusionAdapter":
         from src.experiments.adapters.deep_learning.utsd_adapter import UnconditionalTSDiffusionAdapter
 
@@ -41,8 +36,10 @@ def __getattr__(name: str):
         from src.experiments.adapters.deep_learning.pcf_gan_adapter import PCFGANAdapter
 
         return PCFGANAdapter
-    if name == "SigWGANAdapter":
-        from src.experiments.adapters.deep_learning.sig_wgan_adapter import SigWGANAdapter
+    if name == "ConditionalSigWGANAdapter":
+        from src.experiments.adapters.deep_learning.cond_sig_wgan_adapter import (
+            ConditionalSigWGANAdapter,
+        )
 
-        return SigWGANAdapter
+        return ConditionalSigWGANAdapter
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
