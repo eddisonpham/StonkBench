@@ -27,7 +27,6 @@ from src.utils.evaluation_classes_utils import (  # noqa: E402
     StylizedFactsEvaluator,
     VisualAssessmentEvaluator,
     UtilityEvaluator,
-    _group_channel_metrics,
 )
 
 from src.utils.preprocessed_data_utils import (  # noqa: E402
@@ -207,10 +206,8 @@ class RealDataPreparer:
 class CoreMetricsEvaluator:
     """Evaluates core taxonomy metrics (fidelity, diversity, stylized facts, visual).
 
-    When ``asset_columns`` and ``price_columns`` are provided, per-channel results
-    are post-processed via ``_group_channel_metrics`` so the JSON report contains
-    separate ``price_mean`` and ``volume_mean`` blocks per metric (Phase 5 lock).
-    Single-channel evaluation falls through to the legacy flat-mean layout.
+    Per-channel results are averaged across all channels; the raw per-channel
+    breakdown is preserved under ``per_channel`` for transparency.
     """
 
     def __init__(
@@ -223,40 +220,13 @@ class CoreMetricsEvaluator:
         self.asset_columns = list(asset_columns or [])
         self.price_columns = list(price_columns or [])
 
-    def _split_indices(self) -> Tuple[List[int], List[int]]:
-        price_set = set(self.price_columns) if self.price_columns else set()
-        price_idx: List[int] = []
-        volume_idx: List[int] = []
-        if not self.asset_columns:
-            return price_idx, volume_idx
-        for i, col in enumerate(self.asset_columns):
-            if "_volume" in col:
-                volume_idx.append(i)
-            elif col in price_set or not price_set:
-                # When no price_columns resolved, default everything that isn't a
-                # *_volume column to the price group — preserves legacy single-
-                # channel and unlabelled-multivariate layouts.
-                price_idx.append(i)
-        return price_idx, volume_idx
-
     def _post_process(self, name: str, raw: Dict[str, Any]) -> Dict[str, Any]:
-        if not isinstance(raw, dict) or "per_channel" not in raw or not self.asset_columns:
+        if not isinstance(raw, dict) or "per_channel" not in raw:
             return {name: raw} if raw else {}
         if not isinstance(raw["per_channel"], list):
             return {name: raw}
-        price_idx, volume_idx = self._split_indices()
-        grouped = _group_channel_metrics(raw["per_channel"], price_idx, volume_idx)
-        # Single-channel legacy: prefer the flat-mean schema the user already
-        # expects. Multi-channel: emit the new per-channel-grouped report.
-        n_channels = len(raw["per_channel"])
-        if n_channels == 1:
-            flat = {k: v for k, v in raw.items() if k != "per_channel"}
-            return {name: flat}
-        return {
-            f"{name}_price_mean": grouped["price_mean"],
-            f"{name}_volume_mean": grouped["volume_mean"],
-            f"{name}_per_channel": grouped["per_channel"],
-        }
+        flat = {k: v for k, v in raw.items() if k != "per_channel"}
+        return {name: flat, f"{name}_per_channel": raw["per_channel"]}
 
     def evaluate(
         self,
@@ -295,7 +265,7 @@ class CoreMetricsEvaluator:
 class UtilityMetricsEvaluator:
     """Evaluates utility metrics (deep hedging).
 
-    Phase 2: aggregates price_mean / volume_mean separately per metric.
+    Phase 2: aggregates per-channel metrics into an overall mean.
     Post-revert (commit 9c4b980): the only active path is the legacy vendor
     ``UtilityEvaluator`` (mse, strikes at S(0) European option). The previous
     FecampDeepHedgerEvaluator (cvar / entropic / log_utility with synthetic /
@@ -330,22 +300,17 @@ class UtilityMetricsEvaluator:
                 averaged[key] = value
         return averaged
 
-    def _evaluate_mse_legacy(
+    def _evaluate_mse(
         self,
         synthetic: torch.Tensor,
         dataset: Dict[str, Any],
         seq_length: int,
     ) -> Dict[str, Any]:
-        """Single-pass vendor ``UtilityEvaluator`` — only active hedger-evaluation
-        path post-Fecamp revert. Returned schema is flattened-everything-as-price_mean
-        so the caller can emit the same top-level keys regardless of which loss
-        path is in use.
-        """
+        """Single-pass vendor ``UtilityEvaluator`` (MSE deep hedging)."""
         num_samples = synthetic.shape[0]
         device = synthetic.device
         synthetic_initials = torch.zeros(num_samples, device=device)
         real_train_init = dataset["deep_learning_train_init"]
-        # Squeeze to (N,) when possible — legacy vendor expects initials shaped like prices.
         if real_train_init.ndim > 1:
             real_train_init = real_train_init.mean(dim=-1)
         real_val_init = dataset["deep_learning_valid_init"]
@@ -377,12 +342,7 @@ class UtilityMetricsEvaluator:
             raw = evaluator.evaluate()
         except Exception as exc:  # noqa: BLE001
             return {"utility_error": str(exc)}
-        return {
-            "summary": raw,
-            "price_mean": raw,
-            "volume_mean": {},
-            "volume_mean_reason": "mse hedger averages all channels together natively",
-        }
+        return {"summary": raw}
 
     def evaluate(
         self,
@@ -390,22 +350,11 @@ class UtilityMetricsEvaluator:
         dataset: Dict[str, Any],
         seq_length: int,
     ) -> Dict[str, Any]:
-        """Run utility evaluation using deep hedging across requested data modes."""
+        """Run utility evaluation using deep hedging."""
         synthetic = torch.from_numpy(generated_data).float()
         if synthetic.ndim == 2:
             synthetic = synthetic.unsqueeze(-1)
-
-        feature_columns = dataset.get("asset_columns", [])
-        price_columns = dataset.get("price_columns", feature_columns)
-        price_set = set(price_columns) if price_columns else set()
-        price_indices: List[int] = [
-            i for i, c in enumerate(feature_columns) if "_volume" not in c and (not price_set or c in price_set)
-        ]
-        volume_indices: List[int] = [i for i, c in enumerate(feature_columns) if "_volume" in c]
-        if not price_indices:
-            return {"utility_error": "No price channels available for utility evaluation."}
-
-        return self._evaluate_mse_legacy(synthetic, dataset, seq_length)
+        return self._evaluate_mse(synthetic, dataset, seq_length)
 
 
 class UnifiedEvaluator:
@@ -637,7 +586,7 @@ class UnifiedEvaluator:
             try:
                 result = self.evaluate_artifact(artifact_path)
                 if result:
-                    key = f"{result['model_name']}_seq_{result['sequence_length']}"
+                    key = f"{result['model_name']}_seq{result['sequence_length']}"
                     all_results[key] = result
             except Exception as exc:  # noqa: BLE001
                 print(f"[ERROR] Failed to evaluate {artifact_path}: {exc}")
