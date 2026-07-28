@@ -212,11 +212,31 @@ class ConditionalTSDiffusionAdapter(UnconditionalTSDiffusionAdapter):
             best_epochs.append(info.best_epoch)
             stopped_early = stopped_early or info.stopped_early
             self.models.append(model)
-            ckpt = checkpoints_dir / f"ctsd_checkpoint_{c + 1}.pt"
-            torch.save(model.state_dict(), ckpt)
-            self.checkpoints.append(ckpt)
 
         self._is_fitted = True
+        # Persist ONE consolidated FINAL checkpoint (multi-channel dict)
+        # labeled with the seq length so downstream regeneration loads one
+        # file. Per-channel ctsd_checkpoint_{c+1}.pt stays for in-process
+        # generation; the consolidated file is the canonical handoff.
+        meta_ = fit_input.metadata or {}
+        model_key_ = str(meta_.get("model_key", self.model_name))
+        final_ckpt = checkpoints_dir / f"{model_key_}_seq{self.base_length}_final.pt"
+        torch.save(
+            {
+                "model_name": model_key_,
+                "num_channels": len(self.models),
+                "base_length": self.base_length,
+                "context_length": self.context_length,
+                "prediction_length": self.prediction_length,
+                "channels": [
+                    {"channel": c, "state_dict": m.state_dict()}
+                    for c, m in enumerate(self.models)
+                ],
+            },
+            final_ckpt,
+        )
+        # Track the consolidated ckpt as the sole model checkpoint.
+        self.checkpoints = [final_ckpt]
         return {
             "num_channels": self.num_channels,
             "best_val_loss": float(sum(channel_val_losses) / len(channel_val_losses)),

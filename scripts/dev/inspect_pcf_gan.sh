@@ -39,8 +39,8 @@ print(f'  sim shape: {tuple(data.shape)}')
 dl = load_dl_set(resolve_dl_set_path())
 mean, std = dl['channel_mean'], dl['channel_std']
 cols = list(dl['feature_columns'])
-gt_w = np.asarray(dl['data']['test'], dtype=np.float32)
-sim = denormalize_channels(data, mean.float(), std.float()).numpy()
+gt_w = np.asarray(dl['test_windows'], dtype=np.float32)
+sim = data.numpy()  # obj['data'] is already in raw space (pipeline.py:170 denormalizes before save); do NOT denorm again.
 gt = denormalize_channels(torch.from_numpy(gt_w), mean.float(), std.float()).numpy()
 print(f'  gt(test windows) shape: {gt.shape}')
 print()

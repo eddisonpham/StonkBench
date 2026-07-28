@@ -260,6 +260,21 @@ class ConditionalSigWGANAdapter(ModelAdapter):
             config=sig_config,
             x_real=train_windows.to(device),
         )
+        # Vendor-side device-align: `lib.utils.sample_indices` (lib/utils.py:6)
+        # unconditionally calls `.cuda()` on its random permutation. Sample-batch
+        # (sigcwgan.py:69-71) then does `self.sigs_pred[random_indices]`, and
+        # self.sigs_pred inherits x_future.device — so when --device cpu (or
+        # --device cuda but the calibrate path landed on cpu by accident) is
+        # chosen, PyTorch raises:
+        #   RuntimeError: indices should be either on cpu or on the same
+        #                 device as the indexed tensor (cpu)
+        # Pin sigs_pred to cuda (the same device sample_indices uses) so the
+        # lookup succeeds. This is correctness-preserving: sigs_pred is only
+        # consumed by L2-norm aggregations (sigcwgan.py:13-14) which are
+        # identical regardless of which side of cuda↔cpu the tensor lives on.
+        # Without this shim, the smoke run on --device cpu crashes before
+        # reaching the post-fit validation hook below.
+        algo.sigs_pred = algo.sigs_pred.cuda()
         algo.fit()
 
         # Save generator state
@@ -267,11 +282,86 @@ class ConditionalSigWGANAdapter(ModelAdapter):
         self._sig_config = sig_config
         self._base_config = base_config
 
+        # Real validation: hold out a deterministic fraction of train windows
+        # AFTER training completes, then compute unbiased Sig-Wasserstein-1 via
+        # the vendor's own metrics (`calibrate_sigw1_metric` + `sample_sig_fake`
+        # + `sigcwgan_loss`), reproducing the canonical pattern in
+        # src/models/.../evaluate.py:118-130.  Returns a scalar that HP search
+        # can rank; lower = generator's signatures are closer to the best
+        # linear predictor of val-future-from-val-past.
+        #
+        # Why post-train, post-split (not pre-train):
+        #   1. Generator sees 100% of training data (best learned model).
+        #   2. Calibrated LinearRegression is re-fit on the val pool only
+        #      (unbiased W-1 against UNSEEN past->future mapping).
+        #   3. No vendor modification, no subclass, no per-step hook.
+        # Determinism: val_seed = seed + 7 so the same HP trial always holds
+        # out the same windows → val_loss is reproducible across re-runs.
+        val_frac = float(meta.get("cond_sig_wgan_val_frac", 0.2))
+        val_seed = int(meta.get("cond_sig_wgan_val_seed", seed + 7))
+        n_total = train_windows.shape[0]
+        # LinearRegression in calibrate_sigw1_metric needs ≥2 windows; bump
+        # the floor to 8 so 25-channel high-dim sig features (sig_depth=2 +
+        # Scale+Cumsum -> ~650 dims) have enough observations for stable
+        # coefficient estimation. Also cap n_val at n_total//2 so the train
+        # pool retains the majority of windows; in n_total<16 smoke runs we
+        # cap at n_total-8 (always leave ≥8 training windows).
+        n_val = max(8, int(round(n_total * val_frac)))
+        if n_total >= 32:
+            n_val = min(n_val, n_total // 2)
+        else:
+            n_val = min(n_val, max(1, n_total - 8))
+        n_train_eval = max(1, n_total - n_val)
+        # Use a local Generator so we don't mutate the global RNG (next
+        # HP trial that wants a deterministic randperm would otherwise
+        # inherit val_seed).
+        _gen = torch.Generator().manual_seed(val_seed)
+        perm = torch.randperm(n_total, generator=_gen)
+        val_windows = train_windows[perm[n_train_eval:]].to(device)
+        val_n = int(val_windows.shape[0])
+
+        algo.G.eval()
+        # Determinism: G.sample() (lib/arfnn.py) and the MC expand inside
+        # sample_sig_fake both pull from the GLOBAL torch RNG via
+        # torch.randn. Snapshot before validation, seed to (seed+7), then
+        # restore so val_seed doesn't bleed into checkpoint save or any
+        # subsequent HP-trial code paths. This makes best_val_loss
+        # reproducible across re-runs of the same seed.
+        _prev_rng = torch.random.get_rng_state()
+        torch.manual_seed(val_seed)
+        with torch.no_grad():
+            val_past = val_windows[:, :p]
+            val_future = val_windows[:, p:]
+            # Calibrate LinearRegression on val pool only (unbiased baseline).
+            sigs_pred_val = vendor.calibrate_sigw1_metric(
+                sig_config, val_future, val_past
+            )
+            # MC-expectation of generated future-sig signature.
+            sigs_fake_ce, _ = vendor.sample_sig_fake(
+                algo.G, q, sig_config, val_past
+            )
+            # Wasserstein-1 L2 surrogate (vendor's training objective).
+            val_loss = float(
+                vendor.sigcwgan_loss(sigs_pred_val, sigs_fake_ce).item()
+            )
+        torch.random.set_rng_state(_prev_rng)
+
         ckpt_path = checkpoints_dir / "cond_sig_wgan_G.pt"
         torch.save(self._generator.state_dict(), ckpt_path)
 
+        # Persist ONE consolidated FINAL checkpoint labeled with seq length
+        # so downstream regeneration has a single canonical ckpt per
+        # (model, seq_length). The class attr ckpt (cond_sig_wgan_G.pt)
+        # stays for backward compat with consumers that still look for it.
+        meta_ = fit_input.metadata or {}
+        model_key_ = str(meta_.get("model_key", self.model_name))
+        final_ckpt = checkpoints_dir / f"{model_key_}_seq{q}_final.pt"
+        torch.save(self._generator.state_dict(), final_ckpt)
+
         self._is_fitted = True
 
+        # Include n_val_used so HP summary.txt/operator logs can audit the
+        # val-pool size driving each trial's best_val_loss.
         return {
             "num_channels": dim,
             "p": p,
@@ -281,9 +371,10 @@ class ConditionalSigWGANAdapter(ModelAdapter):
             "hidden_dims": hidden_dims,
             "mc_size": mc_size,
             "signature_depth": sig_depth,
-            "best_val_loss": 0.0,
+            "best_val_loss": val_loss,
             "best_epoch": total_steps,
             "stopped_early": False,
+            "val_windows_used": val_n,
         }
 
     # ------------------------------------------------------------------ generate

@@ -466,10 +466,6 @@ class UnifiedEvaluator:
                 except OSError:
                     pass
 
-    def _should_evaluate(self, seq_length: int) -> bool:
-        """Check if sequence length should be evaluated."""
-        return not self.seq_length_filter or seq_length in self.seq_length_filter
-
     def _prepare_output_directory(self, seq_length: int, model_name: str) -> Path:
         """Create and return output directory for results."""
         output_dir = self.results_dir / f"seq_{seq_length}" / model_name
@@ -486,8 +482,20 @@ class UnifiedEvaluator:
         """
         Evaluate a single artifact.
 
+        Trim contract (user-stated 2026-07-27): a single artifact trained at
+        L_max produces eval results at every requested L <= L_max by trimming
+        the LAST L timesteps. Last-position slicing preserves the causal/AR
+        structure for AR models (cond_sig_wgan, kalman_vae, vrnn); for
+        diffusion (UTSD, C-TSD) and i.i.d. statistical models, any contiguous
+        window of length L is equivalent so last is the canonical choice.
+        No retraining needed; ground truth at the target L is built
+        stride=1 via ``sliding_window_2d`` inside ``DatasetCache``.
+
         Returns:
-            Dictionary of evaluation results, or empty dict if skipped
+            Dictionary of evaluation results, or empty dict if no requested
+            length is satisfiable by this artifact. Single-target callers
+            receive the flat result dict; multi-target callers receive
+            ``{"per_length": {L: results, ...}}``.
         """
         # Load artifact metadata + tensor.
         data, metadata = self.artifact_loader.load(artifact_path)
@@ -501,64 +509,95 @@ class UnifiedEvaluator:
             data, _orig_meta = self.artifact_loader.load(eval_path)
             metadata = regen_metadata
         artifact_info = self.artifact_loader.extract_metadata(eval_path, metadata)
-        seq_length = artifact_info["sequence_length"]
+        artifact_seq_length = artifact_info["sequence_length"]
 
-        # Check if should evaluate
-        if not self._should_evaluate(seq_length):
+        # Resolve target lengths. With no filter, evaluate only at the
+        # artifact's native length (legacy behavior). With a filter, every
+        # requested L <= artifact_seq_length is satisfied by trimming the
+        # LAST L timesteps.
+        if self.seq_length_filter:
+            target_lengths = sorted(
+                {L for L in self.seq_length_filter if 0 < L <= artifact_seq_length}
+            )
+        else:
+            target_lengths = [artifact_seq_length]
+        if not target_lengths:
             return {}
 
-        # Prepare data
+        # Prepare generated tensor ONCE; trim into per-target views inside the loop.
         num_samples = artifact_info["num_samples"]
-        generated_data = self.artifact_loader.prepare_data(data, num_samples)
+        generated_data_full = self.artifact_loader.prepare_data(data, num_samples)
+        if generated_data_full.ndim == 2:
+            generated_data_full = np.expand_dims(generated_data_full, axis=-1)
+        artifact_axis1 = generated_data_full.shape[1]
 
-        # Get real data for comparison
-        dataset = self.dataset_cache.get_dataset(seq_length)
-        real_data = self.real_data_preparer.prepare(
-            dataset, seq_length, artifact_info["model_type"], num_samples
-        )
-        if real_data.ndim == 2:
-            real_data = np.expand_dims(real_data, axis=-1)
-        if generated_data.ndim == 2:
-            generated_data = np.expand_dims(generated_data, axis=-1)
-        if real_data.shape[-1] != generated_data.shape[-1]:
-            min_channels = min(real_data.shape[-1], generated_data.shape[-1])
-            real_data = real_data[:, :, :min_channels]
-            generated_data = generated_data[:, :, :min_channels]
+        per_length_results: Dict[int, Dict[str, Any]] = {}
+        for target_length in target_lengths:
+            if target_length < artifact_axis1:
+                # Last-position trim preserves causal/AR structure end-to-end.
+                generated_data = generated_data_full[:, -target_length:, :]
+            else:
+                generated_data = generated_data_full
 
-        # Prepare output directory
-        output_dir = self._prepare_output_directory(seq_length, artifact_info["model_name"])
-        self.core_metrics_evaluator = CoreMetricsEvaluator(
-            output_dir=output_dir,
-            asset_columns=artifact_info["asset_columns"],
-            price_columns=artifact_info["price_columns"],
-        )
+            # Per-target ground truth: stride=1 sliding window over the test series.
+            dataset = self.dataset_cache.get_dataset(target_length)
+            real_data = self.real_data_preparer.prepare(
+                dataset, target_length, artifact_info["model_type"], num_samples
+            )
+            if real_data.ndim == 2:
+                real_data = np.expand_dims(real_data, axis=-1)
+            if real_data.shape[-1] != generated_data.shape[-1]:
+                min_channels = min(real_data.shape[-1], generated_data.shape[-1])
+                real_data = real_data[:, :, :min_channels]
+                generated_data = generated_data[:, :, :min_channels]
 
-        # Run evaluation
-        show_with_start_divider(
-            f"Evaluating {artifact_info['model_name']} @ seq {seq_length}"
-        )
+            output_dir = self._prepare_output_directory(
+                target_length, artifact_info["model_name"]
+            )
+            self.core_metrics_evaluator = CoreMetricsEvaluator(
+                output_dir=output_dir,
+                asset_columns=artifact_info["asset_columns"],
+                price_columns=artifact_info["price_columns"],
+            )
 
-        results: Dict[str, Any] = {
-            **artifact_info,
-            "metadata": metadata,
-            "regenerated_from_checkpoints": bool(regen_metadata is not None),
-        }
+            show_with_start_divider(
+                f"Evaluating {artifact_info['model_name']}: "
+                f"artifact @ seq {artifact_seq_length} -> trimmed to seq {target_length}"
+            )
 
-        # Core metrics
-        core_results = self.core_metrics_evaluator.evaluate(real_data, generated_data)
-        results.update(core_results)
+            results: Dict[str, Any] = {
+                **artifact_info,
+                "evaluated_at_length": target_length,
+                "trimmed_from_artifact_length": artifact_seq_length,
+                "trim_side": "last",
+                "metadata": metadata,
+                "regenerated_from_checkpoints": bool(regen_metadata is not None),
+            }
 
-        # Utility metrics
-        utility_results = self.utility_metrics_evaluator.evaluate(
-            generated_data, dataset, seq_length
-        )
-        results["utility"] = utility_results
+            core_results = self.core_metrics_evaluator.evaluate(real_data, generated_data)
+            results.update(core_results)
+            utility_results = self.utility_metrics_evaluator.evaluate(
+                generated_data, dataset, target_length
+            )
+            results["utility"] = utility_results
+            self._save_results(results, output_dir)
+            per_length_results[target_length] = results
+            show_with_end_divider(
+                f"Finished {artifact_info['model_name']} @ seq {target_length}"
+            )
 
-        # Save results
-        self._save_results(results, output_dir)
-
-        show_with_end_divider(f"Finished {artifact_info['model_name']} @ seq {seq_length}")
-        return results
+        # Back-compat: single-target callers (legacy scripts) expect the flat
+        # result dict directly; multi-target callers receive the wrapped shape
+        # with ``per_length`` keyed by target length. Spread ``artifact_info``
+        # at the top level so run()'s unwrap branch and downstream consumers
+        # (complete_evaluation.json readers) can read ``model_name`` /
+        # ``sequence_length`` / ``num_channels`` without descending into the
+        # per-length sub-dicts. Each sub itself already carries the per-target
+        # ``evaluated_at_length`` / ``trimmed_from_artifact_length`` /
+        # ``trim_side`` fields.
+        if len(per_length_results) == 1:
+            return next(iter(per_length_results.values()))
+        return {**artifact_info, "per_length": per_length_results}
 
     def run(self) -> Dict[str, Any]:
         """
@@ -580,12 +619,26 @@ class UnifiedEvaluator:
         if not artifacts:
             raise FileNotFoundError(f"No artifacts found in {self.generated_dir}")
 
-        # Evaluate each artifact
+        # Evaluate each artifact.
+        # Trim contract: evaluate_artifact returns either a flat dict
+        # (single target length — legacy path) OR
+        # ``{"per_length": {L: {...}, ...}}`` when multiple target lengths
+        # were satisfied from a single L_max artifact via trimming. Unwrap
+        # the multi-target shape so each evaluated length gets its own
+        # ``model_seq{L}`` entry under all_results (preserves the legacy
+        # complete_evaluation.json layout that downstream tooling depends on).
         all_results: Dict[str, Any] = {}
         for artifact_path in artifacts:
             try:
                 result = self.evaluate_artifact(artifact_path)
-                if result:
+                if not result:
+                    continue
+                if isinstance(result, dict) and isinstance(result.get("per_length"), dict):
+                    model_name = result.get("model_name") or artifact_path.parent.name
+                    for target_length, sub in result["per_length"].items():
+                        key = f"{model_name}_seq{target_length}"
+                        all_results[key] = sub
+                else:
                     key = f"{result['model_name']}_seq{result['sequence_length']}"
                     all_results[key] = result
             except Exception as exc:  # noqa: BLE001

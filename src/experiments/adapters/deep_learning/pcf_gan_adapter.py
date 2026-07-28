@@ -259,19 +259,35 @@ class PCFGANAdapter(ModelAdapter):
             stopped_early = stopped_early or info.stopped_early
             self.generators.append(generator.cpu())
 
-            ckpt = checkpoints_dir / f"pcf_gan_checkpoint_{c + 1}.pt"
-            torch.save(
-                {
-                    "channel": c,
-                    "generator": generator.state_dict(),
-                    "base_length": self.base_length,
-                    "g_input_dim": self.g_input_dim,
-                },
-                ckpt,
-            )
-            self.checkpoints.append(ckpt)
-
         self._is_fitted = True
+        # Persist ONE consolidated FINAL checkpoint (multi-channel dict)
+        # labeled with the seq length. Per the cleaner contract, this is the
+        # SOLE disk artifact for (model, seq_length) — no per-channel ckpt
+        # files are written. Generate() reads from in-memory self.generators
+        # so per-channel files were never reloaded; saving them only ever
+        # added disk pressure. Per-channel schema key is "state_dict" (the
+        # conventional PyTorch idiom) — same as utsd / cond_tsd so a single
+        # downstream generic loader works.
+        meta_ = fit_input.metadata or {}
+        model_key_ = str(meta_.get("model_key", self.model_name))
+        final_ckpt = checkpoints_dir / f"{model_key_}_seq{self.base_length}_final.pt"
+        torch.save(
+            {
+                "model_name": model_key_,
+                "num_channels": num_channels,
+                "base_length": self.base_length,
+                "g_input_dim": self.g_input_dim,
+                "noise_scale": self.noise_scale,
+                "channels": [
+                    {"channel": c, "state_dict": g.state_dict()}
+                    for c, g in enumerate(self.generators)
+                ],
+            },
+            final_ckpt,
+        )
+        # Track the consolidated ckpt as the sole model checkpoint.
+        self.checkpoints = [final_ckpt]
+
         return {
             "num_channels": num_channels,
             "best_val_loss": float(sum(channel_val_losses) / len(channel_val_losses)),

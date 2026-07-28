@@ -1,0 +1,359 @@
+"""TimeGrad adapter for multivariate z-scored log-returns (per-channel).
+
+Vendor: kongqi404/timegrad vendored at src/models/deep_learning/timegrad/,
+.git removed. We import the upstream TimeGradTrainingNetwork +
+GaussianDiffusion + EpsilonTheta + utils directly; gluonts is provided by a
+thin shim package inside the vendor dir.
+
+Strategy: per-channel univariate training. For each of the C=25 channels,
+fit a separate TimeGradTrainingNetwork with target_dim=1 over the
+channel's z-scored log-return series. At generate time, copy the trained
+weights into a TimeGradPredictionNetwork and run the upstream AR-rollout
+(TimeGradPredictionNetwork.sampling_decoder). Output is stacked as
+(N, L, 25) — matches the per-channel-stack shape of pcf_gan / quantgan /
+utsd / cond_tsd.
+
+Internal window sizes (smaller than StonkBench's preprocessed L=252; we
+take the LAST timegrad_total timesteps of each window):
+  context_length = 24
+  prediction_length = 24
+  lags_seq = [1, 24, 168]
+  history_length = context_length + max(lags_seq) = 192
+  timegrad_total = history_length + prediction_length = 216
+The adapter slices each StonkBench window's last 216 timesteps before
+feeding to TimeGrad's forward().
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from typing import Any, Dict, List
+
+import torch
+
+from src.experiments.adapters.base_adapter import ModelAdapter
+from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
+from src.experiments.adapters.deep_learning.calibration import (
+    ChannelMomentStats,
+    match_channel_moments,
+)
+from src.experiments.adapters.deep_learning.training_utils import (
+    EarlyStopping,
+    FitTrainingInfo,
+    make_loader,
+    parse_training_params,
+    resolve_device,
+    use_calibration,
+)
+
+
+def _import_timegrad():
+    root = Path(__file__).resolve().parents[3] / "models" / "deep_learning" / "timegrad"
+    root_str = str(root)
+    if root_str not in sys.path:
+        sys.path.insert(0, root_str)
+    from module import GaussianDiffusion, DiffusionOutput  # noqa: F401
+    from epsilon_theta import EpsilonTheta  # noqa: F401
+    from time_grad_network import TimeGradTrainingNetwork, TimeGradPredictionNetwork
+    from utils import weighted_average  # noqa: F401
+    return TimeGradTrainingNetwork, TimeGradPredictionNetwork
+
+
+class TimeGradAdapter(ModelAdapter):
+    model_name = "TimeGrad"
+    supports_arbitrary_generation = True
+
+    # Vendor default config (matches kongqi404/timegrad TimeGradEstimator defaults).
+    _NUM_CELLS = 40
+    _NUM_LAYERS = 2
+    _CELL_TYPE = "LSTM"
+    _DIFF_STEPS = 100
+    _LOSS_TYPE = "l2"
+    _BETA_END = 0.1
+    _BETA_SCHEDULE = "linear"
+    _RESIDUAL_LAYERS = 8
+    _RESIDUAL_CHANNELS = 8
+    _DILATION_CYCLE = 2
+    _CONDITIONING_LENGTH = 100
+    _NUM_PARALLEL_SAMPLES = 100
+    _DROPOUT_RATE = 0.1
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.TimeGradTrainingNetwork, self.TimeGradPredictionNetwork = _import_timegrad()
+        self.trainers: List[Any] = []
+        self.predictors: List[Any] = []
+        self.device = "cpu"
+        self.num_channels = 1
+        self.base_length = 252
+        self.context_length = 24
+        self.prediction_length = 24
+        self.lags_seq = [1, 24, 168]
+        self.checkpoints: List[Path] = []
+        self.channel_stats: ChannelMomentStats | None = None
+        self.apply_calibration = False
+
+    @property
+    def history_length(self) -> int:
+        return self.context_length + max(self.lags_seq)
+
+    @property
+    def timegrad_total(self) -> int:
+        return self.history_length + self.prediction_length
+
+    def _make_gluonts_args(self, channel_window: torch.Tensor):
+        N = channel_window.shape[0]
+        history = self.history_length
+        past_target_cdf = channel_window[:, :history, :]
+        future_target_cdf = channel_window[:, history:history + self.prediction_length, :]
+        past_observed_values = torch.ones_like(past_target_cdf)
+        future_observed_values = torch.ones_like(future_target_cdf)
+        past_is_pad = torch.zeros(N, history, dtype=torch.float32)
+        past_time_feat = torch.zeros(N, history, 1, dtype=torch.float32)
+        future_time_feat = torch.zeros(N, self.prediction_length, 1, dtype=torch.float32)
+        target_dimension_indicator = torch.zeros(N, 1, dtype=torch.long)
+        return (
+            target_dimension_indicator, past_time_feat, past_target_cdf,
+            past_observed_values, past_is_pad, future_time_feat,
+            future_target_cdf, future_observed_values,
+        )
+
+    def fit(self, fit_input: AdapterFitInput, checkpoints_dir: Path, logs_dir: Path) -> Dict[str, Any]:
+        windows = fit_input.batch.train_windows
+        valid_windows = fit_input.batch.valid_windows
+        if windows is None or windows.ndim != 3:
+            raise ValueError("TimeGradAdapter expects train_windows shaped (N, L, C)")
+        if valid_windows is None or valid_windows.shape[0] == 0:
+            raise ValueError("TimeGradAdapter requires non-empty valid_windows.")
+
+        params = parse_training_params(fit_input)
+        n_windows, seq_len, channels = windows.shape
+        # TimeGrad requires at least timegrad_total=216 (history 192 + prediction 24)
+        # timesteps per window; smoke flags with smaller --generation_length
+        # would otherwise crash the slice below with an axis-size IndexError.
+        if seq_len < self.timegrad_total:
+            raise ValueError(
+                f"TimeGradAdapter requires seq_len >= timegrad_total={self.timegrad_total} "
+                f"(history {self.history_length} + prediction {self.prediction_length}); "
+                f"got seq_len={seq_len}. Increase --generation_length to >= {self.timegrad_total}."
+            )
+        self.num_channels = channels
+        self.base_length = seq_len
+
+        device = resolve_device(fit_input.device)
+        self.device = str(device)
+        self.channel_stats = ChannelMomentStats.from_windows(windows)
+        self.apply_calibration = use_calibration(fit_input)
+
+        per_window_train = windows[:, -self.timegrad_total:, :].contiguous()
+        per_window_valid = valid_windows[:, -self.timegrad_total:, :].contiguous() if valid_windows.numel() > 0 else per_window_train
+
+        # input_size = lags_seq * target_dim + target_dim * embed_dim + num_time_feat
+        # For target_dim=1, embed_dim=1, num_time_feat=1, lags_seq len=3 -> 3+1+1=5
+        input_size = len(self.lags_seq) + 1 + 1
+
+        info = FitTrainingInfo(best_val_loss=float("inf"), best_epoch=0, stopped_early=False)
+        best_val_per_channel: List[float] = []
+        base_seed = int(getattr(fit_input, "seed", 42) or 42)
+
+        for c in range(channels):
+            torch.manual_seed(base_seed + c)
+            ch_train = per_window_train[:, :, c:c + 1]
+            ch_valid = per_window_valid[:, :, c:c + 1] if per_window_valid.shape[0] > 0 else ch_train
+
+            net = self.TimeGradTrainingNetwork(
+                input_size=input_size,
+                num_layers=self._NUM_LAYERS,
+                num_cells=self._NUM_CELLS,
+                cell_type=self._CELL_TYPE,
+                history_length=self.history_length,
+                context_length=self.context_length,
+                prediction_length=self.prediction_length,
+                dropout_rate=self._DROPOUT_RATE,
+                lags_seq=list(self.lags_seq),
+                target_dim=1,
+                conditioning_length=self._CONDITIONING_LENGTH,
+                diff_steps=self._DIFF_STEPS,
+                loss_type=self._LOSS_TYPE,
+                beta_end=self._BETA_END,
+                beta_schedule=self._BETA_SCHEDULE,
+                residual_layers=self._RESIDUAL_LAYERS,
+                residual_channels=self._RESIDUAL_CHANNELS,
+                dilation_cycle_length=self._DILATION_CYCLE,
+                cardinality=[1],
+                embedding_dimension=1,
+                scaling=False,  # StonkBench data already z-scored; bypass vendor's MeanScaler.
+            ).to(device)
+
+            optimizer = torch.optim.Adam(net.parameters(), lr=params.learning_rate)
+            train_loader = make_loader(ch_train, params.batch_size, shuffle=True)
+            valid_loader = make_loader(ch_valid, params.batch_size, shuffle=False) if ch_valid.shape[0] > 0 else train_loader
+
+            best_state = {k: v.detach().cpu().clone() for k, v in net.state_dict().items()}
+            best_val_loss = float("inf")
+
+            for epoch in range(params.max_epochs):
+                net.train()
+                train_loss = 0.0
+                nb = 0
+                for (batch_x,) in train_loader:
+                    batch_x = batch_x.to(device)
+                    args = self._make_gluonts_args(batch_x)
+                    optimizer.zero_grad()
+                    out = net(*args)
+                    loss = out[0] if isinstance(out, (tuple, list)) else out
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(net.parameters(), 10.0)
+                    optimizer.step()
+                    train_loss += float(loss.item())
+                    nb += 1
+                avg_train = train_loss / max(nb, 1)
+
+                net.eval()
+                val_loss = 0.0
+                nv = 0
+                with torch.no_grad():
+                    for (batch_x,) in valid_loader:
+                        batch_x = batch_x.to(device)
+                        args = self._make_gluonts_args(batch_x)
+                        out = net(*args)
+                        loss = out[0] if isinstance(out, (tuple, list)) else out
+                        val_loss += float(loss.item())
+                        nv += 1
+                avg_val = val_loss / max(nv, 1)
+
+                if avg_val < best_val_loss:
+                    best_val_loss = avg_val
+                    best_state = {k: v.detach().cpu().clone() for k, v in net.state_dict().items()}
+                info.train_loss_history.append(avg_train)
+                info.val_loss_history.append(avg_val)
+
+            net.load_state_dict(best_state)
+            self.trainers.append(net)
+            best_val_per_channel.append(best_val_loss)
+
+        info.best_val_loss = float(sum(best_val_per_channel) / max(len(best_val_per_channel), 1))
+        info.best_epoch = params.max_epochs
+
+        # One consolidated FINAL checkpoint labeled with seq length (clean-pass contract).
+        meta_ = fit_input.metadata or {}
+        model_key_ = str(meta_.get("model_key", self.model_name))
+        final_ckpt = checkpoints_dir / f"{model_key_}_seq{self.base_length}_final.pt"
+        torch.save(
+            {
+                "model_name": model_key_,
+                "num_channels": self.num_channels,
+                "base_length": self.base_length,
+                "history_length": self.history_length,
+                "context_length": self.context_length,
+                "prediction_length": self.prediction_length,
+                "lags_seq": list(self.lags_seq),
+                "num_cells": self._NUM_CELLS,
+                "num_layers": self._NUM_LAYERS,
+                "cell_type": self._CELL_TYPE,
+                "diff_steps": self._DIFF_STEPS,
+                "loss_type": self._LOSS_TYPE,
+                "beta_end": self._BETA_END,
+                "beta_schedule": self._BETA_SCHEDULE,
+                "residual_layers": self._RESIDUAL_LAYERS,
+                "residual_channels": self._RESIDUAL_CHANNELS,
+                "dilation_cycle_length": self._DILATION_CYCLE,
+                "conditioning_length": self._CONDITIONING_LENGTH,
+                "num_parallel_samples": self._NUM_PARALLEL_SAMPLES,
+                "channels": [
+                    {"channel": c, "state_dict": m.state_dict()}
+                    for c, m in enumerate(self.trainers)
+                ],
+            },
+            final_ckpt,
+        )
+        self.checkpoints = [final_ckpt]
+        self._is_fitted = True
+        return info.as_dict(
+            num_channels=self.num_channels,
+            base_length=self.base_length,
+            history_length=self.history_length,
+            prediction_length=self.prediction_length,
+            num_cells=self._NUM_CELLS,
+            num_layers=self._NUM_LAYERS,
+        )
+
+    def generate(self, num_samples: int, generation_length: int, seed: int) -> AdapterGenerateOutput:
+        if not self._is_fitted or not self.trainers:
+            raise RuntimeError("Call fit() before generate().")
+
+        torch.manual_seed(seed)
+        out = torch.zeros(num_samples, generation_length, self.num_channels)
+        input_size = len(self.lags_seq) + 1 + 1
+
+        for c, trained in enumerate(self.trainers):
+            device_for_c = next(trained.parameters()).device
+            pred = self.TimeGradPredictionNetwork(
+                num_parallel_samples=self._NUM_PARALLEL_SAMPLES,
+                input_size=input_size,
+                num_layers=self._NUM_LAYERS,
+                num_cells=self._NUM_CELLS,
+                cell_type=self._CELL_TYPE,
+                history_length=self.history_length,
+                context_length=self.context_length,
+                prediction_length=self.prediction_length,
+                dropout_rate=0.0,
+                lags_seq=list(self.lags_seq),
+                target_dim=1,
+                conditioning_length=self._CONDITIONING_LENGTH,
+                diff_steps=self._DIFF_STEPS,
+                loss_type=self._LOSS_TYPE,
+                beta_end=self._BETA_END,
+                beta_schedule=self._BETA_SCHEDULE,
+                residual_layers=self._RESIDUAL_LAYERS,
+                residual_channels=self._RESIDUAL_CHANNELS,
+                dilation_cycle_length=self._DILATION_CYCLE,
+                cardinality=[1],
+                embedding_dimension=1,
+                scaling=False,
+            )
+            pred.load_state_dict(trained.state_dict())
+            pred.eval().to(device_for_c)
+
+            past_target_cdf = torch.zeros(num_samples, self.history_length, 1, device=device_for_c)
+            target_dimension_indicator = torch.zeros(num_samples, 1, dtype=torch.long, device=device_for_c)
+            future_time_feat = torch.zeros(num_samples, self.prediction_length, 1, device=device_for_c)
+            past_time_feat = torch.zeros(num_samples, self.history_length, 1, device=device_for_c)
+            past_observed_values = torch.ones_like(past_target_cdf)
+            past_is_pad = torch.zeros(num_samples, self.history_length, device=device_for_c)
+
+            with torch.no_grad():
+                sample_paths = pred(
+                    target_dimension_indicator=target_dimension_indicator,
+                    past_time_feat=past_time_feat,
+                    past_target_cdf=past_target_cdf,
+                    past_observed_values=past_observed_values,
+                    past_is_pad=past_is_pad,
+                    future_time_feat=future_time_feat,
+                )
+            sample = sample_paths[:, 0, :, 0]
+            L = min(generation_length, sample.shape[1])
+            if L > 0:
+                out[:, :L, c] = sample[:, :L]
+
+        if self.apply_calibration and self.channel_stats is not None:
+            target = ChannelMomentStats(
+                mean=self.channel_stats.mean.to(out.device),
+                std=self.channel_stats.std.to(out.device),
+            )
+            out = match_channel_moments(out, target)
+
+        return AdapterGenerateOutput(
+            data=out.float().cpu(),
+            checkpoints=self.checkpoints,
+            logs={"generator": "timegrad"},
+            extra_metadata={
+                "num_channels": self.num_channels,
+                "history_length": self.history_length,
+                "prediction_length": self.prediction_length,
+                "num_cells": self._NUM_CELLS,
+                "num_layers": self._NUM_LAYERS,
+                "lags_seq": list(self.lags_seq),
+                "diff_steps": self._DIFF_STEPS,
+            },
+        )

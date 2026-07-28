@@ -1,6 +1,6 @@
 """Regenerate per-channel sanity plots for the kept run in outputs/.
 
-For each of 13 final models this writes:
+For each of 14 final models this writes:
   outputs/sanity/<run>/<model>/<ticker>/overlay.png
   outputs/sanity/<run>/<model>/<ticker>/hist.png
   outputs/sanity/<run>/<model>/per_channel_summary.csv
@@ -31,10 +31,9 @@ RESULTS_DIR = ROOT / "outputs" / "results" / RUN_ID
 SANITY_DIR = ROOT / "outputs" / "sanity" / RUN_ID
 GT_PATH = ROOT / "outputs" / "data" / "ground_truth.pt"
 
-# Canonical 13 final models (post 2026-07-23 cleanup).  timegrad, timevae,
-# sig_wgan were decommissioned — their sanity plots under the kept run will
-# be picked up by cleanup_outputs.py (moved to outputs_legacy2/) before
-# the peer bundle is shipped.
+# Canonical 14 final models (post 2026-07-23 cleanup + 2026-07-27 timegrad
+# re-added).  timevae / sig_wgan / timegan are decommissioned and live
+# under outputs_legacy2/ — kept out of the shipped peer bundle.
 KEEP_DL = [
     "quantgan",
     "vrnn",
@@ -43,6 +42,7 @@ KEEP_DL = [
     "unconditional_tsdiffusion",
     "conditional_tsdiffusion",
     "cond_sig_wgan",
+    "timegrad",
 ]
 KEEP_STAT = [
     "gbm_adapter",
@@ -52,7 +52,7 @@ KEEP_STAT = [
     "de_jump_diffusion",
     "garch11",
 ]
-ALL_13 = KEEP_DL + KEEP_STAT
+ALL_14 = KEEP_DL + KEEP_STAT
 
 
 def _load_artifact(model: str) -> tuple[torch.Tensor, dict]:
@@ -267,7 +267,7 @@ def verify_only() -> int:
     rc = 0
     print(f'  {"model":<28} {"artifact":<10} {"sanity":<10} {"pngs":>5}')
     print("  " + "-" * 56)
-    for m in ALL_13:
+    for m in ALL_14:
         art_p = RESULTS_DIR / m / "artifacts" / f"{m}_seq252.pt"
         san_d = SANITY_DIR / m
         art_ok = "OK" if art_p.is_file() else (art_p.exists() and "DIR" or "MISS")
@@ -324,7 +324,7 @@ def main() -> None:
 
     gt_window = _load_ground_truth_window()
 
-    targets = args.models if args.models else ALL_13
+    targets = args.models if args.models else ALL_14
     summary: list[dict] = []
     for model in targets:
         art_p = RESULTS_DIR / model / "artifacts" / f"{model}_seq252.pt"

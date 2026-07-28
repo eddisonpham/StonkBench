@@ -14,6 +14,7 @@ DL_MODEL_KEYS = [
     "unconditional_tsdiffusion",
     "conditional_tsdiffusion",
     "cond_sig_wgan",
+    "timegrad",
 ]
 
 
@@ -63,6 +64,7 @@ HP_SEARCH_EPOCHS: Dict[str, int] = {
     "unconditional_tsdiffusion": 60,
     "conditional_tsdiffusion": 60,
     "cond_sig_wgan": 60,
+    "timegrad": 60,
 }
 
 FULL_TRAIN_EPOCHS: Dict[str, int] = {
@@ -73,6 +75,7 @@ FULL_TRAIN_EPOCHS: Dict[str, int] = {
     "unconditional_tsdiffusion": 150,
     "conditional_tsdiffusion": 150,
     "cond_sig_wgan": 150,
+    "timegrad": 100,
 }
 
 # Patience raised for collapse-prone models (avoid epoch-2 / epoch-13 stops).
@@ -167,6 +170,26 @@ MODEL_HP_CONFIGS: Dict[str, List[HPConfig]] = {
         HPConfig("lr1e-2_bs64_p12", False, 1e-2, 64, 12),
         HPConfig("lr5e-3_bs32_p8", False, 5e-3, 32, 8),
         HPConfig("lr2e-2_bs128_p12", False, 2e-2, 128, 12),
+    ],
+    # TimeGrad: vendor default lr=1e-3, batch_size=32, num_cells=40, num_layers=2,
+    # cell_type="LSTM" (verified against vendored TimeGradEstimator.__init__).
+    # Grid below sweeps lr + batch + patience (matches the kalman_vae / vrnn
+    # pattern of 9 configs with vendor + 8 axis sweeps). Architectural
+    # sweeps (num_cells, diff_steps, lags_seq) are scheduled out-of-band; the
+    # adapter reads metadata overrides if needed (timegrad_num_cells,
+    # timegrad_diff_steps, timegrad_lags_seq). Adapter sets scaling=False
+    # since StonkBench preprocessed data is already z-scored — vendor's
+    # MeanScaler is intentionally bypassed.
+    "timegrad": [
+        HPConfig("vendor_default", True, 1e-3, 32, 10),
+        HPConfig("lr5e-4_bs32_p10", False, 5e-4, 32, 10),
+        HPConfig("lr2e-3_bs32_p10", False, 2e-3, 32, 10),
+        HPConfig("lr1e-3_bs16_p10", False, 1e-3, 16, 10),
+        HPConfig("lr1e-3_bs64_p10", False, 1e-3, 64, 10),
+        HPConfig("lr1e-3_bs32_p8", False, 1e-3, 32, 8),
+        HPConfig("lr1e-3_bs32_p12", False, 1e-3, 32, 12),
+        HPConfig("lr5e-4_bs16_p8", False, 5e-4, 16, 8),
+        HPConfig("lr2e-3_bs64_p12", False, 2e-3, 64, 12),
     ],
 }
 

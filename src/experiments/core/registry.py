@@ -23,6 +23,7 @@ ADAPTER_REGISTRY: Dict[str, str] = {
     "vrnn": "src.experiments.adapters.deep_learning.vrnn_adapter.VRNNAdapter",
     "pcf_gan": "src.experiments.adapters.deep_learning.pcf_gan_adapter.PCFGANAdapter",
     "cond_sig_wgan": "src.experiments.adapters.deep_learning.cond_sig_wgan_adapter.ConditionalSigWGANAdapter",
+    "timegrad": "src.experiments.adapters.deep_learning.timegrad_adapter.TimeGradAdapter",
 }
 
 

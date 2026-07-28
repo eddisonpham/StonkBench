@@ -226,6 +226,15 @@ class KalmanVAEAdapter(ModelAdapter):
         torch.save(self.model.state_dict(), ckpt_path)
         self.checkpoints = [ckpt_path]
         self._is_fitted = True
+        # Persist ONE consolidated FINAL checkpoint labeled with the seq
+        # length so downstream regeneration has a single canonical ckpt per
+        # (model, seq_length). The pre-existing kalman_vae_checkpoint.pt
+        # stays for backward compat with consumers that still look for it.
+        meta_ = fit_input.metadata or {}
+        model_key_ = str(meta_.get("model_key", self.model_name))
+        final_ckpt = checkpoints_dir / f"{model_key_}_seq{self.base_length}_final.pt"
+        torch.save(self.model.state_dict(), final_ckpt)
+
         return info.as_dict(
             num_channels=self.num_channels,
             base_length=self.base_length,

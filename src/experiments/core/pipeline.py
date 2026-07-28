@@ -13,6 +13,7 @@ from src.experiments.core.io import append_jsonl, build_run_manifest, ensure_exp
 from src.experiments.core.registry import STATISTICAL_MODEL_KEYS, get_adapter
 from src.utils.device import device_to_str, get_device
 from src.utils.artifact_utils import compute_preprocessing_hash, default_metadata, save_artifact, stitch_sequences
+from src.utils.artifact_archival import archive_existing
 from src.utils.preprocessed_data_utils import (
     build_batch_from_dl_set,
     build_batch_from_stats_set,
@@ -70,7 +71,13 @@ def run_model_experiment(
             f"{batch.test.shape[0]}. Choose a shorter horizon or a longer dataset."
         )
 
-    metadata: Dict[str, Any] = {"generation_length": generation_length}
+    metadata: Dict[str, Any] = {
+        "generation_length": generation_length,
+        # Per-(model, seq) checkpoint filename (`{model_key}_seq{L}_final.pt`)
+        # inside each adapter requires the registry key, not the class attr.
+        # Thread it in via metadata so adapters stay free of registry queries.
+        "model_key": model_key,
+    }
     if training_metadata:
         metadata.update(training_metadata)
 
@@ -105,6 +112,14 @@ def run_model_experiment(
         seed=seed,
         metadata=metadata,
     )
+    # Move any existing items for the same (model, seq) out of the live
+    # outputs tree into ``outputs/_legacy/{utc-ts}_{model}_seq{L}/`` so this
+    # retrain writes fresh. Idempotent: returns 0 (no-op) if nothing existed.
+    # The active ``outputs/results/{run_id}/{model}/`` and
+    # ``outputs/sanity/{run_id}/{model}/`` for this combo are then empty,
+    # which matches the user's standing instruction that "the outputs folder
+    # is completely clean and we dont have any confusing dated reruns."
+    archive_existing(model_key, generation_length, output_root)
     # Wall-clock: capture per-model fit+generate duration. Emitted as
     # `run_start` + `run_end` events so log replay and run.jsonl summaries
     # can compute time-taken per model without scanning stdout.

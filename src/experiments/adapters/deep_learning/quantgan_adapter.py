@@ -122,15 +122,31 @@ class QuantGANAdapter(ModelAdapter):
 
             self.trainers.append(trainer)
 
-            ckpt = checkpoints_dir / f"quantgan_checkpoint_{c + 1}.pt"
-
-            torch.save({"channel": c, "generator": trainer.generator.state_dict()}, ckpt)
-
-            self.checkpoints.append(ckpt)
-
-
-
         self._is_fitted = True
+
+        # Persist ONE consolidated FINAL checkpoint (multi-channel dict)
+        # labeled with the seq length. SOLE disk artifact for (model, seq) —
+        # matching the cleaner contract used by pcf_gan / utsd / cond_tsd.
+        # Generate() reads in-memory self.trainers so per-channel files
+        # were never reloaded. Schema key "state_dict" is shared across all
+        # four multi-channel adapters.
+        meta_ = fit_input.metadata or {}
+        model_key_ = str(meta_.get("model_key", self.model_name))
+        final_ckpt = checkpoints_dir / f"{model_key_}_seq{self.base_length}_final.pt"
+        torch.save(
+            {
+                "model_name": model_key_,
+                "num_channels": channels,
+                "base_length": self.base_length,
+                "channels": [
+                    {"channel": c, "state_dict": t.generator.state_dict()}
+                    for c, t in enumerate(self.trainers)
+                ],
+            },
+            final_ckpt,
+        )
+        # Track the consolidated ckpt as the sole model checkpoint.
+        self.checkpoints = [final_ckpt]
 
         return {
 

@@ -14,11 +14,11 @@ What this script does:
      contain the relevant metadata in their `.pt` files).
   5. Reports a verification table of the final state.
 
-The seven canonical DL models: quantgan, timegrad, timevae,
-  unconditional_tsdiffusion, vrnn, sig_wgan, cond_sig_wgan.
+The eight canonical DL models: quantgan, vrnn, pcf_gan, kalman_vae,
+  unconditional_tsdiffusion, conditional_tsdiffusion, cond_sig_wgan,
+  timegrad.
 The six canonical statistical models: gbm_adapter, block_bootstrap,
   ou_process, merton_jump_diffusion, de_jump_diffusion, garch11.
-pcf_gan and kalman_vae are NOT in this set — they go to legacy.
 
 CLI flags
 ---------
@@ -59,6 +59,7 @@ KEEP_DL = {
     "unconditional_tsdiffusion",
     "conditional_tsdiffusion",
     "cond_sig_wgan",
+    "timegrad",
 }
 KEEP_STAT = {
     "gbm_adapter",
@@ -68,13 +69,13 @@ KEEP_STAT = {
     "de_jump_diffusion",
     "garch11",
 }
-KEEP_MODELS = sorted(KEEP_DL | KEEP_STAT)  # 13 models total
+KEEP_MODELS = sorted(KEEP_DL | KEEP_STAT)  # 14 models total (8 DL + 6 stat)
 
 # Decommissioned model keys whose per-run sub-dirs in the kept run go to
 # legacy instead of being shipped to the peer.  The adapters + vendors
 # were deleted end-to-end; these sub-dirs are preserved purely for
 # historical reproducibility (regen sanity / re-train from scratch).
-DEAD_MODEL_DIRS = ("timegrad", "timevae", "sig_wgan", "timegan")
+DEAD_MODEL_DIRS = ("timevae", "sig_wgan", "timegan")
 
 # Subdirectories of outputs/ we mirror into outputs_legacy2/ when a run
 # is moved. Anything not in this list is left where it is at top level
