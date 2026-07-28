@@ -4,7 +4,7 @@ Thin subclass of :class:`UnconditionalTSDiffusionAdapter` that swaps the
 underlying model class from ``TSDiff`` (unconditional) to ``TSDiffCond``
 (conditional, mask-aware variant).  All fit/generate logic is inherited
 from the unconditional adapter; we only override the import path, the
-per-channel model construction kwargs, and the generation path.
+model construction hook (``_build_model``), and the generation path.
 
 Key multivariate change: ``forecast(obs, mask)`` returns the full
 ``output`` tensor instead of the hardcoded ``forward()`` → ``pred[..., 0]``.
@@ -17,6 +17,7 @@ import importlib
 import sys
 from pathlib import Path
 from types import ModuleType
+from typing import Any, Dict
 
 import torch
 
@@ -63,10 +64,9 @@ def _install_gluonts_modules_scaler_shim() -> None:
 class ConditionalTSDiffusionAdapter(UnconditionalTSDiffusionAdapter):
     """Conditional-diffusion sibling of UnconditionalTSDiffusionAdapter.
 
-    Uses ``TSDiffCond`` for the model class.  Inherits the native-multivariate
-    ``fit()`` from the parent (single joint model on (N, L, C)).  Overrides
-    ``_import_utsd`` and ``generate`` to use the conditional model's
-    ``forecast()`` method.
+    Uses ``TSDiffCond`` for the model class.  Inherits ``fit()`` entirely
+    from the parent — only ``_import_utsd``, ``_build_model``, and
+    ``generate`` are overridden.
     """
 
     model_name = "ConditionalTSDiffusion"
@@ -103,58 +103,18 @@ class ConditionalTSDiffusionAdapter(UnconditionalTSDiffusionAdapter):
         )
         return diffusion_configs, tsdiff_cond.TSDiffCond
 
-    # ------------------------------------------------------------------
-    # fit — parent handles single-joint model; we add noise_observed kwarg
-    # ------------------------------------------------------------------
-    def fit(self, fit_input, checkpoints_dir, logs_dir):  # type: ignore[override]
-        """Override to pass ``noise_observed=False`` to TSDiffCond."""
-        # The parent's fit() builds the model via TSDiff(**cfg, ...).
-        # We need TSDiffCond with noise_observed=False instead.
-        # Solution: temporarily monkey-patch _import_utsd's TSDiff class,
-        # then delegate to parent, then restore.
-        #
-        # Simpler: just inline the model construction here and call the
-        # parent's training loop via super().fit() won't work because
-        # the parent creates TSDiff. So we override fit() completely,
-        # duplicating the parent logic with TSDiffCond-specific kwargs.
-        import copy as _copy
-
-        from src.experiments.adapters.deep_learning.training_utils import (
-            EarlyStopping,
-            FitTrainingInfo,
-            make_loader,
-            parse_training_params,
-            resolve_device,
-        )
-
-        windows = fit_input.batch.train_windows
-        valid_windows = fit_input.batch.valid_windows
-        if windows is None or windows.ndim != 3:
-            raise ValueError(
-                "ConditionalTSDiffusionAdapter expects train_windows shaped (N, L, C)"
-            )
-        if valid_windows is None or valid_windows.shape[0] == 0:
-            raise ValueError(
-                "ConditionalTSDiffusionAdapter requires non-empty valid_windows."
-            )
-
+    def _build_model(
+        self,
+        backbone_params: Dict[str, Any],
+        cfg: Dict[str, Any],
+        context_length: int,
+        prediction_length: int,
+        lr: float,
+        device: torch.device,
+    ) -> Any:
+        """Build TSDiffCond instead of TSDiff."""
         diffusion_configs, TSDiffCond = self._import_utsd()
-        params = parse_training_params(fit_input)
-
-        self.base_length = int(windows.shape[1])
-        self.num_channels = int(windows.shape[2])
-        self.context_length = max(2, self.base_length // 2)
-        self.prediction_length = max(1, self.base_length - self.context_length)
-
-        device = resolve_device(fit_input.device)
-
-        # --- Build single joint TSDiffCond with input_dim=C ---
-        cfg = _copy.deepcopy(diffusion_configs.diffusion_small_config)
-        backbone_params = cfg["backbone_parameters"].copy()
-        backbone_params["input_dim"] = self.num_channels
-        backbone_params["output_dim"] = self.num_channels
-
-        model = TSDiffCond(
+        return TSDiffCond(
             backbone_parameters=backbone_params,
             timesteps=cfg["timesteps"],
             diffusion_scheduler=cfg["diffusion_scheduler"],
@@ -162,89 +122,19 @@ class ConditionalTSDiffusionAdapter(UnconditionalTSDiffusionAdapter):
             use_features=False,
             use_lags=False,
             normalization="none",
-            context_length=self.context_length,
-            prediction_length=self.prediction_length,
-            lr=params.learning_rate,
+            context_length=context_length,
+            prediction_length=prediction_length,
+            lr=lr,
             init_skip=True,
             noise_observed=False,
         ).to(device)
-
-        # --- Data loaders (full multivariate) ---
-        train_loader = make_loader(
-            windows.float(), params.batch_size, shuffle=True
-        )
-        valid_loader = make_loader(
-            valid_windows.float(), params.batch_size, shuffle=False
-        )
-        optimizer = torch.optim.Adam(model.parameters(), lr=params.learning_rate)
-        early_stop = EarlyStopping(patience=params.patience)
-        best_state = _copy.deepcopy(model.state_dict())
-        info = FitTrainingInfo(
-            best_val_loss=float("inf"), best_epoch=0, stopped_early=False
-        )
-
-        for epoch in range(params.max_epochs):
-            model.train()
-            train_loss = 0.0
-            for (batch_x,) in train_loader:
-                batch_x = batch_x.to(device)
-                optimizer.zero_grad()
-                t = torch.randint(
-                    0, model.timesteps, (batch_x.shape[0],), device=device
-                ).long()
-                loss, _, _ = model.p_losses(
-                    batch_x, t, features=None, loss_type="l2"
-                )
-                loss.backward()
-                optimizer.step()
-                train_loss += float(loss.item())
-            info.train_loss_history.append(train_loss / max(len(train_loader), 1))
-
-            val_loss = self._eval_val_loss(model, valid_loader, device)
-            info.val_loss_history.append(val_loss)
-            if val_loss < info.best_val_loss:
-                info.best_val_loss = val_loss
-                info.best_epoch = epoch + 1
-                best_state = _copy.deepcopy(model.state_dict())
-            if early_stop.step(val_loss, epoch + 1):
-                info.stopped_early = True
-                break
-
-        model.load_state_dict(best_state)
-        self.model = model
-
-        # --- Persist single checkpoint ---
-        meta_ = fit_input.metadata or {}
-        model_key_ = str(meta_.get("model_key", self.model_name))
-        final_ckpt = checkpoints_dir / f"{model_key_}_seq{self.base_length}_final.pt"
-        torch.save(
-            {
-                "model_name": model_key_,
-                "num_channels": self.num_channels,
-                "base_length": self.base_length,
-                "context_length": self.context_length,
-                "prediction_length": self.prediction_length,
-                "input_dim": self.num_channels,
-                "state_dict": model.state_dict(),
-            },
-            final_ckpt,
-        )
-        self.checkpoints = [final_ckpt]
-        self._is_fitted = True
-
-        return {
-            "num_channels": self.num_channels,
-            "best_val_loss": info.best_val_loss,
-            "best_epoch": info.best_epoch,
-            "stopped_early": info.stopped_early,
-        }
 
     # ------------------------------------------------------------------
     # generate — use forecast() for full (B, L, C) output
     # ------------------------------------------------------------------
     def generate(
         self, num_samples: int, generation_length: int, seed: int
-    ):
+    ) -> AdapterGenerateOutput:
         """Unconditional generation via TSDiffCond.forecast().
 
         We pass zeros as observation with an all-zeros mask so the model

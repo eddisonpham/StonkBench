@@ -95,6 +95,35 @@ class UnconditionalTSDiffusionAdapter(ModelAdapter):
         return diffusion_configs, tsdiff_module.TSDiff
 
     # ------------------------------------------------------------------
+    # Model construction hook — subclasses override for TSDiffCond etc.
+    # ------------------------------------------------------------------
+    def _build_model(
+        self,
+        backbone_params: Dict[str, Any],
+        cfg: Dict[str, Any],
+        context_length: int,
+        prediction_length: int,
+        lr: float,
+        device: torch.device,
+    ) -> Any:
+        """Build the diffusion model.  Subclasses may override to swap
+        the model class (e.g. TSDiffCond) or add kwargs."""
+        diffusion_configs, TSDiff = self._import_utsd()
+        return TSDiff(
+            backbone_parameters=backbone_params,
+            timesteps=cfg["timesteps"],
+            diffusion_scheduler=cfg["diffusion_scheduler"],
+            freq="h",
+            use_features=False,
+            use_lags=False,
+            normalization="none",
+            context_length=context_length,
+            prediction_length=prediction_length,
+            lr=lr,
+            init_skip=True,
+        ).to(device)
+
+    # ------------------------------------------------------------------
     # Validation loss (operates on full multivariate batch)
     # ------------------------------------------------------------------
     @torch.no_grad()
@@ -134,7 +163,7 @@ class UnconditionalTSDiffusionAdapter(ModelAdapter):
                 "UnconditionalTSDiffusionAdapter requires non-empty valid_windows."
             )
 
-        diffusion_configs, TSDiff = self._import_utsd()
+        diffusion_configs, _TSDiff_cls = self._import_utsd()
         params = parse_training_params(fit_input)
 
         self.base_length = int(windows.shape[1])
@@ -150,19 +179,14 @@ class UnconditionalTSDiffusionAdapter(ModelAdapter):
         backbone_params["input_dim"] = self.num_channels
         backbone_params["output_dim"] = self.num_channels
 
-        model = TSDiff(
-            backbone_parameters=backbone_params,
-            timesteps=cfg["timesteps"],
-            diffusion_scheduler=cfg["diffusion_scheduler"],
-            freq="h",
-            use_features=False,
-            use_lags=False,
-            normalization="none",
+        model = self._build_model(
+            backbone_params=backbone_params,
+            cfg=cfg,
             context_length=self.context_length,
             prediction_length=self.prediction_length,
             lr=params.learning_rate,
-            init_skip=True,
-        ).to(device)
+            device=device,
+        )
 
         # --- Data loaders (full multivariate, no per-channel split) ---
         train_loader = make_loader(
