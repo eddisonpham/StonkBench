@@ -33,18 +33,23 @@ class DiffusionEmbedding(nn.Module):
 class ResidualBlock(nn.Module):
     def __init__(self, hidden_size, residual_channels, dilation):
         super().__init__()
+        # STONKBENCH_PATCH_2026-07-28_F: kernel=3 + padding=dilation + dilation=dilation
+        # on length=1 input crashes with "Padding value causes wrapping around
+        # more than once." Replace circular with zeros so the temporal padding
+        # degrades gracefully rather than wrapping past origin for target_dim=1.
         self.dilated_conv = nn.Conv1d(
             residual_channels,
             2 * residual_channels,
             3,
             padding=dilation,
             dilation=dilation,
-            padding_mode="circular",
+            padding_mode="zeros",
         )
         self.diffusion_projection = nn.Linear(hidden_size, residual_channels)
-        self.conditioner_projection = nn.Conv1d(
-            1, 2 * residual_channels, 1, padding=2, padding_mode="circular"
-        )
+        # STONKBENCH_PATCH_2026-07-28_E: padding=2 + circular on kernel=1 with
+        # target_dim=1 inflated length to 5, breaking the elementwise y + conditioner
+        # add in ResidualBlock. Collapse to kernel=1 no-padding.
+        self.conditioner_projection = nn.Conv1d(1, 2 * residual_channels, 1)
         self.output_projection = nn.Conv1d(residual_channels, 2 * residual_channels, 1)
 
         nn.init.kaiming_normal_(self.conditioner_projection.weight)
@@ -69,8 +74,11 @@ class ResidualBlock(nn.Module):
 class CondUpsampler(nn.Module):
     def __init__(self, cond_length, target_dim):
         super().__init__()
-        self.linear1 = nn.Linear(cond_length, target_dim // 2)
-        self.linear2 = nn.Linear(target_dim // 2, target_dim)
+        # STONKBENCH_PATCH_2026-07-28_C: Linear(cond_length, 0) for target_dim=1
+        # silently zeros the conditioning signal. Floor the interior dim at 1.
+        mid = max(1, target_dim // 2)
+        self.linear1 = nn.Linear(cond_length, mid)
+        self.linear2 = nn.Linear(mid, target_dim)
 
     def forward(self, x):
         x = self.linear1(x)
@@ -104,8 +112,8 @@ class EpsilonTheta(nn.Module):
         """
         super().__init__()
         self.input_projection = nn.Conv1d(
-            1, residual_channels, 1, padding=2, padding_mode="circular"
-        ) # 一维卷积 shape [batch_size, residual_channels, target_dim]
+            1, residual_channels, 3, padding=1, padding_mode="zeros"
+        )# STONKBENCH_PATCH_2026-07-28: per-channel target_dim=1 compatibility_B # 一维卷积 shape [batch_size, residual_channels, target_dim]
         self.diffusion_embedding = DiffusionEmbedding(
             time_emb_dim, proj_dim=residual_hidden
         ) # 时间embedding shape [batch_size, proj_dim]
@@ -122,8 +130,14 @@ class EpsilonTheta(nn.Module):
                 for i in range(residual_layers)
             ]
         )
-        self.skip_projection = nn.Conv1d(residual_channels, residual_channels, 3) #跳跃连接
-        self.output_projection = nn.Conv1d(residual_channels, 1, 3) # 输出
+        # STONKBENCH_PATCH_2026-07-28_H: kernel=3 default on length=1 input raises
+        # "Kernel size can't be greater than actual input size". For univariate 
+        # per-channel data, length=1 at residual-stack exit. Collapse to kernel=1.
+        self.skip_projection = nn.Conv1d(residual_channels, residual_channels, 1) #跳跃连接
+        # STONKBENCH_PATCH_2026-07-28_I: kernel=3 default-padding-zero on length=1
+        # input raises "Kernel size can't be greater than actual input size".
+        # Collapse to kernel=1 (matches Patch H's skip_projection).
+        self.output_projection = nn.Conv1d(residual_channels, 1, 1)
 
         nn.init.kaiming_normal_(self.input_projection.weight) # kalming初始化
         nn.init.kaiming_normal_(self.skip_projection.weight)

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.experiments.core.io import resolve_run_id, results_root
+from src.experiments.hp_configs import MODEL_HP_CONFIGS
 from src.experiments.core.pipeline import run_model_experiment
 from src.experiments.core.registry import ADAPTER_REGISTRY, STATISTICAL_MODEL_KEYS
 from src.experiments.hp_configs import DL_MODEL_KEYS as HP_DL_MODEL_KEYS
@@ -39,6 +40,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--smoke", action="store_true", help="Tiny sample/epoch budget for validation")
     parser.add_argument("--skip_sanity", action="store_true")
     return parser.parse_args()
+
+
+def _make_smoke_hp_summary(model_keys):
+    """Synthetic HP summary for --smoke runs. full_train_metadata() extracts
+    best_config fields (patience, batch_size, learning_rate) and reads
+    mean_best_val_loss from inside best_config. We re-use the vendor_default
+    HPConfig and stamp mean_best_val_loss=0.0. No double-applied max_epochs:
+    main() overrides it to 1 if args.smoke, else to FULL_TRAIN_EPOCHS.
+    """
+    import dataclasses
+    models_block = {}
+    for model_key in model_keys:
+        if model_key not in MODEL_HP_CONFIGS:
+            raise ValueError(f"[smoke] No HP config registered for {model_key!r}")
+        cfgs = MODEL_HP_CONFIGS[model_key]
+        cfg = next((c for c in cfgs if getattr(c, "is_vendor_default", False)), cfgs[0])
+        config = dataclasses.asdict(cfg)
+        config["mean_best_val_loss"] = 0.0
+        models_block[model_key] = {"best_config": config}
+    return {"models": models_block}
 
 
 def _load_hp_summary(path: Path) -> Dict[str, Any]:
@@ -83,7 +104,11 @@ def main() -> None:
     os.environ["STONKBENCH_RUN_ID"] = run_id
     run_results = results_root(output_root, run_id)
     hp_summary_path = Path(args.hp_summary) if args.hp_summary else run_results / "hp_search" / "summary.json"
-    hp_summary = _load_hp_summary(hp_summary_path)
+    if args.smoke and not hp_summary_path.exists():
+        print(f"[smoke] No HP summary at {hp_summary_path}; using vendor-default HP stubs for {args.models}.", flush=True)
+        hp_summary = _make_smoke_hp_summary(args.models)
+    else:
+        hp_summary = _load_hp_summary(hp_summary_path)
 
     device = device_to_str(get_device(args.device))
     print(log_device_context())

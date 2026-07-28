@@ -231,24 +231,29 @@ def run_model_experiment(
 
     # Persist ground-truth test windows once per generation length so the
     # evaluator loads the exact same shape as generated artifacts.
+    # Slice test_windows to generation_length so the GT matches the
+    # generated data's time dimension (stride=1 sliding window produces
+    # windows of window_size; we trim to the requested horizon).
     if batch.test_windows is not None and batch.test_windows.shape[0] > 0:
         gt_path = output_root / "ground_truth" / f"ground_truth_seq{generation_length}.pt"
-        if not gt_path.exists():
-            gt_metadata = default_metadata(
-                model_name="ground_truth",
-                model_type="ground_truth",
-                sequence_length=generation_length,
-                num_samples=int(batch.test_windows.shape[0]),
-                seed=seed,
-                preprocessing_cfg=preprocessing,
-                extra={
-                    "num_channels": int(batch.test_windows.shape[-1]),
-                    "asset_columns": batch.asset_columns,
-                    "price_columns": batch.price_columns,
-                    "is_multivariate": True,
-                },
-            )
-            save_artifact(batch.test_windows.float(), gt_metadata, gt_path)
+        gt_windows = batch.test_windows.float()
+        if gt_windows.shape[1] > generation_length:
+            gt_windows = gt_windows[:, :generation_length, :]
+        gt_metadata = default_metadata(
+            model_name="ground_truth",
+            model_type="ground_truth",
+            sequence_length=generation_length,
+            num_samples=int(gt_windows.shape[0]),
+            seed=seed,
+            preprocessing_cfg=preprocessing,
+            extra={
+                "num_channels": int(gt_windows.shape[-1]),
+                "asset_columns": batch.asset_columns,
+                "price_columns": batch.price_columns,
+                "is_multivariate": True,
+            },
+        )
+        save_artifact(gt_windows, gt_metadata, gt_path)
 
     manifest = build_run_manifest(
         model_name=model_key,

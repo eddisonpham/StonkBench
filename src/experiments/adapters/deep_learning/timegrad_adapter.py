@@ -1,17 +1,10 @@
-"""TimeGrad adapter for multivariate z-scored log-returns (per-channel).
+"""TimeGrad adapter — native multivariate (single joint network on full (N, L, C) data).
 
-Vendor: kongqi404/timegrad vendored at src/models/deep_learning/timegrad/,
-.git removed. We import the upstream TimeGradTrainingNetwork +
-GaussianDiffusion + EpsilonTheta + utils directly; gluonts is provided by a
-thin shim package inside the vendor dir.
+Vendor: kongqi404/timegrad vendored at src/models/deep_learning/timegrad/.
+We import the upstream TimeGradTrainingNetwork + GaussianDiffusion + EpsilonTheta + utils directly.
 
-Strategy: per-channel univariate training. For each of the C=25 channels,
-fit a separate TimeGradTrainingNetwork with target_dim=1 over the
-channel's z-scored log-return series. At generate time, copy the trained
-weights into a TimeGradPredictionNetwork and run the upstream AR-rollout
-(TimeGradPredictionNetwork.sampling_decoder). Output is stacked as
-(N, L, 25) — matches the per-channel-stack shape of pcf_gan / quantgan /
-utsd / cond_tsd.
+Strategy: single joint TimeGradTrainingNetwork with target_dim=C, processing the full
+multivariate tensor. This preserves cross-channel correlations during training and generation.
 
 Internal window sizes (smaller than StonkBench's preprocessed L=252; we
 take the LAST timegrad_total timesteps of each window):
@@ -60,6 +53,13 @@ def _import_timegrad():
 
 
 class TimeGradAdapter(ModelAdapter):
+    """Multivariate TimeGrad: single joint network processing full (N, L, C) data.
+
+    The upstream TimeGradTrainingNetwork natively supports target_dim > 1 via
+    its embedding layer and diffusion model. We use target_dim=C to process
+    all channels jointly, preserving cross-channel correlations.
+    """
+
     model_name = "TimeGrad"
     supports_arbitrary_generation = True
 
@@ -74,15 +74,24 @@ class TimeGradAdapter(ModelAdapter):
     _RESIDUAL_LAYERS = 8
     _RESIDUAL_CHANNELS = 8
     _DILATION_CYCLE = 2
-    _CONDITIONING_LENGTH = 100
+    # STONKBENCH_PATCH_2026-07-28_G: derive from _NUM_CELLS so vendor-family
+    # changes do not silently desync.
+
     _NUM_PARALLEL_SAMPLES = 100
     _DROPOUT_RATE = 0.1
 
     def __init__(self) -> None:
         super().__init__()
+        # STONKBENCH_PATCH_2026-07-28_J1: dynamic init-time coupling replaces the
+        # static class-body _CONDITIONING_LENGTH = _NUM_CELLS so runtime mutation
+        # of _NUM_CELLS propagates. Assert keeps the invariant explicit.
+        self._CONDITIONING_LENGTH = self._NUM_CELLS
+        assert self._CONDITIONING_LENGTH == self._NUM_CELLS, (
+            f"_CONDITIONING_LENGTH ({self._CONDITIONING_LENGTH}) != _NUM_CELLS ({self._NUM_CELLS}). "
+            "Re-bind in __init__ before constructing TimeGradTrainingNetwork."
+        )
         self.TimeGradTrainingNetwork, self.TimeGradPredictionNetwork = _import_timegrad()
-        self.trainers: List[Any] = []
-        self.predictors: List[Any] = []
+        self.model: Any = None  # single joint TimeGradTrainingNetwork
         self.device = "cpu"
         self.num_channels = 1
         self.base_length = 252
@@ -101,17 +110,21 @@ class TimeGradAdapter(ModelAdapter):
     def timegrad_total(self) -> int:
         return self.history_length + self.prediction_length
 
-    def _make_gluonts_args(self, channel_window: torch.Tensor):
-        N = channel_window.shape[0]
+    def _make_gluonts_args(self, windows: torch.Tensor, device: torch.device | None = None):
+        """Build gluonts-style args for multivariate (N, L, C) windows."""
+        N, L, C = windows.shape
         history = self.history_length
-        past_target_cdf = channel_window[:, :history, :]
-        future_target_cdf = channel_window[:, history:history + self.prediction_length, :]
+        dev = device if device is not None else windows.device
+
+        past_target_cdf = windows[:, :history, :]  # (N, history, C)
+        future_target_cdf = windows[:, history:history + self.prediction_length, :]  # (N, pred, C)
         past_observed_values = torch.ones_like(past_target_cdf)
         future_observed_values = torch.ones_like(future_target_cdf)
-        past_is_pad = torch.zeros(N, history, dtype=torch.float32)
-        past_time_feat = torch.zeros(N, history, 1, dtype=torch.float32)
-        future_time_feat = torch.zeros(N, self.prediction_length, 1, dtype=torch.float32)
-        target_dimension_indicator = torch.zeros(N, 1, dtype=torch.long)
+        past_is_pad = torch.zeros(N, history, dtype=torch.float32, device=dev)
+        past_time_feat = torch.zeros(N, history, 1, dtype=torch.float32, device=dev)
+        future_time_feat = torch.zeros(N, self.prediction_length, 1, dtype=torch.float32, device=dev)
+        # target_dimension_indicator: (N, C) — one index per channel
+        target_dimension_indicator = torch.arange(C, device=dev).unsqueeze(0).expand(N, -1)
         return (
             target_dimension_indicator, past_time_feat, past_target_cdf,
             past_observed_values, past_is_pad, future_time_feat,
@@ -128,9 +141,7 @@ class TimeGradAdapter(ModelAdapter):
 
         params = parse_training_params(fit_input)
         n_windows, seq_len, channels = windows.shape
-        # TimeGrad requires at least timegrad_total=216 (history 192 + prediction 24)
-        # timesteps per window; smoke flags with smaller --generation_length
-        # would otherwise crash the slice below with an axis-size IndexError.
+        # TimeGrad requires at least timegrad_total=216 timesteps per window
         if seq_len < self.timegrad_total:
             raise ValueError(
                 f"TimeGradAdapter requires seq_len >= timegrad_total={self.timegrad_total} "
@@ -149,93 +160,84 @@ class TimeGradAdapter(ModelAdapter):
         per_window_valid = valid_windows[:, -self.timegrad_total:, :].contiguous() if valid_windows.numel() > 0 else per_window_train
 
         # input_size = lags_seq * target_dim + target_dim * embed_dim + num_time_feat
-        # For target_dim=1, embed_dim=1, num_time_feat=1, lags_seq len=3 -> 3+1+1=5
-        input_size = len(self.lags_seq) + 1 + 1
+        # For target_dim=C, embed_dim=1, num_time_feat=1, lags_seq len=3 -> 3*C + C*1 + 1
+        input_size = len(self.lags_seq) * channels + channels * 1 + 1
 
+        net = self.TimeGradTrainingNetwork(
+            input_size=input_size,
+            num_layers=self._NUM_LAYERS,
+            num_cells=self._NUM_CELLS,
+            cell_type=self._CELL_TYPE,
+            history_length=self.history_length,
+            context_length=self.context_length,
+            prediction_length=self.prediction_length,
+            dropout_rate=self._DROPOUT_RATE,
+            lags_seq=list(self.lags_seq),
+            target_dim=channels,  # <-- joint multivariate
+            conditioning_length=self._CONDITIONING_LENGTH,
+            diff_steps=self._DIFF_STEPS,
+            loss_type=self._LOSS_TYPE,
+            beta_end=self._BETA_END,
+            beta_schedule=self._BETA_SCHEDULE,
+            residual_layers=self._RESIDUAL_LAYERS,
+            residual_channels=self._RESIDUAL_CHANNELS,
+            dilation_cycle_length=self._DILATION_CYCLE,
+            cardinality=[1] * channels,  # <-- per-channel cardinality
+            embedding_dimension=1,  # <-- per-channel index embeddings (vendor default)
+            scaling=False,  # StonkBench data already z-scored
+        ).to(device)
+
+        optimizer = torch.optim.Adam(net.parameters(), lr=params.learning_rate)
+        train_loader = make_loader(per_window_train, params.batch_size, shuffle=True)
+        valid_loader = make_loader(per_window_valid, params.batch_size, shuffle=False) if per_window_valid.shape[0] > 0 else train_loader
+
+        best_state = {k: v.detach().cpu().clone() for k, v in net.state_dict().items()}
+        best_val_loss = float("inf")
         info = FitTrainingInfo(best_val_loss=float("inf"), best_epoch=0, stopped_early=False)
-        best_val_per_channel: List[float] = []
-        base_seed = int(getattr(fit_input, "seed", 42) or 42)
 
-        for c in range(channels):
-            torch.manual_seed(base_seed + c)
-            ch_train = per_window_train[:, :, c:c + 1]
-            ch_valid = per_window_valid[:, :, c:c + 1] if per_window_valid.shape[0] > 0 else ch_train
+        for epoch in range(params.max_epochs):
+            net.train()
+            train_loss = 0.0
+            nb = 0
+            for (batch_x,) in train_loader:
+                batch_x = batch_x.to(device)
+                args = self._make_gluonts_args(batch_x, device=device)
+                optimizer.zero_grad()
+                out = net(*args)
+                loss = out[0] if isinstance(out, (tuple, list)) else out
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(net.parameters(), 10.0)
+                optimizer.step()
+                train_loss += float(loss.item())
+                nb += 1
+            avg_train = train_loss / max(nb, 1)
 
-            net = self.TimeGradTrainingNetwork(
-                input_size=input_size,
-                num_layers=self._NUM_LAYERS,
-                num_cells=self._NUM_CELLS,
-                cell_type=self._CELL_TYPE,
-                history_length=self.history_length,
-                context_length=self.context_length,
-                prediction_length=self.prediction_length,
-                dropout_rate=self._DROPOUT_RATE,
-                lags_seq=list(self.lags_seq),
-                target_dim=1,
-                conditioning_length=self._CONDITIONING_LENGTH,
-                diff_steps=self._DIFF_STEPS,
-                loss_type=self._LOSS_TYPE,
-                beta_end=self._BETA_END,
-                beta_schedule=self._BETA_SCHEDULE,
-                residual_layers=self._RESIDUAL_LAYERS,
-                residual_channels=self._RESIDUAL_CHANNELS,
-                dilation_cycle_length=self._DILATION_CYCLE,
-                cardinality=[1],
-                embedding_dimension=1,
-                scaling=False,  # StonkBench data already z-scored; bypass vendor's MeanScaler.
-            ).to(device)
-
-            optimizer = torch.optim.Adam(net.parameters(), lr=params.learning_rate)
-            train_loader = make_loader(ch_train, params.batch_size, shuffle=True)
-            valid_loader = make_loader(ch_valid, params.batch_size, shuffle=False) if ch_valid.shape[0] > 0 else train_loader
-
-            best_state = {k: v.detach().cpu().clone() for k, v in net.state_dict().items()}
-            best_val_loss = float("inf")
-
-            for epoch in range(params.max_epochs):
-                net.train()
-                train_loss = 0.0
-                nb = 0
-                for (batch_x,) in train_loader:
+            net.eval()
+            val_loss = 0.0
+            nv = 0
+            with torch.no_grad():
+                for (batch_x,) in valid_loader:
                     batch_x = batch_x.to(device)
-                    args = self._make_gluonts_args(batch_x)
-                    optimizer.zero_grad()
+                    args = self._make_gluonts_args(batch_x, device=device)
                     out = net(*args)
                     loss = out[0] if isinstance(out, (tuple, list)) else out
-                    loss.backward()
-                    torch.nn.utils.clip_grad_norm_(net.parameters(), 10.0)
-                    optimizer.step()
-                    train_loss += float(loss.item())
-                    nb += 1
-                avg_train = train_loss / max(nb, 1)
+                    val_loss += float(loss.item())
+                    nv += 1
+            avg_val = val_loss / max(nv, 1)
 
-                net.eval()
-                val_loss = 0.0
-                nv = 0
-                with torch.no_grad():
-                    for (batch_x,) in valid_loader:
-                        batch_x = batch_x.to(device)
-                        args = self._make_gluonts_args(batch_x)
-                        out = net(*args)
-                        loss = out[0] if isinstance(out, (tuple, list)) else out
-                        val_loss += float(loss.item())
-                        nv += 1
-                avg_val = val_loss / max(nv, 1)
+            if avg_val < best_val_loss:
+                best_val_loss = avg_val
+                best_state = {k: v.detach().cpu().clone() for k, v in net.state_dict().items()}
+            info.train_loss_history.append(avg_train)
+            info.val_loss_history.append(avg_val)
 
-                if avg_val < best_val_loss:
-                    best_val_loss = avg_val
-                    best_state = {k: v.detach().cpu().clone() for k, v in net.state_dict().items()}
-                info.train_loss_history.append(avg_train)
-                info.val_loss_history.append(avg_val)
+        net.load_state_dict(best_state)
+        self.model = net
 
-            net.load_state_dict(best_state)
-            self.trainers.append(net)
-            best_val_per_channel.append(best_val_loss)
-
-        info.best_val_loss = float(sum(best_val_per_channel) / max(len(best_val_per_channel), 1))
+        info.best_val_loss = best_val_loss
         info.best_epoch = params.max_epochs
 
-        # One consolidated FINAL checkpoint labeled with seq length (clean-pass contract).
+        # One consolidated FINAL checkpoint labeled with seq length
         meta_ = fit_input.metadata or {}
         model_key_ = str(meta_.get("model_key", self.model_name))
         final_ckpt = checkpoints_dir / f"{model_key_}_seq{self.base_length}_final.pt"
@@ -260,10 +262,10 @@ class TimeGradAdapter(ModelAdapter):
                 "dilation_cycle_length": self._DILATION_CYCLE,
                 "conditioning_length": self._CONDITIONING_LENGTH,
                 "num_parallel_samples": self._NUM_PARALLEL_SAMPLES,
-                "channels": [
-                    {"channel": c, "state_dict": m.state_dict()}
-                    for c, m in enumerate(self.trainers)
-                ],
+                "target_dim": self.num_channels,
+                "cardinality": [1] * self.num_channels,
+                "embedding_dimension": self.num_channels,
+                "state_dict": net.state_dict(),
             },
             final_ckpt,
         )
@@ -279,62 +281,63 @@ class TimeGradAdapter(ModelAdapter):
         )
 
     def generate(self, num_samples: int, generation_length: int, seed: int) -> AdapterGenerateOutput:
-        if not self._is_fitted or not self.trainers:
+        if not self._is_fitted or self.model is None:
             raise RuntimeError("Call fit() before generate().")
 
         torch.manual_seed(seed)
-        out = torch.zeros(num_samples, generation_length, self.num_channels)
-        input_size = len(self.lags_seq) + 1 + 1
+        C = self.num_channels
+        input_size = len(self.lags_seq) * C + C * 1 + 1
 
-        for c, trained in enumerate(self.trainers):
-            device_for_c = next(trained.parameters()).device
-            pred = self.TimeGradPredictionNetwork(
-                num_parallel_samples=self._NUM_PARALLEL_SAMPLES,
-                input_size=input_size,
-                num_layers=self._NUM_LAYERS,
-                num_cells=self._NUM_CELLS,
-                cell_type=self._CELL_TYPE,
-                history_length=self.history_length,
-                context_length=self.context_length,
-                prediction_length=self.prediction_length,
-                dropout_rate=0.0,
-                lags_seq=list(self.lags_seq),
-                target_dim=1,
-                conditioning_length=self._CONDITIONING_LENGTH,
-                diff_steps=self._DIFF_STEPS,
-                loss_type=self._LOSS_TYPE,
-                beta_end=self._BETA_END,
-                beta_schedule=self._BETA_SCHEDULE,
-                residual_layers=self._RESIDUAL_LAYERS,
-                residual_channels=self._RESIDUAL_CHANNELS,
-                dilation_cycle_length=self._DILATION_CYCLE,
-                cardinality=[1],
-                embedding_dimension=1,
-                scaling=False,
+        device_for_c = next(self.model.parameters()).device
+        pred = self.TimeGradPredictionNetwork(
+            num_parallel_samples=self._NUM_PARALLEL_SAMPLES,
+            input_size=input_size,
+            num_layers=self._NUM_LAYERS,
+            num_cells=self._NUM_CELLS,
+            cell_type=self._CELL_TYPE,
+            history_length=self.history_length,
+            context_length=self.context_length,
+            prediction_length=self.prediction_length,
+            dropout_rate=0.0,
+            lags_seq=list(self.lags_seq),
+            target_dim=C,
+            conditioning_length=self._CONDITIONING_LENGTH,
+            diff_steps=self._DIFF_STEPS,
+            loss_type=self._LOSS_TYPE,
+            beta_end=self._BETA_END,
+            beta_schedule=self._BETA_SCHEDULE,
+            residual_layers=self._RESIDUAL_LAYERS,
+            residual_channels=self._RESIDUAL_CHANNELS,
+            dilation_cycle_length=self._DILATION_CYCLE,
+            cardinality=[1] * C,
+            embedding_dimension=1,  # <-- per-channel index embeddings (vendor default)
+            scaling=False,
+        )
+        pred.load_state_dict(self.model.state_dict())
+        pred.eval().to(device_for_c)
+
+        # Zero-initialize past for unconditional generation
+        past_target_cdf = torch.zeros(num_samples, self.history_length, C, device=device_for_c)
+        target_dimension_indicator = torch.arange(C, device=device_for_c).unsqueeze(0).expand(num_samples, -1)
+        future_time_feat = torch.zeros(num_samples, self.prediction_length, 1, device=device_for_c)
+        past_time_feat = torch.zeros(num_samples, self.history_length, 1, device=device_for_c)
+        past_observed_values = torch.ones_like(past_target_cdf)
+        past_is_pad = torch.zeros(num_samples, self.history_length, device=device_for_c)
+
+        with torch.no_grad():
+            sample_paths = pred(
+                target_dimension_indicator=target_dimension_indicator,
+                past_time_feat=past_time_feat,
+                past_target_cdf=past_target_cdf,
+                past_observed_values=past_observed_values,
+                past_is_pad=past_is_pad,
+                future_time_feat=future_time_feat,
             )
-            pred.load_state_dict(trained.state_dict())
-            pred.eval().to(device_for_c)
-
-            past_target_cdf = torch.zeros(num_samples, self.history_length, 1, device=device_for_c)
-            target_dimension_indicator = torch.zeros(num_samples, 1, dtype=torch.long, device=device_for_c)
-            future_time_feat = torch.zeros(num_samples, self.prediction_length, 1, device=device_for_c)
-            past_time_feat = torch.zeros(num_samples, self.history_length, 1, device=device_for_c)
-            past_observed_values = torch.ones_like(past_target_cdf)
-            past_is_pad = torch.zeros(num_samples, self.history_length, device=device_for_c)
-
-            with torch.no_grad():
-                sample_paths = pred(
-                    target_dimension_indicator=target_dimension_indicator,
-                    past_time_feat=past_time_feat,
-                    past_target_cdf=past_target_cdf,
-                    past_observed_values=past_observed_values,
-                    past_is_pad=past_is_pad,
-                    future_time_feat=future_time_feat,
-                )
-            sample = sample_paths[:, 0, :, 0]
-            L = min(generation_length, sample.shape[1])
-            if L > 0:
-                out[:, :L, c] = sample[:, :L]
+        # sample_paths shape: (batch, num_parallel, prediction_length, target_dim)
+        # Take first parallel sample and trim to generation_length
+        sample = sample_paths[:, 0, :, :]  # (batch, pred_len, C)
+        L = min(generation_length, sample.shape[1])
+        out = sample[:, :L, :].float().cpu()
 
         if self.apply_calibration and self.channel_stats is not None:
             target = ChannelMomentStats(
@@ -344,7 +347,7 @@ class TimeGradAdapter(ModelAdapter):
             out = match_channel_moments(out, target)
 
         return AdapterGenerateOutput(
-            data=out.float().cpu(),
+            data=out,
             checkpoints=self.checkpoints,
             logs={"generator": "timegrad"},
             extra_metadata={
