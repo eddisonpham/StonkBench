@@ -56,25 +56,33 @@ class HPConfig:
 
 
 # Longer HP budgets; GAN/RNN families need more epochs before early-stop can fire.
+# Vendor-aligned training budgets.
+# quantgan: vendor min_epochs=max(20, patience*2)=20 (quantgan_module.py)
+# vrnn: vendor n_epochs=25 (train.py)
+# pcf_gan: no explicit vendor epoch count; 80/150 kept (adapter clamps)
+# kalman_vae: no explicit vendor epoch count; 60/100 kept
+# unconditional/conditional_tsd: vendor max_epochs=100 (train_tsdiff*.yaml)
+# cond_sig_wgan: vendor total_steps=1000 (train.py), not epoch-based
+# timegrad: vendor epochs=100 (trainer.py)
 HP_SEARCH_EPOCHS: Dict[str, int] = {
-    "quantgan": 80,
-    "vrnn": 80,
+    "quantgan": 20,
+    "vrnn": 25,
     "pcf_gan": 80,
     "kalman_vae": 60,
-    "unconditional_tsdiffusion": 60,
-    "conditional_tsdiffusion": 60,
-    "cond_sig_wgan": 60,
-    "timegrad": 60,
+    "unconditional_tsdiffusion": 100,
+    "conditional_tsdiffusion": 100,
+    "cond_sig_wgan": 100,
+    "timegrad": 100,
 }
 
 FULL_TRAIN_EPOCHS: Dict[str, int] = {
-    "quantgan": 150,
-    "vrnn": 150,
+    "quantgan": 20,
+    "vrnn": 25,
     "pcf_gan": 150,
     "kalman_vae": 100,
-    "unconditional_tsdiffusion": 150,
-    "conditional_tsdiffusion": 150,
-    "cond_sig_wgan": 150,
+    "unconditional_tsdiffusion": 100,
+    "conditional_tsdiffusion": 100,
+    "cond_sig_wgan": 100,
     "timegrad": 100,
 }
 
@@ -245,7 +253,7 @@ def full_train_metadata(model_key: str, hp_summary_entry: Dict) -> Dict[str, flo
         #   - model added to CALIBRATE_ON_GENERATE so the adapter's
         #     match_channel_moments() lifts per-channel std to train stats
         #     after the flatten.
-        metadata["cond_sig_wgan_steps"] = 5000
+        metadata["cond_sig_wgan_steps"] = 1000  # vendor default (train.py: total_steps=1000)
         metadata["cond_sig_wgan_p"] = 20
         metadata["cond_sig_wgan_hidden"] = "50,50,50"
         metadata["cond_sig_wgan_mc_size"] = 500  # vendor STOCKS default (was 100, too small)
