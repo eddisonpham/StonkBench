@@ -75,7 +75,7 @@ class MultivariateQuantGANTrainer(QuantGANTrainer):
                 shuffle=False,
             )
 
-        output_size = train_windows.shape[-1] if is_multivariate else 1
+        output_size = train_windows.shape[-1]
         self._init_models(output_size)
 
         opt_g = optim.RMSprop(self.generator.parameters(), lr=self.cfg.lr)
