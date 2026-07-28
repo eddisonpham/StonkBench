@@ -25,14 +25,9 @@ FULL_TRAIN_PATIENCE_CAP = 12
 # Models that systematically under-dispersed on z-scored returns in run 2026-07-11.
 # cond_sig_wgan added 2026-07-23: revert run shows per-channel std_ratio ~0.3 across all
 # 25 channels (KS p=0). Channel moment calibration is required to lift std_ratio to ~1.0.
-# kalman_vae + conditional_tsdiffusion generate at the proper return scale already
-# (post-2026-07-23 retraining, calibration inactive by default).
-CALIBRATE_ON_GENERATE = {
-    "quantgan",
-    "vrnn",
-    "pcf_gan",
-    "cond_sig_wgan",
-}
+# Vendor-faithful: no post-hoc moment injection. Generated output is whatever
+# the model produces. If a model collapses, the model's output is the result.
+CALIBRATE_ON_GENERATE: set[str] = set()
 
 
 @dataclass(frozen=True)

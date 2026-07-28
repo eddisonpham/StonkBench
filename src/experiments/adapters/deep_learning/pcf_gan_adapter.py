@@ -11,17 +11,12 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from src.experiments.adapters.base_adapter import ModelAdapter
-from src.experiments.adapters.deep_learning.calibration import (
-    ChannelMomentStats,
-    match_channel_moments,
-)
 from src.experiments.adapters.deep_learning.training_utils import (
     EarlyStopping,
     FitTrainingInfo,
     make_loader,
     parse_training_params,
     resolve_device,
-    use_calibration,
 )
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
 
@@ -97,8 +92,7 @@ class PCFGANAdapter(ModelAdapter):
             batch_x = batch_x.to(device)
             x_fake = generator(batch_size=batch_x.shape[0], n_lags=n_lags, device=device)
             dist = char_func.distance_measure(batch_x, x_fake, Lambda=0.1)
-            std_pen = torch.relu(batch_x.std() * 0.50 - x_fake.std())
-            losses.append(float((dist + 5.0 * std_pen).item()))
+            losses.append(float(dist.item()))
         return float(sum(losses) / max(len(losses), 1))
 
     def _train_joint(self, generator, char_func, train_loader, valid_loader, params, device, n_lags):
@@ -148,8 +142,6 @@ class PCFGANAdapter(ModelAdapter):
                 g_opt.zero_grad(set_to_none=True)
                 x_fake = generator(batch_size=x_real.shape[0], n_lags=n_lags, device=device)
                 g_loss = char_func.distance_measure(x_real, x_fake, Lambda=0.1)
-                std_pen = torch.relu(x_real.std() * 0.50 - x_fake.std())
-                g_loss = g_loss + 2.0 * std_pen
                 g_loss.backward()
                 g_opt.step()
                 epoch_g += float(g_loss.item())

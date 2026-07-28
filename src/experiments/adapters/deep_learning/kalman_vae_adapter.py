@@ -11,17 +11,12 @@ from torch.utils.data import DataLoader
 
 from src.experiments.adapters.base_adapter import ModelAdapter
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
-from src.experiments.adapters.deep_learning.calibration import (
-    ChannelMomentStats,
-    match_channel_moments,
-)
 from src.experiments.adapters.deep_learning.training_utils import (
     EarlyStopping,
     FitTrainingInfo,
     make_loader,
     parse_training_params,
     resolve_device,
-    use_calibration,
 )
 
 
@@ -63,8 +58,6 @@ class KalmanVAEAdapter(ModelAdapter):
         self.z_dim = 8
         self.image_side = 8
         self.checkpoints: List[Path] = []
-        self.channel_stats: ChannelMomentStats | None = None
-        self.apply_calibration = False
 
         self.KalmanVariationalAutoencoder, self.SampleControl = _import_kvae()
 
@@ -166,8 +159,6 @@ class KalmanVAEAdapter(ModelAdapter):
 
         device = resolve_device(fit_input.device)
         self.device = str(device)
-        self.channel_stats = ChannelMomentStats.from_windows(windows)
-        self.apply_calibration = use_calibration(fit_input)
 
         # Allow hyperparameter overrides from metadata, otherwise use defaults
         # tuned for small 1x1-image financial series.
@@ -311,15 +302,7 @@ class KalmanVAEAdapter(ModelAdapter):
         data = self._from_model_output(
             gen_x, num_samples=num_samples, channels=self.num_channels
         )
-        if self.apply_calibration and self.channel_stats is not None:
-            # Move channel_stats tensors to the same device as generated data
-            # to avoid RuntimeError during moment matching.
-            target = ChannelMomentStats(
-                mean=self.channel_stats.mean.to(data.device),
-                std=self.channel_stats.std.to(data.device),
-            )
-            data = match_channel_moments(data, target)
-
+        # Vendor-faithful: no post-hoc moment injection. Output is whatever the model produces.
         return AdapterGenerateOutput(
             data=data.float().cpu(),
             checkpoints=self.checkpoints,

@@ -26,17 +26,12 @@ import torch
 
 from src.experiments.adapters.base_adapter import ModelAdapter
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
-from src.experiments.adapters.deep_learning.calibration import (
-    ChannelMomentStats,
-    match_channel_moments,
-)
 from src.experiments.adapters.deep_learning.training_utils import (
     EarlyStopping,
     FitTrainingInfo,
     make_loader,
     parse_training_params,
     resolve_device,
-    use_calibration,
 )
 
 
@@ -99,8 +94,6 @@ class TimeGradAdapter(ModelAdapter):
         self.prediction_length = 24
         self.lags_seq = [1, 24, 168]
         self.checkpoints: List[Path] = []
-        self.channel_stats: ChannelMomentStats | None = None
-        self.apply_calibration = False
 
     @property
     def history_length(self) -> int:
@@ -153,8 +146,6 @@ class TimeGradAdapter(ModelAdapter):
 
         device = resolve_device(fit_input.device)
         self.device = str(device)
-        self.channel_stats = ChannelMomentStats.from_windows(windows)
-        self.apply_calibration = use_calibration(fit_input)
 
         per_window_train = windows[:, -self.timegrad_total:, :].contiguous()
         per_window_valid = valid_windows[:, -self.timegrad_total:, :].contiguous() if valid_windows.numel() > 0 else per_window_train
@@ -187,19 +178,10 @@ class TimeGradAdapter(ModelAdapter):
             scaling=False,  # StonkBench data already z-scored
         ).to(device)
 
-        # Vendor defaults: Adam with weight_decay=1e-6, OneCycleLR with
-        # maximum_learning_rate=1e-2, num_batches_per_epoch=50.
-        optimizer = torch.optim.Adam(
-            net.parameters(), lr=params.learning_rate, weight_decay=1e-6
-        )
+        # Vendor-faithful: plain Adam (no weight_decay override; vendor does not tune it).
+        # NO OneCycleLR — vendor's PyTorch Lightning Trainer manages its own LR schedule.
+        optimizer = torch.optim.Adam(net.parameters(), lr=params.learning_rate)
         num_batches_per_epoch = 50
-        maximum_lr = 1e-2
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer,
-            max_lr=maximum_lr,
-            steps_per_epoch=num_batches_per_epoch,
-            epochs=params.max_epochs,
-        )
         train_loader = make_loader(per_window_train, params.batch_size, shuffle=True)
         valid_loader = make_loader(per_window_valid, params.batch_size, shuffle=False) if per_window_valid.shape[0] > 0 else train_loader
 
@@ -226,7 +208,6 @@ class TimeGradAdapter(ModelAdapter):
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(net.parameters(), 10.0)
                 optimizer.step()
-                scheduler.step()
                 train_loss += float(loss.item())
             avg_train = train_loss / num_batches_per_epoch
 
@@ -374,13 +355,7 @@ class TimeGradAdapter(ModelAdapter):
 
         out = torch.cat(generated_chunks, dim=1).float().cpu()  # (batch, generation_length, C)
 
-        if self.apply_calibration and self.channel_stats is not None:
-            target = ChannelMomentStats(
-                mean=self.channel_stats.mean.to(out.device),
-                std=self.channel_stats.std.to(out.device),
-            )
-            out = match_channel_moments(out, target)
-
+        # Vendor-faithful: no post-hoc moment injection. Output is whatever the model produces.
         return AdapterGenerateOutput(
             data=out,
             checkpoints=self.checkpoints,
