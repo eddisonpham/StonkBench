@@ -20,6 +20,8 @@ from src.utils.device import resolve_device
 
 # Import only the vendor's config/result dataclasses and base trainer
 from src.models.deep_learning.quantgan_module import (
+    Discriminator,
+    Generator,
     QuantGANConfig,
     QuantGANFitResult,
     QuantGANTrainer,
