@@ -196,6 +196,12 @@ class UnconditionalTSDiffusionAdapter(ModelAdapter):
             valid_windows.float(), params.batch_size, shuffle=False
         )
         optimizer = torch.optim.Adam(model.parameters(), lr=params.learning_rate)
+        # Vendor uses gradient_clip_val=0.5 (train_tsdiff.yaml).
+        grad_clip = 0.5
+        # Vendor uses num_batches_per_epoch=128 — each epoch samples 128
+        # random batches rather than processing the full dataset. This
+        # matches the original Lightning-based training loop.
+        num_batches_per_epoch = 128
         early_stop = EarlyStopping(patience=params.patience)
         best_state = copy.deepcopy(model.state_dict())
         info = FitTrainingInfo(
@@ -205,7 +211,15 @@ class UnconditionalTSDiffusionAdapter(ModelAdapter):
         for epoch in range(params.max_epochs):
             model.train()
             train_loss = 0.0
-            for (batch_x,) in train_loader:
+            batch_count = 0
+            # Infinite iterator to sample num_batches_per_epoch batches
+            train_iter = iter(train_loader)
+            for _ in range(num_batches_per_epoch):
+                try:
+                    (batch_x,) = next(train_iter)
+                except StopIteration:
+                    train_iter = iter(train_loader)
+                    (batch_x,) = next(train_iter)
                 batch_x = batch_x.to(device)
                 optimizer.zero_grad()
                 t = torch.randint(
@@ -215,9 +229,11 @@ class UnconditionalTSDiffusionAdapter(ModelAdapter):
                     batch_x, t, features=None, loss_type="l2"
                 )
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
                 optimizer.step()
                 train_loss += float(loss.item())
-            info.train_loss_history.append(train_loss / max(len(train_loader), 1))
+                batch_count += 1
+            info.train_loss_history.append(train_loss / max(batch_count, 1))
 
             val_loss = self._eval_val_loss(model, valid_loader, device)
             info.val_loss_history.append(val_loss)

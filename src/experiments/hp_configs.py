@@ -248,7 +248,7 @@ def full_train_metadata(model_key: str, hp_summary_entry: Dict) -> Dict[str, flo
         metadata["cond_sig_wgan_steps"] = 5000
         metadata["cond_sig_wgan_p"] = 20
         metadata["cond_sig_wgan_hidden"] = "50,50,50"
-        metadata["cond_sig_wgan_mc_size"] = 100
+        metadata["cond_sig_wgan_mc_size"] = 500  # vendor STOCKS default (was 100, too small)
         metadata["cond_sig_wgan_sig_depth"] = 2
         metadata["cond_sig_wgan_stride"] = 5
         metadata["cond_sig_wgan_time_flatten"] = True

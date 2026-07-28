@@ -58,7 +58,8 @@ def run_model_experiment(
     output_root: Path,
     training_metadata: Optional[Dict[str, Any]] = None,
     sanity_output_dir: Optional[Path] = None,
-) -> Path:
+    seq_lengths: Optional[List[int]] = None,
+) -> List[Path]:
     _setup_seed(seed)
     resolved_device = device_to_str(get_device(device))
     adapter = get_adapter(model_key)
@@ -129,23 +130,14 @@ def run_model_experiment(
         hparams=hparams,
         log_dir=output_root / "logs",
     )
+    # Determine which seq lengths to generate.  If caller passes
+    # ``seq_lengths`` we train once and generate at every requested length;
+    # otherwise we fall back to the legacy single-length behaviour.
+    _gen_lengths = seq_lengths if seq_lengths else [generation_length]
+    max_gen_len = max(_gen_lengths)
+
     try:
         fit_info = adapter.fit(fit_input, checkpoints_dir=paths.checkpoints, logs_dir=paths.logs)
-        # Fixed-window adapters are trained at the dataset's native window length and
-        # must be stitched/trimmed to the requested generation length. Arbitrary-length
-        # adapters receive the requested length directly.
-        if adapter.supports_arbitrary_generation:
-            native_length = generation_length
-        else:
-            native_length = int(batch.inferred_length or generation_length)
-        generated = adapter.generate(num_samples=num_samples, generation_length=native_length, seed=seed)
-        if generated.data.shape[1] != generation_length:
-            generated = AdapterGenerateOutput(
-                data=stitch_sequences(generated.data, generation_length, seed=seed),
-                checkpoints=generated.checkpoints,
-                logs=generated.logs,
-                extra_metadata=generated.extra_metadata,
-            )
         elapsed_sec = float(time.perf_counter() - t_start)
         events.run_end(
             model_key=model_key,
@@ -156,135 +148,111 @@ def run_model_experiment(
                           "num_channels": int(fit_info.get("num_channels", 1))},
             log_dir=output_root / "logs",
         )
-        # Stash wall-clock in fit_info so it propagates into the artifact metadata.
         fit_info = dict(fit_info)
         fit_info["wall_clock_seconds"] = elapsed_sec
-    except Exception as exc:  # noqa: BLE001 — emit error_halt so partial runs are debuggable.
+    except Exception as exc:  # noqa: BLE001
         elapsed_sec = float(time.perf_counter() - t_start)
         try:
-            events.run_end(
-                model_key=model_key,
-                elapsed_sec=elapsed_sec,
-                error=str(exc),
-                log_dir=output_root / "logs",
-            )
-            events.error_halt(
-                model_key=model_key,
-                error_msg=str(exc),
-                traceback_str=_traceback.format_exc(),
-                log_dir=output_root / "logs",
-            )
+            events.run_end(model_key=model_key, elapsed_sec=elapsed_sec, error=str(exc), log_dir=output_root / "logs")
+            events.error_halt(model_key=model_key, error_msg=str(exc),
+                              traceback_str=_traceback.format_exc(), log_dir=output_root / "logs")
         except Exception:  # noqa: BLE001
             print(f"[WARN] Failed to emit error_halt for {model_key}; tearing down anyway.")
         raise
 
-    # Map model outputs from normalized training space back to raw feature space.
+    # Denormalization stats (loaded once for DL models).
+    dl_norm_stats = None
     if model_key not in STATISTICAL_MODEL_KEYS:
         dl_set = load_dl_set(resolve_dl_set_path())
-        stats = channel_norm_stats(dl_set)
-        if stats is not None:
-            mean, std = stats
-            # Keep denorm on the same device as generated samples, then persist on CPU.
-            data = denormalize_channels(generated.data, mean, std).detach().cpu()
-            generated = AdapterGenerateOutput(
-                data=data,
-                checkpoints=generated.checkpoints,
-                logs=generated.logs,
-                extra_metadata=generated.extra_metadata,
-            )
+        dl_norm_stats = channel_norm_stats(dl_set)
+
+    # --- Generate, denormalize, save, GT, and sanity for each seq_len ---
+    artifacts: List[Path] = []
+    for seq_len in _gen_lengths:
+        # Generate
+        if adapter.supports_arbitrary_generation:
+            native_length = seq_len
         else:
+            native_length = int(batch.inferred_length or seq_len)
+        generated = adapter.generate(num_samples=num_samples, generation_length=native_length, seed=seed)
+        if generated.data.shape[1] != seq_len:
             generated = AdapterGenerateOutput(
-                data=generated.data.detach().cpu(),
-                checkpoints=generated.checkpoints,
-                logs=generated.logs,
+                data=stitch_sequences(generated.data, seq_len, seed=seed),
+                checkpoints=generated.checkpoints, logs=generated.logs,
                 extra_metadata=generated.extra_metadata,
             )
-    else:
-        generated = AdapterGenerateOutput(
-            data=generated.data.detach().cpu(),
-            checkpoints=generated.checkpoints,
-            logs=generated.logs,
-            extra_metadata=generated.extra_metadata,
-        )
+        # Denormalize
+        if dl_norm_stats is not None:
+            mean, std = dl_norm_stats
+            data = denormalize_channels(generated.data, mean, std).detach().cpu()
+            generated = AdapterGenerateOutput(data=data, checkpoints=generated.checkpoints,
+                                             logs=generated.logs, extra_metadata=generated.extra_metadata)
+        else:
+            generated = AdapterGenerateOutput(data=generated.data.detach().cpu(),
+                                             checkpoints=generated.checkpoints,
+                                             logs=generated.logs, extra_metadata=generated.extra_metadata)
 
-    metadata = default_metadata(
-        model_name=model_key,
-        model_type="statistical" if model_key in STATISTICAL_MODEL_KEYS else "deep_learning",
-        sequence_length=generation_length,
-        num_samples=num_samples,
-        seed=seed,
-        preprocessing_cfg=preprocessing,
-        extra={
-            "num_channels": int(generated.data.shape[-1]),
-            "asset_columns": batch.asset_columns,
-            "price_columns": batch.price_columns,
-            "is_multivariate": True,
-            "train_sequence_length": int(batch.inferred_length or generation_length),
-            "model_checkpoint_manifest": [str(p) for p in generated.checkpoints],
-            **fit_info,
-            **generated.extra_metadata,
-        },
-    )
-
-    artifact_path = paths.artifacts / f"{model_key}_seq{generation_length}.pt"
-    save_artifact(generated.data, metadata, artifact_path)
-
-    # Persist ground-truth test windows once per generation length so the
-    # evaluator loads the exact same shape as generated artifacts.
-    # Slice test_windows to generation_length so the GT matches the
-    # generated data's time dimension (stride=1 sliding window produces
-    # windows of window_size; we trim to the requested horizon).
-    if batch.test_windows is not None and batch.test_windows.shape[0] > 0:
-        gt_path = output_root / "ground_truth" / f"ground_truth_seq{generation_length}.pt"
-        gt_windows = batch.test_windows.float()
-        if gt_windows.shape[1] > generation_length:
-            gt_windows = gt_windows[:, :generation_length, :]
-        gt_metadata = default_metadata(
-            model_name="ground_truth",
-            model_type="ground_truth",
-            sequence_length=generation_length,
-            num_samples=int(gt_windows.shape[0]),
-            seed=seed,
+        metadata = default_metadata(
+            model_name=model_key,
+            model_type="statistical" if model_key in STATISTICAL_MODEL_KEYS else "deep_learning",
+            sequence_length=seq_len, num_samples=num_samples, seed=seed,
             preprocessing_cfg=preprocessing,
             extra={
-                "num_channels": int(gt_windows.shape[-1]),
-                "asset_columns": batch.asset_columns,
-                "price_columns": batch.price_columns,
+                "num_channels": int(generated.data.shape[-1]),
+                "asset_columns": batch.asset_columns, "price_columns": batch.price_columns,
                 "is_multivariate": True,
+                "train_sequence_length": int(batch.inferred_length or max_gen_len),
+                "model_checkpoint_manifest": [str(p) for p in generated.checkpoints],
+                **fit_info, **generated.extra_metadata,
             },
         )
-        save_artifact(gt_windows, gt_metadata, gt_path)
+        artifact_path = paths.artifacts / f"{model_key}_seq{seq_len}.pt"
+        save_artifact(generated.data, metadata, artifact_path)
+        artifacts.append(artifact_path)
+
+        # Ground truth — fresh sliding windows per seq_len.
+        # For DL models, denormalize test_series to raw space so GT matches
+        # the denormalized artifacts.
+        gt_path = output_root / "ground_truth" / f"ground_truth_seq{seq_len}.pt"
+        test_series = batch.test.float()
+        if dl_norm_stats is not None:
+            mean_gt, std_gt = dl_norm_stats
+            test_series = denormalize_channels(test_series, mean_gt, std_gt)
+        gt_windows = sliding_window_2d(test_series, seq_len, stride=1)
+        if gt_windows.shape[0] > 0:
+            gt_meta = default_metadata(
+                model_name="ground_truth", model_type="ground_truth",
+                sequence_length=seq_len, num_samples=int(gt_windows.shape[0]),
+                seed=seed, preprocessing_cfg=preprocessing,
+                extra={"num_channels": int(gt_windows.shape[-1]),
+                       "asset_columns": batch.asset_columns, "price_columns": batch.price_columns,
+                       "is_multivariate": True},
+            )
+            save_artifact(gt_windows, gt_meta, gt_path)
+
+        # Sanity plots
+        if sanity_output_dir is not None and model_key not in STATISTICAL_MODEL_KEYS:
+            try:
+                from src.experiments.sanity_visualization import render_model_sanity
+                sanity_model_dir = sanity_output_dir / model_key / f"seq{seq_len}"
+                sanity_model_dir.mkdir(parents=True, exist_ok=True)
+                sanity_paths = render_model_sanity(
+                    adapter=adapter, batch=batch, output_dir=sanity_model_dir,
+                    generation_length=seq_len, seed=seed,
+                )
+                print(f"  [sanity] {model_key} seq{seq_len}: {len(sanity_paths)} plots")
+            except Exception as e:
+                print(f"  [sanity-error] {model_key} seq{seq_len}: {e}")
 
     manifest = build_run_manifest(
-        model_name=model_key,
-        adapter_name=adapter.__class__.__name__,
-        cfg=preprocessing,
-        checkpoint_paths=generated.checkpoints,
-        extra={"artifact_path": str(artifact_path), "fit_info": fit_info},
+        model_name=model_key, adapter_name=adapter.__class__.__name__,
+        cfg=preprocessing, checkpoint_paths=getattr(adapter, "checkpoints", []),
+        extra={"artifacts": [str(p) for p in artifacts], "fit_info": fit_info},
     )
     write_json(paths.logs / "run_manifest.json", manifest)
-    append_jsonl(paths.logs / "run.jsonl", {"event": "run_complete", "artifact": str(artifact_path)})
+    append_jsonl(paths.logs / "run.jsonl", {"event": "run_complete", "artifacts": [str(p) for p in artifacts]})
 
-    if sanity_output_dir is not None and model_key not in STATISTICAL_MODEL_KEYS:
-        from src.experiments.sanity_visualization import render_model_sanity
-
-        sanity_paths = render_model_sanity(
-            adapter=adapter,
-            batch=batch,
-            output_dir=sanity_output_dir / model_key,
-            generation_length=generation_length,
-            seed=seed,
-        )
-        write_json(
-            sanity_output_dir / model_key / "manifest.json",
-            {
-                "model_key": model_key,
-                "channel_count": len(sanity_paths),
-                "files": [str(p) for p in sanity_paths],
-            },
-        )
-
-    return artifact_path
+    return artifacts
 
 
 def run_benchmark(

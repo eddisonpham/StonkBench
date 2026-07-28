@@ -187,7 +187,19 @@ class TimeGradAdapter(ModelAdapter):
             scaling=False,  # StonkBench data already z-scored
         ).to(device)
 
-        optimizer = torch.optim.Adam(net.parameters(), lr=params.learning_rate)
+        # Vendor defaults: Adam with weight_decay=1e-6, OneCycleLR with
+        # maximum_learning_rate=1e-2, num_batches_per_epoch=50.
+        optimizer = torch.optim.Adam(
+            net.parameters(), lr=params.learning_rate, weight_decay=1e-6
+        )
+        num_batches_per_epoch = 50
+        maximum_lr = 1e-2
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(
+            optimizer,
+            max_lr=maximum_lr,
+            steps_per_epoch=num_batches_per_epoch,
+            epochs=params.max_epochs,
+        )
         train_loader = make_loader(per_window_train, params.batch_size, shuffle=True)
         valid_loader = make_loader(per_window_valid, params.batch_size, shuffle=False) if per_window_valid.shape[0] > 0 else train_loader
 
@@ -198,8 +210,14 @@ class TimeGradAdapter(ModelAdapter):
         for epoch in range(params.max_epochs):
             net.train()
             train_loss = 0.0
-            nb = 0
-            for (batch_x,) in train_loader:
+            # Vendor uses num_batches_per_epoch=50 per epoch
+            train_iter = iter(train_loader)
+            for _ in range(num_batches_per_epoch):
+                try:
+                    (batch_x,) = next(train_iter)
+                except StopIteration:
+                    train_iter = iter(train_loader)
+                    (batch_x,) = next(train_iter)
                 batch_x = batch_x.to(device)
                 args = self._make_gluonts_args(batch_x, device=device)
                 optimizer.zero_grad()
@@ -208,9 +226,9 @@ class TimeGradAdapter(ModelAdapter):
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(net.parameters(), 10.0)
                 optimizer.step()
+                scheduler.step()
                 train_loss += float(loss.item())
-                nb += 1
-            avg_train = train_loss / max(nb, 1)
+            avg_train = train_loss / num_batches_per_epoch
 
             net.eval()
             val_loss = 0.0
@@ -316,28 +334,45 @@ class TimeGradAdapter(ModelAdapter):
         pred.load_state_dict(self.model.state_dict())
         pred.eval().to(device_for_c)
 
-        # Zero-initialize past for unconditional generation
-        past_target_cdf = torch.zeros(num_samples, self.history_length, C, device=device_for_c)
+        # --- Autoregressive rollout ---
+        # TimeGrad predicts prediction_length=24 steps per forward pass.
+        # To generate arbitrary lengths, we roll the past context window
+        # forward by prediction_length each step and concatenate outputs.
         target_dimension_indicator = torch.arange(C, device=device_for_c).unsqueeze(0).expand(num_samples, -1)
-        future_time_feat = torch.zeros(num_samples, self.prediction_length, 1, device=device_for_c)
-        past_time_feat = torch.zeros(num_samples, self.history_length, 1, device=device_for_c)
+        past_target_cdf = torch.zeros(num_samples, self.history_length, C, device=device_for_c)
         past_observed_values = torch.ones_like(past_target_cdf)
         past_is_pad = torch.zeros(num_samples, self.history_length, device=device_for_c)
+        past_time_feat = torch.zeros(num_samples, self.history_length, 1, device=device_for_c)
 
+        # Always generate in chunks of prediction_length (model's fixed
+        # internal dimension) and trim to generation_length at the end.
+        # This avoids passing a smaller future_time_feat than the model
+        # was constructed with, which would cause a shape mismatch.
+        future_time_feat = torch.zeros(num_samples, self.prediction_length, 1, device=device_for_c)
+        generated_chunks: list[torch.Tensor] = []
+        remaining = generation_length
         with torch.no_grad():
-            sample_paths = pred(
-                target_dimension_indicator=target_dimension_indicator,
-                past_time_feat=past_time_feat,
-                past_target_cdf=past_target_cdf,
-                past_observed_values=past_observed_values,
-                past_is_pad=past_is_pad,
-                future_time_feat=future_time_feat,
-            )
-        # sample_paths shape: (batch, num_parallel, prediction_length, target_dim)
-        # Take first parallel sample and trim to generation_length
-        sample = sample_paths[:, 0, :, :]  # (batch, pred_len, C)
-        L = min(generation_length, sample.shape[1])
-        out = sample[:, :L, :].float().cpu()
+            while remaining > 0:
+                sample_paths = pred(
+                    target_dimension_indicator=target_dimension_indicator,
+                    past_time_feat=past_time_feat,
+                    past_target_cdf=past_target_cdf,
+                    past_observed_values=past_observed_values,
+                    past_is_pad=past_is_pad,
+                    future_time_feat=future_time_feat,
+                )
+                # sample_paths: (batch, num_parallel, prediction_length, C)
+                chunk = sample_paths[:, 0, :, :]  # (batch, prediction_length, C)
+                take = min(self.prediction_length, remaining)
+                generated_chunks.append(chunk[:, :take, :])
+                remaining -= take
+                # Roll past context: shift left by prediction_length, append full chunk
+                past_target_cdf = torch.cat([past_target_cdf[:, self.prediction_length:, :], chunk], dim=1)
+                past_observed_values = torch.ones_like(past_target_cdf)
+                past_is_pad = torch.zeros(num_samples, past_target_cdf.shape[1], device=device_for_c)
+                past_time_feat = torch.zeros(num_samples, past_target_cdf.shape[1], 1, device=device_for_c)
+
+        out = torch.cat(generated_chunks, dim=1).float().cpu()  # (batch, generation_length, C)
 
         if self.apply_calibration and self.channel_stats is not None:
             target = ChannelMomentStats(

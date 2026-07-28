@@ -26,10 +26,7 @@ import numpy as np
 import torch
 
 ROOT = Path("/home/phamnhut/StonkBench")
-RUN_ID = "baseline_2026-07-21_vm"
-RESULTS_DIR = ROOT / "outputs" / "results" / RUN_ID
-SANITY_DIR = ROOT / "outputs" / "sanity" / RUN_ID
-GT_PATH = ROOT / "outputs" / "data" / "ground_truth.pt"
+DEFAULT_RUN_ID = "baseline_2026-07-21_vm"
 
 # Canonical 14 final models (post 2026-07-23 cleanup + 2026-07-27 timegrad
 # re-added).  timevae / sig_wgan / timegan are decommissioned and live
@@ -55,9 +52,9 @@ KEEP_STAT = [
 ALL_14 = KEEP_DL + KEEP_STAT
 
 
-def _load_artifact(model: str) -> tuple[torch.Tensor, dict]:
+def _load_artifact(model: str, results_dir: Path) -> tuple[torch.Tensor, dict]:
     """Return (data_tensor, metadata) for the canonical artifact path."""
-    path = RESULTS_DIR / model / "artifacts" / f"{model}_seq252.pt"
+    path = results_dir / model / "artifacts" / f"{model}_seq252.pt"
     obj = torch.load(path, map_location="cpu", weights_only=True)
     if isinstance(obj, dict) and "data" in obj and "metadata" in obj:
         return obj["data"].float(), obj["metadata"]
@@ -67,17 +64,35 @@ def _load_artifact(model: str) -> tuple[torch.Tensor, dict]:
     raise ValueError(f"Unexpected artifact format at {path}: {type(obj)}")
 
 
-def _load_ground_truth_window() -> torch.Tensor:
-    """First test window as a (L, C) tensor (channel-stats scale)."""
-    obj = torch.load(GT_PATH, map_location="cpu", weights_only=True)
-    if isinstance(obj, dict) and "data" in obj:
-        d = obj["data"]
-    elif isinstance(obj, torch.Tensor):
-        d = obj
-    else:
-        raise ValueError(f"Unexpected GT format at {GT_PATH}")
-    # data is (N, L, C); use first window as the GT reference.
-    return d[0].float()
+def _load_ground_truth_window(results_dir: Path, model: str, seq_len: int = 252) -> torch.Tensor:
+    """Load or derive ground truth for a model at given seq_len.
+
+    Priority:
+    1. Per-model GT file in the run directory (new multi-length format).
+    2. Legacy single GT file.
+    3. Build fresh GT from stats_set test_series using sliding_window_2d.
+    """
+    gt_path = results_dir / "ground_truth" / f"{model}_gt_seq{seq_len}.pt"
+    if gt_path.is_file():
+        obj = torch.load(gt_path, map_location="cpu", weights_only=True)
+        if isinstance(obj, dict) and "data" in obj:
+            return obj["data"].float()
+        if isinstance(obj, torch.Tensor):
+            return obj.float()
+    # Fallback: try legacy GT path
+    legacy = ROOT / "outputs" / "data" / "ground_truth.pt"
+    if legacy.is_file():
+        obj = torch.load(legacy, map_location="cpu", weights_only=True)
+        d = obj["data"] if isinstance(obj, dict) and "data" in obj else obj
+        return d[0].float()
+    # Last resort: build GT from test series
+    from src.utils.preprocessed_data_utils import load_stats_set, resolve_stats_set_path, sliding_window_2d
+    stats = load_stats_set(resolve_stats_set_path())
+    test_series = stats["test_series"].float()  # (T, C) raw log returns
+    windows = sliding_window_2d(test_series, seq_len, stride=1)
+    if windows.shape[0] == 0:
+        raise FileNotFoundError(f"Cannot build GT: test_series too short for seq_len={seq_len}")
+    return windows[0]  # (seq_len, C) first window
 
 
 def _channel_metrics(
@@ -175,12 +190,14 @@ def regen_for_model(
     feature_columns: list[str],
     gt_window: torch.Tensor,
     skip_existing: bool,
+    results_dir: Path,
+    sanity_dir: Path,
 ) -> dict:
     """Regen per-ticker plots + summary CSV/JSON for one model.
 
     Returns a dict of {channel -> [overlay_path, hist_path]}.
     """
-    sims, meta = _load_artifact(model)
+    sims, meta = _load_artifact(model, results_dir)
     if sims.ndim != 3:
         raise ValueError(f"Expected 3D artifact for {model}; got {sims.shape}")
     if sims.shape[-1] != len(feature_columns):
@@ -189,7 +206,7 @@ def regen_for_model(
         sims = sims[..., :n]
         feature_columns = feature_columns[:n]
 
-    out_dir = SANITY_DIR / model
+    out_dir = sanity_dir / model
     out_dir.mkdir(parents=True, exist_ok=True)
     saved: list[Path] = []
     rows: list[dict] = []
@@ -249,9 +266,9 @@ def regen_for_model(
             "channels": feature_columns,
             "regenerated_by": "scripts/dev/regen_sanity.py",
             "artifact_path": str(
-                RESULTS_DIR / model / "artifacts" / f"{model}_seq252.pt"
+                results_dir / model / "artifacts" / f"{model}_seq252.pt"
             ),
-            "ground_truth_path": str(GT_PATH),
+            "ground_truth_path": "(per-model GT in run dir)",
         }
         manifest_path.write_text(_json.dumps(manifest, indent=2))
         saved.append(manifest_path)
@@ -259,33 +276,22 @@ def regen_for_model(
     return {"model": model, "files": [str(p) for p in saved]}
 
 
-def verify_only() -> int:
-    """Print a status table; return exit code (0 if all 13 OK)."""
-    import json as _json
-
+def verify_only(results_dir: Path, sanity_dir: Path) -> int:
+    """Print a status table; return exit code (0 if all OK)."""
     print("=== verify (no writes) ===")
     rc = 0
     print(f'  {"model":<28} {"artifact":<10} {"sanity":<10} {"pngs":>5}')
     print("  " + "-" * 56)
     for m in ALL_14:
-        art_p = RESULTS_DIR / m / "artifacts" / f"{m}_seq252.pt"
-        san_d = SANITY_DIR / m
-        art_ok = "OK" if art_p.is_file() else (art_p.exists() and "DIR" or "MISS")
+        art_p = results_dir / m / "artifacts" / f"{m}_seq252.pt"
+        san_d = sanity_dir / m
+        art_ok = "MISS"
         if art_p.is_file():
             art_ok = "OK"
-        elif art_p.exists():
-            art_ok = "DIR?"
-        else:
-            art_ok = "MISS"
         san_ok = "OK" if san_d.is_dir() else "MISS"
+        png_count = 0
         if san_d.is_dir():
-            png_count = sum(1 for f in san_d.rglob("*.png"))
-            csv_count = sum(1 for f in san_d.rglob("*.csv"))
-            json_count = sum(1 for f in san_d.rglob("*.json"))
-            san_summary = f"png={png_count}csv={csv_count}json={json_count}"
-        else:
-            san_summary = "MISS"
-            png_count = 0
+            png_count = sum(1 for _ in san_d.rglob("*.png"))
         if art_ok != "OK" or san_ok != "OK" or png_count < 25:
             rc = 1
         print(f"  {m:<28} {art_ok:<10} {san_ok:<10} {png_count:>5}")
@@ -310,10 +316,18 @@ def main() -> None:
         default=None,
         help="subset of canonical 13 to regen (default: all available)",
     )
+    ap.add_argument(
+        "--run-id",
+        default=DEFAULT_RUN_ID,
+        help=f"run directory under outputs/results/ (default: {DEFAULT_RUN_ID})",
+    )
     args = ap.parse_args()
+    run_id = args.run_id
 
     if args.verify_only:
-        raise SystemExit(verify_only())
+        results_dir_v = ROOT / "outputs" / "results" / run_id
+        sanity_dir_v = ROOT / "outputs" / "sanity" / run_id
+        raise SystemExit(verify_only(results_dir_v, sanity_dir_v))
 
     # Channel names (asset columns) come from the preprocessed dl_set.
     sys.path.insert(0, str(ROOT))
@@ -322,17 +336,19 @@ def main() -> None:
     dl_set = load_dl_set(resolve_dl_set_path())
     feature_columns = list(dl_set["feature_columns"])
 
-    gt_window = _load_ground_truth_window()
+    results_dir = ROOT / "outputs" / "results" / run_id
+    sanity_dir = ROOT / "outputs" / "sanity" / run_id
 
     targets = args.models if args.models else ALL_14
     summary: list[dict] = []
     for model in targets:
-        art_p = RESULTS_DIR / model / "artifacts" / f"{model}_seq252.pt"
+        art_p = results_dir / model / "artifacts" / f"{model}_seq252.pt"
         if not art_p.is_file():
             print(f"  SKIP  {model}: artifact missing at {art_p}")
             continue
         try:
-            result = regen_for_model(model, feature_columns, gt_window, args.skip_existing)
+            gt_window = _load_ground_truth_window(results_dir, model, 252)
+            result = regen_for_model(model, feature_columns, gt_window, args.skip_existing, results_dir, sanity_dir)
             print(
                 f"  WROTE {model:<28} -> {len(result['files'])} files"
             )

@@ -33,6 +33,8 @@ def parse_args() -> argparse.Namespace:
     # values disagree, the adapter will silently stitch short windows up
     # to 252 on every generate() call. Keep them in sync.
     parser.add_argument("--generation_length", type=int, default=252)
+    parser.add_argument("--seq_lengths", nargs="+", type=int, default=None,
+                        help="Additional sequence lengths to generate (trim from 252).")
     parser.add_argument("--num_samples", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", type=str, default=None)
@@ -95,6 +97,30 @@ def _training_metadata(
     return metadata
 
 
+def _training_metadata(
+    model_key: str,
+    hp_summary: Dict[str, Any],
+    generation_length: int,
+    smoke: bool,
+) -> Dict[str, Any]:
+    if model_key in STATISTICAL_MODEL_KEYS:
+        return {"generation_length": generation_length}
+
+    if model_key not in HP_DL_MODEL_KEYS:
+        raise ValueError(f"No HP configuration for model '{model_key}'")
+
+    model_entry = hp_summary.get("models", {}).get(model_key)
+    if not model_entry or not model_entry.get("best_config"):
+        raise ValueError(f"HP summary has no best_config for '{model_key}'")
+
+    metadata = full_train_metadata(model_key, model_entry)
+    if smoke:
+        metadata["max_epochs"] = 1
+        metadata["patience"] = 1
+    metadata["generation_length"] = generation_length
+    return metadata
+
+
 def main() -> None:
     args = parse_args()
     output_root = Path(args.output_root)
@@ -118,8 +144,13 @@ def main() -> None:
     print(f"Results dir: {run_results}")
 
     num_samples = 16 if args.smoke else args.num_samples
-    num_epochs = 1 if args.smoke else 1  # adapters honor metadata max_epochs for DL models
+    num_epochs = 1 if args.smoke else 1
     sanity_dir = None if args.skip_sanity else output_root / "sanity" / run_id
+
+    all_seq_lengths = [args.generation_length]
+    if args.seq_lengths:
+        all_seq_lengths.extend(sorted(set(args.seq_lengths) - {args.generation_length}))
+    all_seq_lengths.sort(reverse=True)
 
     artifacts: List[Path] = []
     for model_key in args.models:
@@ -129,13 +160,16 @@ def main() -> None:
         training_metadata = _training_metadata(
             model_key=model_key,
             hp_summary=hp_summary,
-            generation_length=args.generation_length,
+            generation_length=max(all_seq_lengths),
             smoke=args.smoke,
         )
-        print(f"Training {model_key} with metadata={training_metadata}")
-        artifact = run_model_experiment(
+        print(f"\n{'='*60}")
+        print(f"Training {model_key} (seq_lengths={all_seq_lengths})")
+        print(f"{'='*60}")
+
+        model_artifacts = run_model_experiment(
             model_key=model_key,
-            generation_length=args.generation_length,
+            generation_length=max(all_seq_lengths),
             num_samples=num_samples,
             num_epochs=num_epochs,
             seed=args.seed,
@@ -143,10 +177,11 @@ def main() -> None:
             output_root=output_root,
             training_metadata=training_metadata,
             sanity_output_dir=sanity_dir,
+            seq_lengths=all_seq_lengths,
         )
-        artifacts.append(artifact)
+        artifacts.extend(model_artifacts)
 
-    print("Saved artifacts:")
+    print("\nSaved artifacts:")
     for artifact in artifacts:
         print(f"- {artifact}")
     if sanity_dir is not None:
