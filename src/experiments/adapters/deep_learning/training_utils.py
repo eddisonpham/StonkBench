@@ -19,7 +19,6 @@ __all__ = [
     "make_loader",
     "parse_training_params",
     "resolve_device",
-    "use_calibration",
 ]
 
 
@@ -107,10 +106,6 @@ def parse_training_params(fit_input: AdapterFitInput) -> TrainingParams:
         learning_rate=float(meta.get("learning_rate", 1e-3)),
         batch_size=int(meta.get("batch_size", 64)),
     )
-
-
-def use_calibration(fit_input: AdapterFitInput) -> bool:
-    return bool(fit_input.metadata.get("use_calibration", False))
 
 
 def make_loader(

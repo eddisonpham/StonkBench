@@ -22,7 +22,7 @@ cd "${PROJECT_ROOT}"
 GENERATION_LENGTH="${GENERATION_LENGTH:-52}"
 NUM_SAMPLES="${NUM_SAMPLES:-1000}"
 NUM_EPOCHS="${NUM_EPOCHS:-15}"
-MODELS="${MODELS:-quantgan gbm_adapter block_bootstrap}"
+MODELS="${MODELS:-quantgan block_bootstrap}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-${JOB_ROOT}/experiments}"
 
 python -m src.experiments.run_benchmark \

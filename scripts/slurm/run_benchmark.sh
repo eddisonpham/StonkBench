@@ -18,7 +18,7 @@ GENERATION_LENGTH="${GENERATION_LENGTH:-52}"
 NUM_SAMPLES="${NUM_SAMPLES:-1000}"
 NUM_EPOCHS="${NUM_EPOCHS:-15}"
 SEED="${SEED:-42}"
-MODELS="${MODELS:-quantgan timegrad kalman_vae unconditional_tsdiffusion vrnn pcf_gan cond_sig_wgan gbm_adapter block_bootstrap ou_process merton_jump_diffusion de_jump_diffusion garch11}"
+MODELS="${MODELS:-quantgan timegrad kalman_vae unconditional_tsdiffusion vrnn pcf_gan cond_sig_wgan block_bootstrap merton_jump_diffusion de_jump_diffusion garch11}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-${STONKBENCH_OUTPUT_ROOT:-/home/epham/StonkBench/output}}"
 DEVICE="${STONKBENCH_DEVICE:-cuda}"
 

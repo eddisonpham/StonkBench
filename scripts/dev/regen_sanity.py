@@ -42,9 +42,8 @@ KEEP_DL = [
     "timegrad",
 ]
 KEEP_STAT = [
-    "gbm_adapter",
     "block_bootstrap",
-    "ou_process",
+    "stationary_block_bootstrap",
     "merton_jump_diffusion",
     "de_jump_diffusion",
     "garch11",

@@ -16,9 +16,9 @@ source "${PROJECT_ROOT:-$HOME/StonkBench}/scripts/slurm/common.sh"
 cd "${PROJECT_ROOT}"
 
 MODELS=(
-  gbm_adapter
+ 
   block_bootstrap
-  ou_process
+ 
   merton_jump_diffusion
   de_jump_diffusion
   garch11

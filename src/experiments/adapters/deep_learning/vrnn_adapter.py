@@ -10,17 +10,12 @@ from torch.utils.data import DataLoader
 
 from src.experiments.adapters.base_adapter import ModelAdapter
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
-from src.experiments.adapters.deep_learning.calibration import (
-    ChannelMomentStats,
-    match_channel_moments,
-)
 from src.experiments.adapters.deep_learning.training_utils import (
     EarlyStopping,
     FitTrainingInfo,
     make_loader,
     parse_training_params,
     resolve_device,
-    use_calibration,
 )
 from src.models.deep_learning.VariationalRecurrentNeuralNetwork.model import VRNN
 
@@ -38,8 +33,6 @@ class VRNNAdapter(ModelAdapter):
         self.num_channels = 1
         self.checkpoints: List[Path] = []
         self.base_length = 1
-        self.channel_stats: ChannelMomentStats | None = None
-        self.apply_calibration = False
 
     def _forward_loss(self, batch_x: torch.Tensor, kl_weight: float) -> torch.Tensor:
         # VRNN expects time-major (T, B, C)
@@ -72,8 +65,6 @@ class VRNNAdapter(ModelAdapter):
         self.num_channels = channels
         device = resolve_device(fit_input.device)
         self.device = str(device)
-        self.channel_stats = ChannelMomentStats.from_windows(windows)
-        self.apply_calibration = use_calibration(fit_input)
 
         # Modest capacity: channels*16 was ~800 and overfit/collapsed with tiny batches.
         h_dim = max(64, min(256, channels * 4))
@@ -152,9 +143,10 @@ class VRNNAdapter(ModelAdapter):
                 generated.append(seq)
 
         data = torch.cat(generated, dim=0).float().cpu()
-        if self.apply_calibration and self.channel_stats is not None:
-            data = match_channel_moments(data, self.channel_stats)
 
+        # No post-hoc moment match (vendor-faithful; 2026-07-29 cleanup mandate).
+        # Generated samples are returned as-is from the AR rollout. Amplitude
+        # issues are the model's fault, not patched here.
         return AdapterGenerateOutput(
             data=data,
             checkpoints=self.checkpoints,

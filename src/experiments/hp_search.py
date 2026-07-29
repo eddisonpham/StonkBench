@@ -145,6 +145,12 @@ def run_trial(
         "label": spec.label_with_smoke(smoke),
         "config_id": spec.config.config_id,
         "is_vendor_default": spec.config.is_vendor_default,
+        # Persist per-trial smoking-gun knob overrides (clip_value, d_steps_per_g_step,
+        # noise_dim, ...) so the full_train stage can reapply them via
+        # full_train_metadata(). Without this, the aggregated summary.json ranks
+        # but loses the trial-specific overrides, and the final train would
+        # silently fall back to MODEL_FIXED_HP defaults.
+        "extras": dict(spec.config.extras),
         **meta,
         **fit_info,
     }
@@ -171,6 +177,14 @@ def aggregate_results(results: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
             val_losses = [float(r["best_val_loss"]) for r in rows if "best_val_loss" in r]
             if not val_losses:
                 continue
+            # Per-config extras: the trial JSON stores `extras` (per-trial HPConfig
+            # overrides) as a top-level field on `rows[0]`. Forward it into the
+            # aggregated ranking so full_train_metadata can re-apply the
+            # per-trial smoking-gun knobs (clip_value, d_steps_per_g_step,
+            # noise_dim, ...) when retraining the winner. If `extras` is missing
+            # for this row (e.g. legacy trials from before the field was added),
+            # fall back to an empty dict so aggregation stays backward-compatible.
+            extras = dict(rows[0].get("extras") or {})
             ranked.append(
                 {
                     "config_key": config_key,
@@ -180,6 +194,7 @@ def aggregate_results(results: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
                     "learning_rate": rows[0]["learning_rate"],
                     "batch_size": rows[0]["batch_size"],
                     "patience": rows[0]["patience"],
+                    "extras": extras,
                     "mean_best_val_loss": float(statistics.mean(val_losses)),
                     "std_best_val_loss": float(statistics.pstdev(val_losses)) if len(val_losses) > 1 else 0.0,
                     "seeds": [int(r["seed"]) for r in rows],

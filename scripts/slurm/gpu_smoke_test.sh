@@ -47,7 +47,7 @@ PY
 
 python -m src.experiments.run_benchmark \
   --smoke_test \
-  --models quantgan gbm_adapter \
+  --models quantgan \
   --generation_length 100 \
   --num_samples 8 \
   --num_epochs 1 \

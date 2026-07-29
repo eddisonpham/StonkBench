@@ -15,7 +15,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--models",
         nargs="+",
-        default=["quantgan", "gbm_adapter"],
+        default=["quantgan", "stationary_block_bootstrap"],
         help="Subset of registry keys to exercise",
     )
     # Smoke runs use the canonical default (252) so the smoke probe

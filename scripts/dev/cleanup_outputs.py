@@ -17,8 +17,10 @@ What this script does:
 The eight canonical DL models: quantgan, vrnn, pcf_gan, kalman_vae,
   unconditional_tsdiffusion, conditional_tsdiffusion, cond_sig_wgan,
   timegrad.
-The six canonical statistical models: gbm_adapter, block_bootstrap,
-  ou_process, merton_jump_diffusion, de_jump_diffusion, garch11.
+The five canonical statistical models (post 2026-07-30 cleanup; gbm and
+  ou_process were removed end-to-end): block_bootstrap,
+  stationary_block_bootstrap, merton_jump_diffusion, de_jump_diffusion,
+  garch11.
 
 CLI flags
 ---------
@@ -62,14 +64,13 @@ KEEP_DL = {
     "timegrad",
 }
 KEEP_STAT = {
-    "gbm_adapter",
     "block_bootstrap",
-    "ou_process",
+    "stationary_block_bootstrap",
     "merton_jump_diffusion",
     "de_jump_diffusion",
     "garch11",
 }
-KEEP_MODELS = sorted(KEEP_DL | KEEP_STAT)  # 14 models total (8 DL + 6 stat)
+KEEP_MODELS = sorted(KEEP_DL | KEEP_STAT)  # 13 models total (8 DL + 5 stat)
 
 # Decommissioned model keys whose per-run sub-dirs in the kept run go to
 # legacy instead of being shipped to the peer.  The adapters + vendors

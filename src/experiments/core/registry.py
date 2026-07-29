@@ -6,13 +6,18 @@ from typing import Dict, Type
 from src.experiments.adapters.base_adapter import ModelAdapter
 
 STATISTICAL_MODEL_KEYS = frozenset(
-    {"gbm_adapter", "block_bootstrap", "ou_process", "merton_jump_diffusion", "de_jump_diffusion", "garch11"}
+    {
+        "block_bootstrap",
+        "stationary_block_bootstrap",
+        "merton_jump_diffusion",
+        "de_jump_diffusion",
+        "garch11",
+    }
 )
 
 ADAPTER_REGISTRY: Dict[str, str] = {
-    "gbm_adapter": "src.experiments.adapters.statistical_adapter.StatisticalGBMAdapter",
     "block_bootstrap": "src.experiments.adapters.statistical_adapter.BlockBootstrapAdapter",
-    "ou_process": "src.experiments.adapters.statistical_adapter.StatisticalOUAdapter",
+    "stationary_block_bootstrap": "src.experiments.adapters.statistical_adapter.StationaryBlockBootstrapAdapter",
     "merton_jump_diffusion": "src.experiments.adapters.statistical_adapter.StatisticalMertonAdapter",
     "de_jump_diffusion": "src.experiments.adapters.statistical_adapter.StatisticalDEJDAdapter",
     "garch11": "src.experiments.adapters.statistical_adapter.StatisticalGARCH11Adapter",

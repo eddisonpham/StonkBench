@@ -23,9 +23,9 @@ MODELS=(
   vrnn
   pcf_gan
   cond_sig_wgan
-  gbm_adapter
+ 
   block_bootstrap
-  ou_process
+ 
   merton_jump_diffusion
   de_jump_diffusion
   garch11

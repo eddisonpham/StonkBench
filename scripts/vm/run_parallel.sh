@@ -155,7 +155,7 @@ REAPED_FAILURES=()
 
 # MODELS_DL mirrors DL_MODEL_KEYS in src/experiments/hp_configs.py.
 MODELS_DL=(quantgan timegrad kalman_vae unconditional_tsdiffusion conditional_tsdiffusion vrnn pcf_gan cond_sig_wgan)
-MODELS_STAT=(gbm_adapter block_bootstrap ou_process merton_jump_diffusion de_jump_diffusion garch11)
+MODELS_STAT=(block_bootstrap stationary_block_bootstrap merton_jump_diffusion de_jump_diffusion garch11)
 MODELS_ALL=("${MODELS_DL[@]}" "${MODELS_STAT[@]}")
 
 # Number of HP trials (8 DL models × 9 configs = 72 today). Derived from

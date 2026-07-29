@@ -41,7 +41,10 @@ Agent Context
 
 # Canonical pipeline artifacts (regenerable, kept locally under <repo>/outputs/ on each run)
 /outputs/
-/outputs_legacy/
+/outputs_legacy*/
+# Catch every numbered legacy dir (outputs_legacy2, outputs_legacy3, ..., outputs_legacyN)
+# in a single rule. Without this, future re-runs that create outputs_legacy5/ etc.
+# would re-appear as untracked entries in git status.
 
 # Ignore every folder of the form output*/*/** (depth >= 2 contents under any output* dir).
 # Covers /outputs/, /outputs_legacy/, /outputs_legacy2/, /output_v3/, etc., at any depth in the

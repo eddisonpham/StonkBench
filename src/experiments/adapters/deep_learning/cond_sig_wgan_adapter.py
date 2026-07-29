@@ -24,14 +24,9 @@ import torch
 
 from src.experiments.adapters.base_adapter import ModelAdapter
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
-from src.experiments.adapters.deep_learning.calibration import (
-    ChannelMomentStats,
-    match_channel_moments,
-)
 from src.experiments.adapters.deep_learning.training_utils import (
     parse_training_params,
     resolve_device,
-    use_calibration,
 )
 from src.utils.preprocessed_data_utils import (
     load_dl_set,
@@ -55,18 +50,10 @@ class ConditionalSigWGANAdapter(ModelAdapter):
         self._base_config: Any = None
         self._p: int = 10  # past conditioning window
         self._device: str = "cpu"
-        self._channel_stats: ChannelMomentStats | None = None
-        self.apply_calibration: bool = False
-        # Post-rollout fixes (read from fit_input.metadata, default-on).
-        # The revert_2026-07-23 run showed two coupled defects on 25-channel
-        # data: severe time-axis variance decay (Q1 std=0.013 → Q4 std=0.003)
-        # and uniform per-channel under-dispersion (std_ratio median ≈ 0.35).
-        # These three flags are the minimal sufficient adapter-level fixes;
-        # they do NOT modify vendor code, do NOT change trained weights, and
-        # can be disabled per-experiment via metadata to enable A/B studies.
-        self._time_flatten: bool = True       # per-step std → t=0's std; kills AR decay
-        self._per_step_clamp: bool = True    # final bound to ±clamp_val
-        self._clamp_val: float = 5.0         # z-scored log-return tail cap
+        # Vendor-faithful (2026-07-29 cleanup): the previously-default
+        # post-rollout machinery (time_flatten / per_step_clamp / clamp_val)
+        # was REMOVED per the user mandate 'no post-hoc moment injection'
+        # (if the model performs ill, it's the model's fault).
 
     # ------------------------------------------------------------------ vendor
     @classmethod
@@ -100,38 +87,7 @@ class ConditionalSigWGANAdapter(ModelAdapter):
         return module
 
     # ------------------------------------------------------------------ helpers
-    @staticmethod
-    def _time_flatten_post(x: torch.Tensor) -> torch.Tensor:
-        """Rescale each timestep's std to match t=0's std.
-
-        For z-scored log returns, the cond_sig_wgan AR-FNN often produces
-        sequences whose std decays from Q1 to Q4 because the model's strongest
-        variance envelope is right after the real-data ``x_past`` conditioning
-        window. After step ``p`` the conditioning gets fully replaced by the
-        model's own (lower-variance) outputs and the generator regresses to a
-        safe mean-reverting attractor (the ``revert_2026-07-23`` run showed
-        Q1 std=0.013 → Q4 std=0.003, a 79 % drop).
-
-        This post-hoc rescale preserves each (sample, timestep, channel)'s
-        mean-position and rescales the per-timestep cross-sample std to the
-        std-observed-at-t=0. The downstream KS test on the marginal
-        distribution should *improve* because the marginal widens to match
-        the training data's amplitude (instead of being a collapsed point
-        mass).
-
-        Defensive: ``clamp(min=1e-8)`` avoids div-by-zero when a step's std
-        is exactly 0 (all ``N`` samples producing the same value at that t).
-        At that degenerate step the data is constant, the multiplier
-        cancels out, and the constant is preserved.
-        """
-        if x.shape[0] < 2:
-            # need at least 2 samples for a meaningful std over dim=0
-            return x
-        std_t = x.std(dim=0, keepdim=True, unbiased=False).clamp(min=1e-8)
-        std_0 = std_t[:, 0:1, :]
-        mean_t = x.mean(dim=0, keepdim=True)
-        return (x - mean_t) * (std_0 / std_t) + mean_t
-
+    # (Vendor-faithful: _time_flatten_post helper removed 2026-07-29.)
     def _build_signature_config(
         self, vendor: Any, dim: int, mc_size: int = 100, sig_depth: int = 3
     ) -> Any:
@@ -184,7 +140,7 @@ class ConditionalSigWGANAdapter(ModelAdapter):
     ) -> Dict[str, Any]:
         vendor = self._import_vendor()
         params = parse_training_params(fit_input)
-        self.apply_calibration = use_calibration(fit_input)
+
 
         seed = int(getattr(fit_input, "seed", 0) or 0)
         torch.manual_seed(seed)
@@ -194,10 +150,6 @@ class ConditionalSigWGANAdapter(ModelAdapter):
         self._device = str(device)
 
         meta = fit_input.metadata or {}
-        # Post-rollout fix flags (defaults to True; A/B-disable via metadata).
-        self._time_flatten = bool(meta.get("cond_sig_wgan_time_flatten", True))
-        self._per_step_clamp = bool(meta.get("cond_sig_wgan_per_step_clamp", True))
-        self._clamp_val = float(meta.get("cond_sig_wgan_clamp_val", 5.0))
         p = int(meta.get("cond_sig_wgan_p", 10))
         total_steps = int(meta.get("cond_sig_wgan_steps", 1500))
         # Respect smoke mode: if max_epochs is very small (e.g. 1), clamp steps.
@@ -231,10 +183,6 @@ class ConditionalSigWGANAdapter(ModelAdapter):
             )
 
         dim = int(train_windows.shape[-1])
-        self._channel_stats = ChannelMomentStats(
-            mean=train_windows.mean(dim=(0, 1)),
-            std=train_windows.std(dim=(0, 1)).clamp(min=1e-8),
-        )
 
         # Build signature config (metadata mc_size overrides the default)
         sig_config = self._build_signature_config(vendor, dim, mc_size, sig_depth)
@@ -416,18 +364,9 @@ class ConditionalSigWGANAdapter(ModelAdapter):
             reps = (num_samples // n_cond) + 1
             data = data.repeat(reps, 1, 1)[:num_samples]
 
-        # Post-rollout fixes (default-on; controlled by metadata flags).
-        # Order is:
-        #   1. std-flatten  - kills time-axis decay (matches per-step std to t=0)
-        #   2. calibration  - lifts per-channel std to match train stats
-        #   3. clamp        - bounds any residual blow-up from the rescaling
-        if self._time_flatten:
-            data = self._time_flatten_post(data)
-        if self.apply_calibration and self._channel_stats is not None:
-            data = match_channel_moments(data, self._channel_stats)
-        if self._per_step_clamp:
-            data = torch.clamp(data, min=-self._clamp_val, max=self._clamp_val)
-
+        # No post-hoc moment match (vendor-faithful; 2026-07-29 cleanup mandate).
+        # Generated samples are returned as-is from the AR rollout. Amplitude
+        # issues are the model's fault, not patched here.
         return AdapterGenerateOutput(
             data=data,
             checkpoints=[],

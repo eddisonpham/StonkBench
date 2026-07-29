@@ -57,6 +57,49 @@ class MultivariateQuantGANTrainer(QuantGANTrainer):
         self.generator = Generator(self.cfg.noise_dim, output_size).to(self.device)
         self.discriminator = Discriminator(output_size, output_size).to(self.device)
 
+    @torch.no_grad()
+    def _eval_val_loss(self, loader: DataLoader) -> float:
+        """Per-channel FAKE-only moment shape score for early stopping on multivariate data.
+
+        Vendor-faithful: NO patching of the upstream `_eval_val_loss` is needed
+        for univariate `(N, L)` shapes — the base class works correctly there.
+        For multivariate `(N, L, C)` we override to detect FAKE-data collapse
+        using only the GENERATED samples' own statistics — we never reference
+        `real` here, so no real-data moment is used to select the early-stop
+        checkpoint.
+
+        Score = skew_pen       (per-channel: |fake_skew| - 0.5, relu)
+              + flat_pen       (per-channel: relu(0.01 - fake_ch_std), mean)
+
+        Notes:
+        - `flat_pen` is per-channel so a single collapsed channel still
+          registers a penalty even when most other channels are healthy.
+        - `skew_pen` uses only `fake_*` stats (no real comparison).
+        - Per 2026-07-29 user mandate: NO `real.mean()` or `real.std()` may
+          flow into model selection. Use vendor's own adversarial losses
+          (`-E[D(fake)]`, `E[D(real)] - E[D(fake)]`) for fitting and rely
+          on FAKE-only shape priors for the early-stop selection score.
+        """
+        if self.generator is None:
+            raise RuntimeError("Models are not initialized.")
+        self.generator.eval()
+        total = 0.0
+        count = 0
+        for real in loader:
+            real = real.to(self.device)
+            batch_size, seq_len = real.shape[0], real.shape[1]
+            noise = torch.randn(batch_size, seq_len, self.cfg.noise_dim, device=self.device)
+            fake = self.generator(noise)
+            # FAKE-only statistics — no `real_ch_std`, no `real.mean()`.
+            fake_ch_std = fake.std(dim=(0, 1)) + 1e-3       # (C,)
+            fake_centered = fake - fake.mean(dim=(0, 1), keepdim=True)
+            fake_skew = (fake_centered.pow(3).mean(dim=(0, 1))) / (fake_ch_std.pow(3) + 1e-12)
+            skew_pen = torch.relu(torch.abs(fake_skew) - 0.5).mean()
+            flat_pen = torch.relu(torch.tensor(0.01, device=self.device) - fake_ch_std).mean()
+            total += float((skew_pen + flat_pen).item())
+            count += 1
+        return total / max(count, 1)
+
     def fit(
         self,
         train_windows: torch.Tensor,
@@ -195,13 +238,25 @@ class QuantGANAdapter(ModelAdapter):
         self.base_length = int(windows.shape[1])
         self.num_channels = int(windows.shape[2])
 
+        # Smoking-gun knobs come from fit.metadata (set by hp_configs.full_train_metadata
+        # from MODEL_FIXED_HP + per-trial HPConfig.extras). Defaults match vendor's
+        # QuantGANConfig dataclass defaults so vendor-faithful behavior is preserved
+        # when no metadata override is present.
+        metadata = fit_input.metadata or {}
+        clip_value = float(metadata.get("clip_value", 0.01))
+        d_steps_per_g_step = int(metadata.get("d_steps_per_g_step", 5))
+        noise_dim = int(metadata.get("noise_dim", 3))
+
         self.trainer = MultivariateQuantGANTrainer(
             device=fit_input.device,
             cfg=QuantGANConfig(
+                noise_dim=noise_dim,
                 epochs=params.max_epochs,
                 batch_size=max(8, min(params.batch_size, windows.shape[0])),
                 lr=params.learning_rate,
                 patience=params.patience,
+                clip_value=clip_value,
+                d_steps_per_g_step=d_steps_per_g_step,
             ),
         )
         fit_result = self.trainer.fit(windows, valid_windows)

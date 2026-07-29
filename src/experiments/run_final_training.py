@@ -50,12 +50,26 @@ def _make_smoke_hp_summary(model_keys):
     mean_best_val_loss from inside best_config. We re-use the vendor_default
     HPConfig and stamp mean_best_val_loss=0.0. No double-applied max_epochs:
     main() overrides it to 1 if args.smoke, else to FULL_TRAIN_EPOCHS.
+
+    Statistical models are skipped here — they have no entry in MODEL_HP_CONFIGS
+    and don't read the HP summary at training time (see _training_metadata).
     """
     import dataclasses
     models_block = {}
     for model_key in model_keys:
+        # Skip models that don't have HP configs (statistical models that
+        # only read generation_length). The check is dual: STATISTICAL_MODEL_KEYS
+        # for explicit category membership AND MODEL_HP_CONFIGS as a fallback
+        # for any model that lacks HP configs (e.g., future stat additions
+        # that aren't yet in STATISTICAL_MODEL_KEYS).
+        if model_key in STATISTICAL_MODEL_KEYS:
+            continue
         if model_key not in MODEL_HP_CONFIGS:
-            raise ValueError(f"[smoke] No HP config registered for {model_key!r}")
+            # Silent skip — same semantics as stat models. We don't raise
+            # because the caller is best-effort populating an HP summary,
+            # and `_training_metadata` handles stat models separately.
+            print(f"[no-hp-tuning] Skipping {model_key} (no HP config; treated as stat-style).")
+            continue
         cfgs = MODEL_HP_CONFIGS[model_key]
         cfg = next((c for c in cfgs if getattr(c, "is_vendor_default", False)), cfgs[0])
         config = dataclasses.asdict(cfg)
@@ -97,30 +111,6 @@ def _training_metadata(
     return metadata
 
 
-def _training_metadata(
-    model_key: str,
-    hp_summary: Dict[str, Any],
-    generation_length: int,
-    smoke: bool,
-) -> Dict[str, Any]:
-    if model_key in STATISTICAL_MODEL_KEYS:
-        return {"generation_length": generation_length}
-
-    if model_key not in HP_DL_MODEL_KEYS:
-        raise ValueError(f"No HP configuration for model '{model_key}'")
-
-    model_entry = hp_summary.get("models", {}).get(model_key)
-    if not model_entry or not model_entry.get("best_config"):
-        raise ValueError(f"HP summary has no best_config for '{model_key}'")
-
-    metadata = full_train_metadata(model_key, model_entry)
-    if smoke:
-        metadata["max_epochs"] = 1
-        metadata["patience"] = 1
-    metadata["generation_length"] = generation_length
-    return metadata
-
-
 def main() -> None:
     args = parse_args()
     output_root = Path(args.output_root)
@@ -130,8 +120,17 @@ def main() -> None:
     os.environ["STONKBENCH_RUN_ID"] = run_id
     run_results = results_root(output_root, run_id)
     hp_summary_path = Path(args.hp_summary) if args.hp_summary else run_results / "hp_search" / "summary.json"
-    if args.smoke and not hp_summary_path.exists():
-        print(f"[smoke] No HP summary at {hp_summary_path}; using vendor-default HP stubs for {args.models}.", flush=True)
+    if not hp_summary_path.exists():
+        # No HP-search summary available. Per 2026-07-29 decision, HP tuning
+        # is decommissioned; bake-in 'vendor_best' configs from MODEL_HP_CONFIGS
+        # are used directly. Same fallback path as --smoke (single config per
+        # model + full_train_epochs caps), but without the smoke-specific
+        # epochs=1/patience=1 overrides.
+        print(
+            f"[no-hp-tuning] No HP summary at {hp_summary_path}; using 'vendor_best' HP "
+            f"from MODEL_HP_CONFIGS for {args.models} (smoke={args.smoke}).",
+            flush=True,
+        )
         hp_summary = _make_smoke_hp_summary(args.models)
     else:
         hp_summary = _load_hp_summary(hp_summary_path)
