@@ -1,255 +1,118 @@
-"""QuantGAN adapter — native multivariate via adapter-layer subclass.
+"""QuantGAN adapter — per-asset univariate vendor-faithful port (Wave-4 restart, 2026-07-30).
 
-The upstream QuantGANTrainer hardcodes univariate (output_size=1). Rather than
-patching the vendor, we subclass QuantGANTrainer and override _init_models(),
-fit(), and generate() to support (N, L, C) multivariate windows. The vendor
-code is NEVER imported or modified — only the public API is used.
+Wave-3 root-cause summary:
+- The vendor code at src/models/deep_learning/quantgan_module.py was designed
+  strictly for univariate log-return series (1 channel).
+- Prior adapter work (MultivariateQuantGANTrainer subclass) forced the vendor
+  TCN to handle 25 channels jointly. The single 1D conv had to learn 25×25
+  cross-channel correlations the paper never tested; the Wasserstein critic
+  under WGAN-CP weight-clip was not Lipschitz-constrained enough to express
+  them.
+- Wave-3 retrain (2026-07-30) tried WGAN-GP + tcn_hidden=512 architecture fixes:
+    * quantgan_wgangp       : 7× improvement (mean_ratio 0.002 → 0.066), still
+                              SEVERE_COLLAPSE on 11/25 channels.
+    * quantgan_wgangp_h512  : overshot to 5.8× real variance (28× reference).
+    * quantgan_hidden512    : overshot to 6.4× real variance (29× reference).
+  None of the three produced a healthy (mean_ratio ~1.0) collapse-fix.
+
+This Wave-4 adapter (2026-07-30, "from scratch") does NOT modify vendor code.
+It runs C independent vendor-faithful univariate QuantGAN trainers, one per
+channel, and stacks the outputs at generate() time. Result: a (N, L, 25)
+tensor that preserves the per-asset univariate dynamics the paper validated,
+while sidestepping the multivariate joint-TCN pathology entirely.
+
+Reference: Wiese et al. 2019, "QuantGAN: Generating Continuous-Valued Stock
+Prices via Temporal Convolutional Networks" — vendor module reproduces the
+architecture described there.
 """
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List
 
+import numpy as np
 import torch
-import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
 
 from src.experiments.adapters.base_adapter import ModelAdapter
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
-from src.utils.device import resolve_device
 
-# Import only the vendor's config/result dataclasses and base trainer
+# Vendor-faithful: import only the trainer class + dataclasses. The per-asset
+# loop instantiates vendor code internally via QuantGANTrainer; we never touch
+# Generator / Discriminator / TCN / TemporalBlock at this layer.
 from src.models.deep_learning.quantgan_module import (
-    Discriminator,
-    Generator,
     QuantGANConfig,
     QuantGANFitResult,
     QuantGANTrainer,
 )
 
 
-class MultivariateWindowDataset(Dataset):
-    """Adapter-layer dataset that preserves (N, L, C) shape for multivariate data."""
-
-    def __init__(self, data: torch.Tensor):
-        if data.ndim == 2:
-            self.data = data.unsqueeze(-1).float()
-        else:
-            self.data = data.float()
-
-    def __len__(self) -> int:
-        return self.data.shape[0]
-
-    def __getitem__(self, index: int) -> torch.Tensor:
-        return self.data[index]
-
-
-class MultivariateQuantGANTrainer(QuantGANTrainer):
-    """Adapter-layer subclass that adds multivariate support to QuantGANTrainer.
-
-    Overrides:
-    - _init_models: accepts output_size for C-channel Generator/Discriminator
-    - fit: uses MultivariateWindowDataset for (N, L, C) input
-    - generate: handles multivariate output without squeezing
-    """
-
-    def _init_models(self, output_size: int = 1) -> None:
-        self.generator = Generator(self.cfg.noise_dim, output_size).to(self.device)
-        self.discriminator = Discriminator(output_size, output_size).to(self.device)
-
-    @torch.no_grad()
-    def _eval_val_loss(self, loader: DataLoader) -> float:
-        """Per-channel FAKE-only moment shape score for early stopping on multivariate data.
-
-        Vendor-faithful: NO patching of the upstream `_eval_val_loss` is needed
-        for univariate `(N, L)` shapes — the base class works correctly there.
-        For multivariate `(N, L, C)` we override to detect FAKE-data collapse
-        using only the GENERATED samples' own statistics — we never reference
-        `real` here, so no real-data moment is used to select the early-stop
-        checkpoint.
-
-        Score = skew_pen       (per-channel: |fake_skew| - 0.5, relu)
-              + flat_pen       (per-channel: relu(0.01 - fake_ch_std), mean)
-
-        Notes:
-        - `flat_pen` is per-channel so a single collapsed channel still
-          registers a penalty even when most other channels are healthy.
-        - `skew_pen` uses only `fake_*` stats (no real comparison).
-        - Per 2026-07-29 user mandate: NO `real.mean()` or `real.std()` may
-          flow into model selection. Use vendor's own adversarial losses
-          (`-E[D(fake)]`, `E[D(real)] - E[D(fake)]`) for fitting and rely
-          on FAKE-only shape priors for the early-stop selection score.
-        """
-        if self.generator is None:
-            raise RuntimeError("Models are not initialized.")
-        self.generator.eval()
-        total = 0.0
-        count = 0
-        for real in loader:
-            real = real.to(self.device)
-            batch_size, seq_len = real.shape[0], real.shape[1]
-            noise = torch.randn(batch_size, seq_len, self.cfg.noise_dim, device=self.device)
-            fake = self.generator(noise)
-            # FAKE-only statistics — no `real_ch_std`, no `real.mean()`.
-            fake_ch_std = fake.std(dim=(0, 1)) + 1e-3       # (C,)
-            fake_centered = fake - fake.mean(dim=(0, 1), keepdim=True)
-            fake_skew = (fake_centered.pow(3).mean(dim=(0, 1))) / (fake_ch_std.pow(3) + 1e-12)
-            skew_pen = torch.relu(torch.abs(fake_skew) - 0.5).mean()
-            flat_pen = torch.relu(torch.tensor(0.01, device=self.device) - fake_ch_std).mean()
-            total += float((skew_pen + flat_pen).item())
-            count += 1
-        return total / max(count, 1)
-
-    def fit(
-        self,
-        train_windows: torch.Tensor,
-        valid_windows: Optional[torch.Tensor] = None,
-    ) -> QuantGANFitResult:
-        train_dataset = MultivariateWindowDataset(train_windows)
-        train_loader = DataLoader(
-            train_dataset,
-            batch_size=min(self.cfg.batch_size, len(train_dataset)),
-            shuffle=True,
-        )
-        valid_loader = None
-        if valid_windows is not None and valid_windows.shape[0] > 0:
-            valid_dataset = MultivariateWindowDataset(valid_windows)
-            valid_loader = DataLoader(
-                valid_dataset,
-                batch_size=min(self.cfg.batch_size, len(valid_dataset)),
-                shuffle=False,
-            )
-
-        output_size = train_windows.shape[-1]
-        self._init_models(output_size)
-
-        opt_g = optim.RMSprop(self.generator.parameters(), lr=self.cfg.lr)
-        opt_d = optim.RMSprop(self.discriminator.parameters(), lr=self.cfg.lr)
-
-        best_val = float("inf")
-        best_epoch = 0
-        stopped_early = False
-        patience_counter = 0
-        min_epochs = max(20, self.cfg.patience * 2)
-        train_history = []
-        val_history = []
-
-        for epoch in range(self.cfg.epochs):
-            self.generator.train()
-            self.discriminator.train()
-            epoch_loss = 0.0
-            steps = 0
-            for i, real in enumerate(train_loader):
-                real = real.to(self.device)
-                batch_size, seq_len = real.shape[0], real.shape[1]
-                noise = torch.randn(batch_size, seq_len, self.cfg.noise_dim, device=self.device)
-
-                self.discriminator.zero_grad()
-                fake = self.generator(noise).detach()
-                loss_d = -torch.mean(self.discriminator(real)) + torch.mean(self.discriminator(fake))
-                loss_d.backward()
-                opt_d.step()
-                for p in self.discriminator.parameters():
-                    p.data.clamp_(-self.cfg.clip_value, self.cfg.clip_value)
-
-                if i % self.cfg.d_steps_per_g_step == 0:
-                    self.generator.zero_grad()
-                    loss_g = -torch.mean(self.discriminator(self.generator(noise)))
-                    loss_g.backward()
-                    opt_g.step()
-
-                epoch_loss += float((loss_d + loss_g).item())
-                steps += 1
-
-            train_history.append(epoch_loss / max(steps, 1))
-
-            if valid_loader is not None:
-                val_loss = self._eval_val_loss(valid_loader)
-                val_history.append(val_loss)
-                if val_loss < best_val:
-                    best_val = val_loss
-                    best_epoch = epoch + 1
-                    patience_counter = 0
-                    self._best_generator_state = {
-                        k: v.detach().cpu().clone() for k, v in self.generator.state_dict().items()
-                    }
-                elif epoch + 1 >= min_epochs:
-                    patience_counter += 1
-                    if patience_counter >= self.cfg.patience:
-                        stopped_early = True
-                        break
-            else:
-                best_epoch = epoch + 1
-                best_val = train_history[-1]
-                self._best_generator_state = {
-                    k: v.detach().cpu().clone() for k, v in self.generator.state_dict().items()
-                }
-
-        if self._best_generator_state is not None:
-            self.generator.load_state_dict(self._best_generator_state)
-
-        return QuantGANFitResult(
-            best_val_loss=float(best_val),
-            best_epoch=int(best_epoch),
-            stopped_early=stopped_early,
-            train_loss_history=train_history,
-            val_loss_history=val_history,
-        )
-
-    def generate(self, num_samples: int, length: int, seed: int = 42) -> torch.Tensor:
-        if self.generator is None:
-            raise RuntimeError("Trainer is not fitted.")
-        torch.manual_seed(seed)
-        noise = torch.randn(num_samples, length, self.cfg.noise_dim, device=self.device)
-        with torch.no_grad():
-            fake = self.generator(noise)
-        # Only squeeze if univariate (last dim == 1)
-        if fake.ndim == 3 and fake.shape[-1] == 1:
-            fake = fake.squeeze(-1)
-        return fake.float().cpu()
-
-
 class QuantGANAdapter(ModelAdapter):
-    """Multivariate QuantGAN: single joint TCN Generator/Discriminator on full (N, L, C) data.
+    """Per-asset univariate QuantGAN adapter.
 
-    Uses adapter-layer MultivariateQuantGANTrainer subclass — vendor code untouched.
+    Trains ``num_channels`` independent vendor-faithful QuantGAN models, one
+    per channel. The output of generate() is a (N, L, C) tensor where C is the
+    number of input channels (25 for the stonkbench preprocessing pipeline).
+
+    Each per-asset trainer is a fresh vendor ``QuantGANTrainer`` with its own
+    TCN Generator + TCN Discriminator (n_hidden=80, 7 TemporalBlocks with
+    dilations 1,2,4,8,16,32,64). No vendor code is patched.
     """
 
     model_name = "QuantGAN"
 
     def __init__(self) -> None:
         super().__init__()
-        self.trainer: MultivariateQuantGANTrainer | None = None
+        self.trainers: List[QuantGANTrainer] = []
         self.base_length: int = 1
         self.num_channels: int = 1
         self.checkpoints: list[Path] = []
 
-    def fit(self, fit_input: AdapterFitInput, checkpoints_dir: Path, logs_dir: Path) -> Dict[str, Any]:
+    def fit(
+        self,
+        fit_input: AdapterFitInput,
+        checkpoints_dir: Path,
+        logs_dir: Path,
+    ) -> Dict[str, Any]:
         windows = fit_input.batch.train_windows
         valid_windows = fit_input.batch.valid_windows
         if windows is None or windows.ndim != 3:
-            raise ValueError("QuantGANAdapter expects train_windows shaped (N, L, C)")
+            raise ValueError(
+                "QuantGANAdapter expects train_windows shaped (N, L, C)"
+            )
         if valid_windows is None or valid_windows.shape[0] == 0:
             raise ValueError("QuantGANAdapter requires non-empty valid_windows.")
 
-        from src.experiments.adapters.deep_learning.training_utils import parse_training_params
+        from src.experiments.adapters.deep_learning.training_utils import (
+            parse_training_params,
+        )
 
         params = parse_training_params(fit_input)
         self.base_length = int(windows.shape[1])
         self.num_channels = int(windows.shape[2])
 
-        # Smoking-gun knobs come from fit.metadata (set by hp_configs.full_train_metadata
-        # from MODEL_FIXED_HP + per-trial HPConfig.extras). Defaults match vendor's
-        # QuantGANConfig dataclass defaults so vendor-faithful behavior is preserved
-        # when no metadata override is present.
+        # Smoking-gun knobs from fit.metadata (set by hp_configs.full_train_metadata
+        # from MODEL_FIXED_HP + per-trial HPConfig.extras). Defaults match
+        # vendor's QuantGANConfig dataclass so vendor-faithful behavior is
+        # preserved when no metadata override is present.
         metadata = fit_input.metadata or {}
         clip_value = float(metadata.get("clip_value", 0.01))
         d_steps_per_g_step = int(metadata.get("d_steps_per_g_step", 5))
         noise_dim = int(metadata.get("noise_dim", 3))
+        # Wave-7 (2026-07-30): soft tanh-clamp on generator output — cures
+        # the Wave-4 per-asset overshoot (mean std_ratio 1.478). Only
+        # `quantgan_tanhbound` and `quantgan_wgangp_tanh` pass this; the base
+        # `quantgan` variant keeps output_bound=0.0 (vendor-faithful
+        # unbounded) so backwards-compat with on-disk .pt artifacts is
+        # preserved.
+        output_bound = float(metadata.get("quantgan_generator_bound_std", 0.0))
 
-        self.trainer = MultivariateQuantGANTrainer(
-            device=fit_input.device,
-            cfg=QuantGANConfig(
+        # Per-asset loop: instantiate ``num_channels`` independent vendor-faithful
+        # QuantGANTrainer objects (each wrapping a univariate TCN with
+        # n_hidden=80) and fit each on its channel slice.
+        self.trainers = []
+        per_asset_results: List[QuantGANFitResult] = []
+        for c in range(self.num_channels):
+            cfg = QuantGANConfig(
                 noise_dim=noise_dim,
                 epochs=params.max_epochs,
                 batch_size=max(8, min(params.batch_size, windows.shape[0])),
@@ -257,10 +120,25 @@ class QuantGANAdapter(ModelAdapter):
                 patience=params.patience,
                 clip_value=clip_value,
                 d_steps_per_g_step=d_steps_per_g_step,
-            ),
-        )
-        fit_result = self.trainer.fit(windows, valid_windows)
+                output_bound=output_bound,
+            )
+            trainer = QuantGANTrainer(device=fit_input.device, cfg=cfg)
+            train_slice = windows[..., c]                       # (N, L)
+            valid_slice = (
+                valid_windows[..., c] if valid_windows is not None else None
+            )
+            result = trainer.fit(train_slice, valid_slice)
+            self.trainers.append(trainer)
+            per_asset_results.append(result)
 
+        # Aggregate adapter-contract fields from per-asset results.
+        best_val = float(np.mean([r.best_val_loss for r in per_asset_results]))
+        best_epoch = int(max(r.best_epoch for r in per_asset_results))
+        stopped_early = bool(any(r.stopped_early for r in per_asset_results))
+
+        # Per-asset consolidated checkpoint: all C generator + discriminator
+        # state_dicts in a single file. The downstream pipeline still loads it
+        # as a single artifact per (model_key, seq_length).
         meta_ = fit_input.metadata or {}
         model_key_ = str(meta_.get("model_key", self.model_name))
         final_ckpt = checkpoints_dir / f"{model_key_}_seq{self.base_length}_final.pt"
@@ -269,8 +147,18 @@ class QuantGANAdapter(ModelAdapter):
                 "model_name": model_key_,
                 "num_channels": self.num_channels,
                 "base_length": self.base_length,
-                "state_dict": self.trainer.generator.state_dict(),
-                "discriminator_state_dict": self.trainer.discriminator.state_dict(),
+                "per_asset_state_dicts": [
+                    t.generator.state_dict() for t in self.trainers
+                ],
+                "per_asset_disc_state_dicts": [
+                    t.discriminator.state_dict() for t in self.trainers
+                ],
+                "config_snapshot": {
+                    "noise_dim": noise_dim,
+                    "clip_value": clip_value,
+                    "d_steps_per_g_step": d_steps_per_g_step,
+                },
+                "training_mode": "per_asset_univariate",
             },
             final_ckpt,
         )
@@ -279,21 +167,39 @@ class QuantGANAdapter(ModelAdapter):
 
         return {
             "num_channels": self.num_channels,
-            "best_val_loss": fit_result.best_val_loss,
-            "best_epoch": fit_result.best_epoch,
-            "stopped_early": fit_result.stopped_early,
+            "best_val_loss": best_val,
+            "best_epoch": best_epoch,
+            "stopped_early": stopped_early,
+            "per_asset_best_val_loss": [
+                r.best_val_loss for r in per_asset_results
+            ],
+            "per_asset_best_epoch": [r.best_epoch for r in per_asset_results],
         }
 
-    def generate(self, num_samples: int, generation_length: int, seed: int) -> AdapterGenerateOutput:
-        if not self._is_fitted or self.trainer is None:
+    def generate(
+        self,
+        num_samples: int,
+        generation_length: int,
+        seed: int,
+    ) -> AdapterGenerateOutput:
+        if not self._is_fitted or not self.trainers:
             raise RuntimeError("Call fit() before generate().")
-        data = self.trainer.generate(num_samples, self.base_length, seed=seed)
-        # Ensure output is always 3-D (R, L, C) for downstream pipeline consistency
-        if data.ndim == 2:
-            data = data.unsqueeze(-1)
+        # Per-asset univariate generate: each trainer returns (N, L); we stack
+        # along a new channel axis to recover (N, L, C). Seed offset per channel
+        # gives independent noise samples across assets — otherwise all 25
+        # channels would share the same noise pattern and the joint simulator
+        # output would carry spurious cross-channel correlation.
+        per_asset = []
+        for c, trainer in enumerate(self.trainers):
+            data = trainer.generate(num_samples, self.base_length, seed=seed + c)
+            per_asset.append(data)
+        stacked = torch.stack(per_asset, dim=-1)
         return AdapterGenerateOutput(
-            data=data.float(),
+            data=stacked.float(),
             checkpoints=self.checkpoints,
-            logs={"trainer": "quantgan"},
-            extra_metadata={"num_channels": data.shape[-1]},
+            logs={"trainer": "quantgan_per_asset"},
+            extra_metadata={
+                "num_channels": stacked.shape[-1],
+                "training_mode": "per_asset_univariate",
+            },
         )

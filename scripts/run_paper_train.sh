@@ -19,7 +19,9 @@ SLURM_DIR="${PROJECT_ROOT}/scripts/slurm"
 SUBMIT_ONLY=0
 GENERATION_LENGTH="${GENERATION_LENGTH:-100}"
 NUM_SAMPLES="${NUM_SAMPLES:-1000}"
-STONKBENCH_RUN_ID="${STONKBENCH_RUN_ID:-$(date +%Y-%m-%d)}"
+# Run-id token. Default "latest" so re-runs overwrite in-place; pass
+# STONKBENCH_RUN_ID=<custom> for an isolated scope.
+STONKBENCH_RUN_ID="${STONKBENCH_RUN_ID:-latest}"
 export STONKBENCH_RUN_ID
 
 require_gpu_login() {

@@ -76,13 +76,26 @@ class TCN(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, noise_dim: int, output_size: int):
+    def __init__(self, noise_dim: int, output_size: int, output_bound: float = 0.0):
         super().__init__()
         self.net = TCN(noise_dim, output_size)
+        # output_bound > 0 -> soft tanh-clamp (paper-friendly for fat-tailed data).
+        # output_bound == 0 (default) -> unbounded (vendor-faithful).
+        # Wave-7 prose: bound=5.0 maps ~99.5% of tanh-squash mass into ±5σ of
+        # z-scored log returns; preserves gradient flow while capping the
+        # chaotic WGAN-CP-over-saturated-critic overshoot that the per-asset
+        # Wave-4 unleashes (mean std_ratio 1.478 vs healthy 0.85-1.15).
+        self.output_bound = float(output_bound)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        raw = self.net(x)
+        if self.output_bound > 0.0:
+            b = self.output_bound
+            # Soft clamp via tanh-scaled identity: preserves gradient at origin
+            # (dy/dx = 1 when raw==0) but monotonically bounds to ±b as |raw|→∞.
+            return b * torch.tanh(raw / b)
         # Unbounded output for z-scored log-return windows; tanh caused variance collapse.
-        return self.net(x)
+        return raw
 
 
 class Discriminator(nn.Module):
@@ -117,6 +130,12 @@ class QuantGANConfig:
     epochs: int = 3
     d_steps_per_g_step: int = 5
     patience: int = 12
+    # output_bound > 0 enables soft-tanh clamp on the generator output.
+    # default 0.0 = vendor-faithful unbounded (matches prior STONKBENCH runs).
+    # Wave-7 fix: bound=5.0 for `quantgan_tanhbound` variant cures the
+    # variance-overshoot pathology exposed by per-asset un-coupling (Wave-4
+    # mean std_ratio=1.478; healthy band 0.85-1.15).
+    output_bound: float = 0.0
 
 
 @dataclass
@@ -137,7 +156,7 @@ class QuantGANTrainer:
         self._best_generator_state: Optional[Dict[str, torch.Tensor]] = None
 
     def _init_models(self) -> None:
-        self.generator = Generator(self.cfg.noise_dim, 1).to(self.device)
+        self.generator = Generator(self.cfg.noise_dim, 1, output_bound=self.cfg.output_bound).to(self.device)
         self.discriminator = Discriminator(1, 1).to(self.device)
 
     @torch.no_grad()

@@ -196,8 +196,12 @@ class UnconditionalTSDiffusionAdapter(ModelAdapter):
             valid_windows.float(), params.batch_size, shuffle=False
         )
         optimizer = torch.optim.Adam(model.parameters(), lr=params.learning_rate)
-        # Vendor uses gradient_clip_val=0.5 (train_tsdiff.yaml).
-        grad_clip = 0.5
+        # Vendor uses gradient_clip_val=0.5 (train_tsdiff.yaml); variant hook for utsd_gclip lets
+        # the smoke/HPC engine widen the clip (0.5 → 2.0 or None) so the diffusion model can
+        # actually move off the flat-line attractor on multivariate data.
+        _meta = fit_input.metadata or {}
+        grad_clip_raw = _meta.get("grad_clip", 0.5)
+        grad_clip = None if grad_clip_raw in (None, "None") else float(grad_clip_raw)
         # Vendor uses num_batches_per_epoch=128 — each epoch samples 128
         # random batches rather than processing the full dataset. This
         # matches the original Lightning-based training loop.

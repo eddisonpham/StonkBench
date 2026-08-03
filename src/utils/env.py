@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import os
 import re
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -70,18 +69,25 @@ def get_stats_set_path(explicit: Optional[Path] = None) -> Path:
     )
 
 
-def get_run_id(explicit: Optional[str] = None) -> str:
-    """Dated run id (``YYYY-MM-DD`` by default).
+DEFAULT_RUN_ID = "latest"
 
-    Override via CLI flag or ``STONKBENCH_RUN_ID``. To disambiguate multiple
-    runs in the same day, set the env var to ``YYYY-MM-DD-HHMM`` manually.
+
+def get_run_id(explicit: Optional[str] = None) -> str:
+    """Stable run id token. Default is ``"latest"`` so re-runs OVERWRITE in-place.
+
+    Override via CLI flag or ``STONKBENCH_RUN_ID``. Set ``STONKBENCH_RUN_ID`` to a
+    custom string (e.g. ``"hp_search_v3"`` or ``"2026-01-01-fixcollapse"``) when
+    you want isolates/baselines to stay side-by-side. Re-running with the default
+    token writes into the same ``outputs/{results,sanity,checkpoints,logs,experiments}/latest/``
+    bucket; ``archive_existing()`` evacuates the prior content to ``_legacy/``
+    before each write.
     """
     if explicit:
         return explicit
     env = os.environ.get("STONKBENCH_RUN_ID", "").strip()
     if env:
         return env
-    return datetime.now().strftime("%Y-%m-%d")
+    return DEFAULT_RUN_ID
 
 
 def set_run_id(run_id: str) -> None:

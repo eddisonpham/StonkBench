@@ -20,7 +20,6 @@ import os
 import subprocess
 import sys
 import traceback
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -116,11 +115,10 @@ def env_only_check():
     print(f"run_id round-trip OK -> {chosen}")
     os.environ.pop("STONKBENCH_RUN_ID", None)
 
-    # Run-ID date fallback (snapshot once to avoid midnight flake)
-    expected_date = datetime.now().date().isoformat()
+    # Run-ID stable-fallback: default is "latest" so re-runs overwrite in-place.
     os.environ.pop("STONKBENCH_RUN_ID", None)
-    assert get_run_id() == expected_date, f"expected {expected_date}, got {get_run_id()}"
-    print(f"run_id date fallback OK -> {expected_date}")
+    assert get_run_id() == "latest", f"expected 'latest', got {get_run_id()}"
+    print("run_id stable fallback OK -> 'latest' (re-runs overwrite in-place)")
 
 
 TORCH_MODULES = [

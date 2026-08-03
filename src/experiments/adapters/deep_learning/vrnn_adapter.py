@@ -38,7 +38,19 @@ class VRNNAdapter(ModelAdapter):
         # VRNN expects time-major (T, B, C)
         batch_x = batch_x.transpose(0, 1)
         kld_loss, nll_loss, _, _ = self.model(batch_x)
-        return nll_loss + float(kl_weight) * kld_loss
+        # Patch A (2026-07-30, opt-in): KL dim-scaling to mitigate posterior
+        # collapse when z_dim > x_dim. The default scale is 1.0 (vendor_loyal)
+        # so the legacy ``vrnn`` variant remains unaffected and any future
+        # ablation can compare ``<vrnn>`` vs ``<vrnn_klsched>`` cleanly. Opt
+        # in via metadata field ``vrnn_kl_dim_scale`` set in the variant's
+        # HPConfig extras (e.g. vrnn_klsched sets it to ``x / z`` so per-dim
+        # gradient contribution matches NLL). Setting it to ``1.0`` explicitly
+        # re-enables vendor behaviour in case anyone wants both alignment AND
+        # kl_warmup.
+        kl_dim_scale = float(
+            (self._current_metadata or {}).get("vrnn_kl_dim_scale", 1.0)
+        )
+        return nll_loss + float(kl_weight) * kl_dim_scale * kld_loss
 
     @torch.no_grad()
     def _eval_val_loss(self, loader: DataLoader, device: torch.device, kl_weight: float) -> float:
@@ -82,7 +94,14 @@ class VRNNAdapter(ModelAdapter):
         early_stop = EarlyStopping(patience=params.patience, min_epochs=max(20, params.patience * 2))
         best_state = copy.deepcopy(self.model.state_dict())
         info = FitTrainingInfo(best_val_loss=float("inf"), best_epoch=0, stopped_early=False)
-        kl_warmup = max(10, params.max_epochs // 5)
+        # Cache metadata so _forward_loss can honour vrnn_kl_dim_scale override
+        # without needing to thread it through every call.
+        self._current_metadata = dict(fit_input.metadata or {})
+        # Variant hook: lrnoon_kl_warmup pulls KL-annealing length from metadata.
+        # Default keeps the original vendor ratio (max(10, epochs/5)). The variant vrnn_klsched
+        # sets it to 20 so the latent Z has more epochs at low KL weight to learn meaningful
+        # dynamics on 25-channel log-returns instead of collapsing to N(0, I).
+        kl_warmup = int((fit_input.metadata or {}).get("vrnn_kl_warmup", max(10, params.max_epochs // 5)))
 
         for epoch in range(params.max_epochs):
             kl_weight = min(1.0, float(epoch + 1) / float(kl_warmup))
@@ -109,6 +128,9 @@ class VRNNAdapter(ModelAdapter):
                 break
 
         self.model.load_state_dict(best_state)
+        # Clear metadata cache so a second fit() (warm-start, cross-validation,
+        # ablation) does NOT inherit the previous call's variant override.
+        self._current_metadata = None
         ckpt_path = checkpoints_dir / "vrnn_checkpoint.pt"
         torch.save(self.model.state_dict(), ckpt_path)
         self.checkpoints = [ckpt_path]

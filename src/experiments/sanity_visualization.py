@@ -118,7 +118,7 @@ def _plot_overlay(
         gt,
         color="black",
         linewidth=2.0,
-        label=f"ground truth (test window)\nsim N={sims.shape[0]}",
+        label=f"ground truth (validation window)\nsim N={sims.shape[0]}",
     )
     ax.set_title(f"{channel_name}: ground truth vs {sims.shape[0]} simulations")
     ax.set_xlabel("time step")
@@ -197,6 +197,8 @@ def render_model_sanity(
     if len(feature_columns) != n_channels_observed:
         feature_columns = dl_set["feature_columns"]
 
+    # Sanity plots compare generated paths against a held-out validation
+    # window. The test split remains untouched for final evaluation.
     ground_truth = batch.valid_windows[0].float()
     if stats is not None:
         ground_truth = denormalize_channels(ground_truth.unsqueeze(0), *stats).squeeze(0)

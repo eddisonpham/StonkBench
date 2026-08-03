@@ -73,7 +73,6 @@ log "============================================================"
 DL_MODELS=(
     "quantgan"
     "vrnn"
-    "pcf_gan"
     "kalman_vae"
     "unconditional_tsdiffusion"
     "conditional_tsdiffusion"

@@ -21,7 +21,6 @@ MODELS=(
   kalman_vae
   unconditional_tsdiffusion
   vrnn
-  pcf_gan
   cond_sig_wgan
 )
 

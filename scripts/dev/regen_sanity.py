@@ -15,6 +15,7 @@ are in raw log-return scale.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -25,8 +26,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-ROOT = Path("/home/phamnhut/StonkBench")
-DEFAULT_RUN_ID = "baseline_2026-07-21_vm"
+# Reuse the canonical env helper so we don't reinvent STONKBENCH_REPO convention.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from src.utils.env import project_root  # noqa: E402
+
+ROOT = project_root().resolve()
+DEFAULT_RUN_ID_FALLBACK = "latest"  # mirror get_run_id() default so --run-id without arg keeps working
 
 # Canonical 14 final models (post 2026-07-23 cleanup + 2026-07-27 timegrad
 # re-added).  timevae / sig_wgan / timegan are decommissioned and live
@@ -34,7 +39,6 @@ DEFAULT_RUN_ID = "baseline_2026-07-21_vm"
 KEEP_DL = [
     "quantgan",
     "vrnn",
-    "pcf_gan",
     "kalman_vae",
     "unconditional_tsdiffusion",
     "conditional_tsdiffusion",
@@ -317,11 +321,15 @@ def main() -> None:
     )
     ap.add_argument(
         "--run-id",
-        default=DEFAULT_RUN_ID,
-        help=f"run directory under outputs/results/ (default: {DEFAULT_RUN_ID})",
+        default=DEFAULT_RUN_ID_FALLBACK,
+        help=f"run directory under outputs/results/ (default: {DEFAULT_RUN_ID_FALLBACK}). "
+             "Override STONKBENCH_RUN_ID env var for an isolated scope.",
     )
     args = ap.parse_args()
-    run_id = args.run_id
+    # argparse default already provides the fallback; only override with env var
+    # if the caller explicitly cleared the arg (e.g. ``--run-id ''``).
+    env_run_id = os.environ.get("STONKBENCH_RUN_ID", "").strip()
+    run_id = args.run_id or env_run_id or DEFAULT_RUN_ID_FALLBACK
 
     if args.verify_only:
         results_dir_v = ROOT / "outputs" / "results" / run_id

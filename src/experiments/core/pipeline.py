@@ -59,6 +59,7 @@ def run_model_experiment(
     training_metadata: Optional[Dict[str, Any]] = None,
     sanity_output_dir: Optional[Path] = None,
     seq_lengths: Optional[List[int]] = None,
+    trim_from_max: bool = False,
 ) -> List[Path]:
     _setup_seed(seed)
     resolved_device = device_to_str(get_device(device))
@@ -167,20 +168,66 @@ def run_model_experiment(
         dl_norm_stats = channel_norm_stats(dl_set)
 
     # --- Generate, denormalize, save, GT, and sanity for each seq_len ---
+    # Trim mode: honor `--trim_from_max` by generating a single base tensor at
+    # max(_gen_lengths) and slicing/stitching to each requested seq_len. This
+    # makes the adapter contract honest (we don't lie about
+    # `supports_arbitrary_generation`) and ensures shorter windows are exact
+    # prefixes of the same underlying 252 tensor (deterministic, identical RNG).
+    # Without this flag, the legacy per-iter generate() path is used (each
+    # seq_len gets its own native draw).
+    #
+    # METHODOLOGICAL CAVEAT: when --trim_from_max is set, seq21 / seq42 /
+    # seq126 are prefixes of one 252-tensor, NOT independent draws. Downstream
+    # metrics that treat per-seq_len samples as independent (KS-tests, moment
+    # divergence, etc.) will be correlated across seq_len. Document this when
+    # reporting results.
+    base_gen: Optional[AdapterGenerateOutput] = None
+    if trim_from_max:
+        base_gen = adapter.generate(num_samples=num_samples, generation_length=max_gen_len, seed=seed)
+
     artifacts: List[Path] = []
     for seq_len in _gen_lengths:
         # Generate
-        if adapter.supports_arbitrary_generation:
-            native_length = seq_len
+        if trim_from_max:
+            if base_gen is None:
+                # Should be unreachable: trim_from_max pre-generates above.
+                # If it fires, the caller passed an empty seq_lengths list —
+                # which is a caller-side bug, not a pipeline bug.
+                raise RuntimeError(
+                    "trim_from_max=True requires a non-empty _gen_lengths; "
+                    "check caller's seq_lengths / generation_length."
+                )
+            if base_gen.data.shape[1] == seq_len:
+                # Aliasing the cached tensor is safe: the denorm block below
+                # wraps it in a fresh AdapterGenerateOutput with a NEW data
+                # tensor, so base_gen.data is never mutated in place.
+                generated = base_gen
+            else:
+                # stitch_sequences handles target<base as a pure slice; for
+                # target>base it would tile (not what we want — the caller
+                # validates seq_len <= max(_gen_lengths) up front).
+                if seq_len > base_gen.data.shape[1]:
+                    raise ValueError(
+                        f"trim_from_max requires seq_len <= base length "
+                        f"({seq_len} > {base_gen.data.shape[1]})"
+                    )
+                generated = AdapterGenerateOutput(
+                    data=stitch_sequences(base_gen.data, seq_len, seed=seed),
+                    checkpoints=base_gen.checkpoints, logs=base_gen.logs,
+                    extra_metadata=base_gen.extra_metadata,
+                )
         else:
-            native_length = int(batch.inferred_length or seq_len)
-        generated = adapter.generate(num_samples=num_samples, generation_length=native_length, seed=seed)
-        if generated.data.shape[1] != seq_len:
-            generated = AdapterGenerateOutput(
-                data=stitch_sequences(generated.data, seq_len, seed=seed),
-                checkpoints=generated.checkpoints, logs=generated.logs,
-                extra_metadata=generated.extra_metadata,
-            )
+            if adapter.supports_arbitrary_generation:
+                native_length = seq_len
+            else:
+                native_length = int(batch.inferred_length or seq_len)
+            generated = adapter.generate(num_samples=num_samples, generation_length=native_length, seed=seed)
+            if generated.data.shape[1] != seq_len:
+                generated = AdapterGenerateOutput(
+                    data=stitch_sequences(generated.data, seq_len, seed=seed),
+                    checkpoints=generated.checkpoints, logs=generated.logs,
+                    extra_metadata=generated.extra_metadata,
+                )
         # Denormalize
         if dl_norm_stats is not None:
             mean, std = dl_norm_stats

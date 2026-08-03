@@ -21,7 +21,6 @@ GENERATION_LENGTH="${SEQ_LENGTHS[$SLURM_ARRAY_TASK_ID]}"
 NUM_SAMPLES="${NUM_SAMPLES:-1000}"
 NUM_EPOCHS="${NUM_EPOCHS:-15}"
 SEED="${SEED:-42}"
-MODELS="${MODELS:-quantgan timegrad kalman_vae unconditional_tsdiffusion vrnn pcf_gan cond_sig_wgan block_bootstrap}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-${STONKBENCH_OUTPUT_ROOT}}"
 DEVICE="${STONKBENCH_DEVICE:-cuda}"
 

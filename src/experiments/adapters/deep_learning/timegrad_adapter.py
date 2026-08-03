@@ -58,6 +58,16 @@ class TimeGradAdapter(ModelAdapter):
     model_name = "TimeGrad"
     supports_arbitrary_generation = True
 
+    # ------------------------------------------------------------------
+    # STONKBENCH_PATCHES (2026-07-30): vendor-timegrad monkey-patch hooks
+    # ------------------------------------------------------------------
+    # _VENDOR_NOISE_LIKE — the original vendor's Gaussian noise function
+    # (`module.noise_like`), cached on first generate() call so we can
+    # restore it after temporarily installing a non-Gaussian sampler.
+    _VENDOR_NOISE_LIKE = None
+    # Class-level constant: no per-instance state needed; vendor noise_like
+    # is a free function in the module's global namespace.
+
     # Vendor default config (matches kongqi404/timegrad TimeGradEstimator defaults).
     _NUM_CELLS = 40
     _NUM_LAYERS = 2
@@ -133,6 +143,15 @@ class TimeGradAdapter(ModelAdapter):
             raise ValueError("TimeGradAdapter requires non-empty valid_windows.")
 
         params = parse_training_params(fit_input)
+        meta_overrides = fit_input.metadata or {}
+        # Variant hook: timegrad_cells80 widens the LSTM hidden state from class-body _NUM_CELLS=40
+        # to 80 (and proportionally more layers/steps if requested) so the model has the
+        # capacity to model 25-channel temporal dynamics instead of collapsing to the
+        # conditional mean.
+        self._NUM_CELLS = int(meta_overrides.get("timegrad_num_cells", self._NUM_CELLS))
+        self._NUM_LAYERS = int(meta_overrides.get("timegrad_num_layers", self._NUM_LAYERS))
+        self._DIFF_STEPS = int(meta_overrides.get("timegrad_diff_steps", self._DIFF_STEPS))
+        self._CONDITIONING_LENGTH = self._NUM_CELLS
         n_windows, seq_len, channels = windows.shape
         # TimeGrad requires at least timegrad_total=216 timesteps per window
         if seq_len < self.timegrad_total:
@@ -264,6 +283,12 @@ class TimeGradAdapter(ModelAdapter):
                 "target_dim": self.num_channels,
                 "cardinality": [1] * self.num_channels,
                 "embedding_dimension": self.num_channels,
+                # STONKBENCH_PATCH: persist noise distribution choice so
+                # generate() can re-install the same monkey-patch on load
+                # (the vendor's noise_like is a module-level free fn, so we
+                # have to re-monkey-patch on every generate() call).
+                "timegrad_noise_dist": str(meta_overrides.get("timegrad_noise_dist", "gaussian")),
+                "timegrad_noise_df": float(meta_overrides.get("timegrad_noise_df", 5.0)),
                 "state_dict": net.state_dict(),
             },
             final_ckpt,
@@ -283,7 +308,103 @@ class TimeGradAdapter(ModelAdapter):
         if not self._is_fitted or self.model is None:
             raise RuntimeError("Call fit() before generate().")
 
+        # STONKBENCH_PATCH (2026-07-30): load noise-distribution params from
+        # the checkpoint and install a tight-scoped monkey-patch on the
+        # vendor's `module.noise_like` for the duration of this generate()
+        # call. The vendor's reverse-time kernel looks up `noise_like` by
+        # bare name against module.py's global namespace, so we patch at
+        # module-level (not on the instance).
+        #
+        # The install AND the inner call are wrapped in a single try/finally
+        # so that the vendor's original Gaussian sampler is restored even
+        # if installation itself raises (e.g. missing torch.distributions
+        # submodule, OOM at tensor allocation). Leak-free under all error
+        # paths; idempotent across concurrent generate() calls because the
+        # cached vendor reference points at module.noise_like *before* any
+        # patch was applied.
+        import module as _tg_module
+        if TimeGradAdapter._VENDOR_NOISE_LIKE is None:
+            TimeGradAdapter._VENDOR_NOISE_LIKE = _tg_module.noise_like
+        ckpt_noise_dist = "gaussian"
+        ckpt_noise_df = 5.0
+        if self.checkpoints:
+            try:
+                _ckpt = torch.load(self.checkpoints[0], map_location="cpu", weights_only=False)
+                ckpt_noise_dist = str(_ckpt.get("timegrad_noise_dist", "gaussian"))
+                ckpt_noise_df = float(_ckpt.get("timegrad_noise_df", 5.0))
+            except Exception:  # pragma: no cover — corrupt or missing ckpt
+                pass
+
+        _noise_dist = ckpt_noise_dist  # already str from str(_ckpt.get(...)) above
+        _noise_df = float(ckpt_noise_df)
+        _saved_name = TimeGradAdapter._VENDOR_NOISE_LIKE
+
+        # Per-call sampler cache keyed by device. The vendor's `p_sample`
+        # calls `module.noise_like(shape, device, repeat=False)` ~110M
+        # times per artifact (100 diff_steps × num_samples=1000 ×
+        # num_parallel=100 × chunks=11). Constructing a fresh
+        # torch.distributions.StudentT + sample(CPU) + .to(device) per call
+        # was the dominant cost of the prior OPTION A patch (~60h projected
+        # generation time). The fix: lazy-build ONE sampler per device via
+        # `df=torch.tensor(_noise_df, device=device)` so `.sample(shape)`
+        # returns a tensor ALREADY on the target device — eliminates the
+        # CPU→GPU sync that was killing throughput.
+        _cached_samplers: dict = {}
+
+        def _custom_noise_like(shape, device, repeat=False):
+            # Cheap Student-t sampler via torch.distributions (cached, on-device).
+            #
+            # NOTE (2026-07-30): only "student_t" is shipping in this
+            # Wave-5 probe. A prior "skewed_t" branch used
+            # `AffineTransform(...)(StudentT(...))` which is a TYPE ERROR
+            # (AffineTransform is a Transform, not a Distribution). Skewed-t
+            # can be revisited as a follow-up using the correct
+            # `TransformedDistribution(base, [transform])` pattern; deferred
+            # because (a) properly-chosen Student-t df alone often captures
+            # the fat-tail need (paper: Kong 2020, Fischer 2023) and (b)
+            # lower-risk to ship one new sampler per wave rather than two.
+            if _noise_dist != "student_t":
+                return _saved_name(shape, device, repeat=repeat)
+            if device not in _cached_samplers:
+                # Initialising `df` as a 0-d device tensor anchors the
+                # distribution to the target device, so `.sample(shape)`
+                # returns a tensor on the same device with no copy.
+                _cached_samplers[device] = torch.distributions.StudentT(
+                    df=torch.tensor(_noise_df, device=device)
+                )
+            sampler = _cached_samplers[device]
+            if repeat:
+                # Vendor's `repeat` semantic: tile across the outer-batch
+                # dim to give every outer-batch row the SAME noise (so the
+                # diffusion rollout can be re-applied to all `num_samples`
+                # rows in lockstep). Sample one (1, *shape[1:]) and
+                # .repeat() to (shape[0], *shape[1:]). Shape stays on
+                # device — no .to() needed.
+                sample = sampler.sample((1, *shape[1:]))
+                return sample.repeat(shape[0], *((1,) * (len(shape) - 1)))
+            return sampler.sample(shape)
+
         torch.manual_seed(seed)
+        try:
+            # Install happens INSIDE the try so that any raise between
+            # install and the inner call (e.g. `_generate_inner` itself)
+            # still hits the `finally` cleanup. For the common `gaussian`
+            # branch, `_noise_dist != "student_t"` so the install is a
+            # no-op: _tg_module.noise_like remains the vendor reference,
+            # zero-cost, zero-leak.
+            if _noise_dist == "student_t":
+                _tg_module.noise_like = _custom_noise_like
+            return self._generate_inner(num_samples, generation_length, seed)
+        finally:
+            # Always restore vendor's Gaussian noise_like so downstream
+            # consumers (other adapters, smoke tests) see the unmodified
+            # default. Idempotent: writing the cached reference back
+            # overwrites any patched function we may have installed.
+            _tg_module.noise_like = TimeGradAdapter._VENDOR_NOISE_LIKE
+
+    def _generate_inner(self, num_samples: int, generation_length: int, seed: int) -> AdapterGenerateOutput:
+        # The vendor's noise_like module-globals are already installed by
+        # `generate()`. We just run the original AR-rollup below.
         C = self.num_channels
         input_size = len(self.lags_seq) * C + C * 1 + 1
 

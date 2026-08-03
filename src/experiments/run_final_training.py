@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 from src.experiments.core.io import resolve_run_id, results_root
 from src.experiments.hp_configs import MODEL_HP_CONFIGS
 from src.experiments.core.pipeline import run_model_experiment
-from src.experiments.core.registry import ADAPTER_REGISTRY, STATISTICAL_MODEL_KEYS
+from src.experiments.core.registry import ADAPTER_REGISTRY, STATISTICAL_MODEL_KEYS, VARIANT_TO_BASE
 from src.experiments.hp_configs import DL_MODEL_KEYS as HP_DL_MODEL_KEYS
 from src.experiments.hp_configs import full_train_metadata
 from src.utils.device import device_to_str, get_device, log_device_context
@@ -25,7 +25,10 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train final models from HP-search winners.")
     parser.add_argument("--hp_summary", type=str, default="")
     parser.add_argument("--output_root", type=str, default=str(DEFAULT_OUTPUT_ROOT))
-    parser.add_argument("--run_id", type=str, default="", help="Dated results subfolder (STONKBENCH_RUN_ID)")
+    parser.add_argument("--run_id", type=str, default="",
+                        help="Run id subfolder under outputs/. Default 'latest' — "\
+                             "re-runs overwrite in-place; archive_existing sweeps "\
+                             "the previous active contents to outputs/_legacy/.")
     # Default sequence length = 252 (≈1 trading year of daily bars). This
     # only sets the per-model `--generation_length` flag; the actual train
     # window L comes from `dl_set["window_size"]` set during preprocessing
@@ -34,7 +37,18 @@ def parse_args() -> argparse.Namespace:
     # to 252 on every generate() call. Keep them in sync.
     parser.add_argument("--generation_length", type=int, default=252)
     parser.add_argument("--seq_lengths", nargs="+", type=int, default=None,
-                        help="Additional sequence lengths to generate (trim from 252).")
+                        help="Additional sequence lengths to generate. By "
+                             "default each seq_len gets its own native draw "
+                             "(adapters with supports_arbitrary_generation); "
+                             "with --trim_from_max, shorter lengths are "
+                             "sliced from a single --generation_length draw.")
+    parser.add_argument("--trim_from_max", action="store_true",
+                        help="Generate a single tensor at max(seq_lengths) and "
+                             "trim/stitch shorter lengths from it (instead of "
+                             "regenerating natively at each seq_len). Shorter "
+                             "windows are then exact prefixes of the same "
+                             "underlying draw. Caveat: per-seq_len samples "
+                             "are NOT independent draws in this mode.")
     parser.add_argument("--num_samples", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", type=str, default=None)
@@ -96,13 +110,19 @@ def _training_metadata(
     if model_key in STATISTICAL_MODEL_KEYS:
         return {"generation_length": generation_length}
 
-    if model_key not in HP_DL_MODEL_KEYS:
+    if model_key not in HP_DL_MODEL_KEYS and model_key not in VARIANT_TO_BASE:
         raise ValueError(f"No HP configuration for model '{model_key}'")
 
     model_entry = hp_summary.get("models", {}).get(model_key)
     if not model_entry or not model_entry.get("best_config"):
         raise ValueError(f"HP summary has no best_config for '{model_key}'")
 
+    # Variants use their OWN MODEL_HP_CONFIGS entry (e.g.,
+    # MODEL_HP_CONFIGS["quantgan_clipfix"]), not the base model's config.
+    # The variant's extras (clip_value=0.05, noise_scale=0.20, etc.) flow
+    # through full_train_metadata via the variant HPConfig's extras dict.
+    # _make_smoke_hp_summary already writes variant entries into
+    # hp_summary["models"][model_key], so model_entry exists.
     metadata = full_train_metadata(model_key, model_entry)
     if smoke:
         metadata["max_epochs"] = 1
@@ -151,9 +171,19 @@ def main() -> None:
         all_seq_lengths.extend(sorted(set(args.seq_lengths) - {args.generation_length}))
     all_seq_lengths.sort(reverse=True)
 
+    # Validate trim mode up front so a misuse fails with a clear message
+    # BEFORE we waste compute on a 252-then-500 generate attempt.
+    if args.trim_from_max:
+        bad = [L for L in all_seq_lengths if L > args.generation_length]
+        if bad:
+            raise ValueError(
+                f"--trim_from_max requires every --seq_lengths to be <= --generation_length "
+                f"({args.generation_length}); offending values: {sorted(bad)}"
+            )
+
     artifacts: List[Path] = []
     for model_key in args.models:
-        if model_key not in ADAPTER_REGISTRY:
+        if model_key not in ADAPTER_REGISTRY and model_key not in VARIANT_TO_BASE:
             raise ValueError(f"Unknown model key: {model_key}")
 
         training_metadata = _training_metadata(
@@ -177,6 +207,7 @@ def main() -> None:
             training_metadata=training_metadata,
             sanity_output_dir=sanity_dir,
             seq_lengths=all_seq_lengths,
+            trim_from_max=args.trim_from_max,
         )
         artifacts.extend(model_artifacts)
 

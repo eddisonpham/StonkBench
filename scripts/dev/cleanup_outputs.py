@@ -4,7 +4,6 @@ What this script does:
   1. Moves every "bad" run_id in outputs/{results,checkpoints,sanity,logs,...}/
      into outputs_legacy2/<sub>/<run_id>/ (preserves everything; nothing deleted).
   2. Inside the kept canonical run (`baseline_2026-07-21_vm`), removes
-     `pcf_gan` (not in the canonical 7 DL) and verifies `cond_sig_wgan`
      is present (copied from `cond_sig_wgan_first_run` if missing).
   3. Places the ground-truth tensor at `outputs/data/ground_truth.pt`
      (canonical location for the friend).
@@ -14,7 +13,6 @@ What this script does:
      contain the relevant metadata in their `.pt` files).
   5. Reports a verification table of the final state.
 
-The eight canonical DL models: quantgan, vrnn, pcf_gan, kalman_vae,
   unconditional_tsdiffusion, conditional_tsdiffusion, cond_sig_wgan,
   timegrad.
 The five canonical statistical models (post 2026-07-30 cleanup; gbm and
@@ -38,7 +36,6 @@ OUTPUTS = ROOT / "outputs"
 LEGACY = ROOT / "outputs_legacy2"
 
 # Canonical run we keep in outputs/ — contains all 13 final models (post
-# 2026-07-23 cleanup). pcf_gan + kalman_vae are part of the canonical 7
 # DL set; cond_sig_wgan is the conditionally-coupled Sig-WGAN variant.
 KEEP_RUN = "baseline_2026-07-21_vm"
 
@@ -56,7 +53,6 @@ CSW_SOURCE_RUN = "cond_sig_wgan_first_run"
 KEEP_DL = {
     "quantgan",
     "vrnn",
-    "pcf_gan",
     "kalman_vae",
     "unconditional_tsdiffusion",
     "conditional_tsdiffusion",

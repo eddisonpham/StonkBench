@@ -33,7 +33,6 @@ def __getattr__(name: str):
 
         return VRNNAdapter
     if name == "PCFGANAdapter":
-        from src.experiments.adapters.deep_learning.pcf_gan_adapter import PCFGANAdapter
 
         return PCFGANAdapter
     if name == "ConditionalSigWGANAdapter":

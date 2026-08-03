@@ -78,8 +78,28 @@ class GARCH11(StatisticalModel):
 
         self.mu = torch.tensor(mu_vals, dtype=torch.float32)
         self.omega = torch.tensor(omega_vals, dtype=torch.float32)
-        self.alpha = torch.tensor(alpha_vals, dtype=torch.float32)
-        self.beta = torch.tensor(beta_vals, dtype=torch.float32)
+        alpha_raw = torch.tensor(alpha_vals, dtype=torch.float32)
+        beta_raw = torch.tensor(beta_vals, dtype=torch.float32)
+
+        # Enforce stationarity: α + β < 1. The ``arch`` library's optimizer
+        # can return non-stationary parameters (α+β ≥ 1), which causes the
+        # conditional variance recursion to explode at long horizons (seq126
+        # hit ±250B and seq252 overflowed to NaN). Clamp to 0.999 so long-
+        # horizon simulations stay finite but retain near-unit-root persistence
+        # (volatility clustering with heavy tails).
+        persistence = alpha_raw + beta_raw
+        over_thresh = persistence > 0.999
+        if over_thresh.any():
+            scale = 0.999 / persistence[over_thresh]
+            alpha_raw[over_thresh] = alpha_raw[over_thresh] * scale
+            beta_raw[over_thresh] = beta_raw[over_thresh] * scale
+            print(
+                f"GARCH11: clamped {int(over_thresh.sum().item())} channel(s) "
+                f"to α+β ≤ 0.999 (raw range: "
+                f"[{persistence.min().item():.4f}, {persistence.max().item():.4f}])"
+            )
+        self.alpha = alpha_raw
+        self.beta = beta_raw
 
         # Multivariate correlation: from standardized residuals z_t (T, C).
         if self.num_channels > 1:
@@ -128,12 +148,23 @@ class GARCH11(StatisticalModel):
         epsilon[:, 0, :] = sigma_t0 * z0_corr
         log_returns[:, 0, :] = self.mu.unsqueeze(0) + epsilon[:, 0, :]
 
+        # Pre-compute unconditional variance per channel (constant across t).
+        sigma2_uncond = self.omega.unsqueeze(0) / torch.clamp(
+            1 - self.alpha.unsqueeze(0) - self.beta.unsqueeze(0), min=1e-8
+        )
+
         for t in range(1, generation_length):
             sigma2[:, t, :] = (
                 self.omega.unsqueeze(0)
                 + self.alpha.unsqueeze(0) * epsilon[:, t - 1, :] ** 2
                 + self.beta.unsqueeze(0) * sigma2[:, t - 1, :]
             )
+            # Clamp conditional variance: even with α+β < 1, a single
+            # extreme draw can cause a transient variance spike that
+            # cascades across subsequent steps. Cap at 100× the
+            # unconditional variance to keep the 252-step path finite.
+            sigma2[:, t, :] = torch.clamp(sigma2[:, t, :], max=100.0 * sigma2_uncond)
+
             zt_indep = torch.randn(num_samples, self.num_channels, dtype=self.mu.dtype)
             zt_corr = torch.einsum("rk,kc->rc", zt_indep, self.chol_factor)
             sigma_t = torch.sqrt(torch.clamp(sigma2[:, t, :], min=1e-12))

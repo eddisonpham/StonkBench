@@ -52,3 +52,21 @@ Agent Context
 # in addition to top-level ones. Keep this additive to /outputs/ + /outputs_legacy/ above so the
 # existing canonical rules remain explicit.
 output*/*/**
+
+# Slurm log artifacts (regenerable on each run)
+/slurm_logs/
+
+# Personal spec/doc files
+spec.md
+
+# Throwaway diagnostic scripts (one-off collapse/scale checks)
+scripts/dev/_diag_*.py
+scripts/dev/diagnose_*.py
+scripts/dev/check_scale.py
+scripts/dev/compare_diagnostics.py
+scripts/dev/crossseq_summary.py
+scripts/dev/multiref_sanity_rerun.py
+scripts/dev/repro_check_condsig.py
+
+# GAN test artifacts in scratch
+/gan_tests/

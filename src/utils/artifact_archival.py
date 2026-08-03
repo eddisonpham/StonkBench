@@ -135,7 +135,6 @@ def archive_existing(model_key: str, generation_length: int, output_root: Path) 
     Parameters
     ----------
     model_key:
-        Registry key, e.g. ``"cond_sig_wgan"`` or ``"pcf_gan"`` (matches the
         directory immediately under ``results/{run_id}/``).
     generation_length:
         Sequence length being retrained. Used to compose the legacy subdir
