@@ -15,10 +15,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--models",
         nargs="+",
-        default=["quantgan", "gbm_adapter"],
+        default=["quantgan", "stationary_block_bootstrap"],
         help="Subset of registry keys to exercise",
     )
-    parser.add_argument("--generation_length", type=int, default=21)
+    # Smoke runs use the canonical default (252) so the smoke probe
+    # exercises the same window geometry the real training run uses
+    # (avoids batch-shape mismatches that would only surface in HP/full).
+    # Requires `dl_set["window_size"] == 252` — re-preprocess once with
+    # `--window_size 252` before scaling out if not already.
+    parser.add_argument("--generation_length", type=int, default=252)
     parser.add_argument("--output_root", type=str, default="src/experiments")
     return parser.parse_args()
 

@@ -1,12 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=stonkbench-gen
 #SBATCH --account=def-yqhuang
-#SBATCH --nodes=1
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/benchmark_%j.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/benchmark_%j.err
 #SBATCH --partition=compute
+#SBATCH --nodes=1
+#SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=12:00:00
+#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/benchmark_%j.out
+#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/benchmark_%j.err
 
 set -euo pipefail
 PROJECT_ROOT="${PROJECT_ROOT:-$HOME/StonkBench}"
@@ -17,7 +18,6 @@ GENERATION_LENGTH="${GENERATION_LENGTH:-52}"
 NUM_SAMPLES="${NUM_SAMPLES:-1000}"
 NUM_EPOCHS="${NUM_EPOCHS:-15}"
 SEED="${SEED:-42}"
-MODELS="${MODELS:-quantgan timegan timegrad timevae unconditional_tsdiffusion vrnn gbm_adapter block_bootstrap}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-${STONKBENCH_OUTPUT_ROOT:-/home/epham/StonkBench/output}}"
 DEVICE="${STONKBENCH_DEVICE:-cuda}"
 

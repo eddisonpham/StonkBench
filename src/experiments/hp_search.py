@@ -15,6 +15,7 @@ import torch
 from src.experiments.core.registry import ADAPTER_REGISTRY
 from src.experiments.core.contracts import AdapterFitInput
 from src.experiments.core.registry import get_adapter
+from src.experiments.core.io import resolve_run_id, results_root
 from src.experiments.hp_configs import (
     DL_MODEL_KEYS,
     HPConfig,
@@ -22,9 +23,11 @@ from src.experiments.hp_configs import (
     configs_for_model,
 )
 from src.utils.device import device_to_str, get_device, log_device_context
+from src.utils.env import get_output_root
 from src.utils.preprocessed_data_utils import build_batch_from_dl_set, load_dl_set, resolve_dl_set_path
 
 DEFAULT_SEED = 42
+DEFAULT_OUTPUT_ROOT = get_output_root()
 
 
 @dataclass(frozen=True)
@@ -36,7 +39,7 @@ class TrialSpec:
 
     def metadata(self, smoke: bool = False) -> Dict[str, Any]:
         max_epochs = 2 if smoke else HP_SEARCH_EPOCHS[self.model_key]
-        return self.config.metadata(max_epochs=max_epochs)
+        return self.config.metadata(max_epochs=max_epochs, model_key=self.model_key)
 
     def label(self) -> str:
         meta = self.metadata()
@@ -56,7 +59,12 @@ class TrialSpec:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run DL HP search with validation-loss selection.")
     parser.add_argument("--dl_set_path", type=str, default=None, help="Override dl_set.pt path")
-    parser.add_argument("--output_dir", type=str, default="/home/epham/StonkBench/output/results/hp_search")
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="",
+        help="HP output dir (default: $OUTPUT/results/$STONKBENCH_RUN_ID/hp_search)",
+    )
     parser.add_argument(
         "--device",
         type=str,
@@ -137,6 +145,12 @@ def run_trial(
         "label": spec.label_with_smoke(smoke),
         "config_id": spec.config.config_id,
         "is_vendor_default": spec.config.is_vendor_default,
+        # Persist per-trial smoking-gun knob overrides (clip_value, d_steps_per_g_step,
+        # noise_dim, ...) so the full_train stage can reapply them via
+        # full_train_metadata(). Without this, the aggregated summary.json ranks
+        # but loses the trial-specific overrides, and the final train would
+        # silently fall back to MODEL_FIXED_HP defaults.
+        "extras": dict(spec.config.extras),
         **meta,
         **fit_info,
     }
@@ -163,6 +177,14 @@ def aggregate_results(results: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
             val_losses = [float(r["best_val_loss"]) for r in rows if "best_val_loss" in r]
             if not val_losses:
                 continue
+            # Per-config extras: the trial JSON stores `extras` (per-trial HPConfig
+            # overrides) as a top-level field on `rows[0]`. Forward it into the
+            # aggregated ranking so full_train_metadata can re-apply the
+            # per-trial smoking-gun knobs (clip_value, d_steps_per_g_step,
+            # noise_dim, ...) when retraining the winner. If `extras` is missing
+            # for this row (e.g. legacy trials from before the field was added),
+            # fall back to an empty dict so aggregation stays backward-compatible.
+            extras = dict(rows[0].get("extras") or {})
             ranked.append(
                 {
                     "config_key": config_key,
@@ -172,6 +194,7 @@ def aggregate_results(results: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
                     "learning_rate": rows[0]["learning_rate"],
                     "batch_size": rows[0]["batch_size"],
                     "patience": rows[0]["patience"],
+                    "extras": extras,
                     "mean_best_val_loss": float(statistics.mean(val_losses)),
                     "std_best_val_loss": float(statistics.pstdev(val_losses)) if len(val_losses) > 1 else 0.0,
                     "seeds": [int(r["seed"]) for r in rows],
@@ -200,8 +223,14 @@ def main() -> None:
         print(f"total_trials={len(specs)}")
         return
 
-    output_dir = Path(args.output_dir)
+    output_dir = Path(args.output_dir) if args.output_dir else results_root(DEFAULT_OUTPUT_ROOT) / "hp_search"
+    # Keep RUN_ID consistent when output_dir was passed explicitly under results/<id>/hp_search
+    if not args.output_dir:
+        import os
+
+        os.environ.setdefault("STONKBENCH_RUN_ID", resolve_run_id())
     output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"HP output_dir: {output_dir}")
 
     if args.aggregate_only:
         trial_dir = output_dir / "trials"
@@ -235,7 +264,32 @@ def main() -> None:
     if args.trial_id is not None:
         if args.trial_id < 0 or args.trial_id >= len(specs):
             raise ValueError(f"trial_id must be in [0, {len(specs) - 1}]")
-        results = [run_trial(specs[args.trial_id], dl_set, device, output_dir, smoke=args.smoke)]
+        # Resume-by-skip: if the trial JSON for this id already exists on
+        # disk (from a previous orchestrator run that completed or from a
+        # sibling that's already produced the artifact), short-circuit with
+        # a one-line log instead of re-running the full ~30-min training.
+        # Critical for cross-restart recovery: without this check, the
+        # orchestrator would re-train every previously-completed trial
+        # before producing its first *new* result (effectively undoing all
+        # prior compute). The orchestrator re-reads this module on every
+        # child launch, so this takes effect on the NEXT trial without
+        # requiring an orchestrator restart.
+        spec = specs[args.trial_id]
+        expected_path = output_dir / "trials" / f"{spec.trial_id:05d}_{spec.label()}.json"
+        # Skip only if JSON exists AND parses (defensive against 0-byte
+        # or truncated JSONs from prior kill-mid-write cycles; missing
+        # the JSONDecodeError catch would silently skip those trials
+        # forever, undoing the resume-by-skip intent).
+        if expected_path.exists():
+            try:
+                with expected_path.open("r", encoding="utf-8") as _prev:
+                    json.load(_prev)
+                print(f"Trial {spec.trial_id} already complete at {expected_path}; skipping.")
+                return
+            except (json.JSONDecodeError, OSError, ValueError):
+                # Truncated or corrupted JSON; fall through to re-run.
+                pass
+        results = [run_trial(spec, dl_set, device, output_dir, smoke=args.smoke)]
     else:
         results = []
         for spec in specs:

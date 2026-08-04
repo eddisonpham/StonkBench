@@ -42,7 +42,7 @@ services:
       src/data_preprocessing.py
       --input_csv /data/combined_data.csv
       --output_dir /data/preprocessed
-      --window_size 21
+      --window_size 100
       --stride 1
       --train_ratio 0.8
     depends_on:
@@ -62,13 +62,15 @@ services:
     extends:
       service: base
     container_name: sdgfts-generate-data
+    # Use the unified adapter benchmark runner — replaces the deprecated
+    # src/generation_scripts/generate_data.py. Output root + dataset paths are
+    # routed via STONKBENCH_* env vars below (see src/utils/env.py).
     command: >
-      src/generation_scripts/generate_data.py
-      --models quantgan timegan timegrad timevae unconditional_tsdiffusion vrnn gbm_adapter block_bootstrap
-      --generation_length 60
+      -m src.experiments.run_benchmark
+      --generation_length 100
       --num_samples 1000
       --seed 42
-      --output_root /generated_data/src/experiments
+      --output_root /generated_data/output
     depends_on:
       data-preprocess:
         condition: service_completed_successfully
@@ -76,6 +78,11 @@ services:
       - data:/data:ro
       - generated_data:/generated_data
     environment:
+      - STONKBENCH_DL_SET_PATH=/data/preprocessed/dl_set.pt
+      - STONKBENCH_STATS_SET_PATH=/data/preprocessed/statsmodel_set.pt
+      - STONKBENCH_OUTPUT_ROOT=/generated_data/output
+      - STONKBENCH_RUN_ID=${STONKBENCH_RUN_ID:-}
+      - PYTHONPATH=/app
       - OMP_NUM_THREADS=1
       - MKL_NUM_THREADS=1
       - NUMEXPR_NUM_THREADS=1
@@ -89,10 +96,11 @@ services:
       service: base
     container_name: sdgfts-eval
     command: >
-      src/unified_evaluator.py
-      --generated_dir /generated_data/src/experiments
+      -m src.unified_evaluator
+      --generated_dir /generated_data/output/results
       --results_dir /results
-      --seq_lengths 60 120 180 240 300
+      --seq_lengths 100
+      --skip_regenerate
     depends_on:
       generate-data:
         condition: service_completed_successfully
@@ -100,6 +108,10 @@ services:
       - ./data:/data:ro
       - ./generated_data:/generated_data:ro
       - ./results:/results
+    environment:
+      - STONKBENCH_DL_SET_PATH=/data/preprocessed/dl_set.pt
+      - STONKBENCH_STATS_SET_PATH=/data/preprocessed/statsmodel_set.pt
+      - PYTHONPATH=/app
 
   # Plotting service (generates paper figures)
   plot:

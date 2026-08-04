@@ -1,5 +1,25 @@
-import torch
+"""Multivariate GARCH(1,1) — frozen-correlation (Cholesky-of-residual-correlation).
+
+Per-channel: independent estimate of (μ, ω, α, β) via the `arch` library GARCH(1,1)
+specification (identical to the original univariate GARCH11 model). Each channel has
+its own conditional variance σ²_t persistence (volatility clustering) — preserves
+stylized fact of per-channel ARCH effects.
+
+Cross-channel: at generate-time, after drawing independent standard normals, we
+correlate them through the Cholesky factor of the empirical correlation matrix of the
+standardized residuals z_t = (x_t − μ_c) / σ_t. This yields a *frozen* multivariate
+GARCH(1,1) — per-channel vol persistence + static cross-channel correlation.
+
+The proper multivariate GARCH with time-varying correlation is Dynamic Conditional
+Correlation (DCC, Engle 2002); that requires a 2D log-likelihood optimization over
+(α_dcc, β_dcc) per the DCC recursion Q_t = (1-α-β) Q̄ + α z_{t−1} z_{t−1}' + β Q_{t−1}.
+We use the simpler "static-correlation" variant here for clarity and fold-stable
+unit testing. Flagged as future-work for DCC upgrade.
+"""
+from __future__ import annotations
+
 import numpy as np
+import torch
 from arch import arch_model
 
 from src.models.base.base_model import StatisticalModel
@@ -12,6 +32,7 @@ class GARCH11(StatisticalModel):
         self.omega = None
         self.alpha = None
         self.beta = None
+        self.chol_factor = None  # (C, C) Cholesky of standardized residuals' cross-channel correlation
         self.num_channels = 0
 
     def fit(self, log_returns: torch.Tensor) -> None:
@@ -19,13 +40,16 @@ class GARCH11(StatisticalModel):
         if data.ndim == 1:
             data = data.unsqueeze(-1)
         if data.ndim != 2:
-            raise ValueError(f"GARCH11 expects input shaped (L,) or (L, C), got {tuple(log_returns.shape)}")
+            raise ValueError(
+                f"GARCH11 expects input shaped (L,) or (L, C), got {tuple(log_returns.shape)}"
+            )
 
         self.num_channels = data.shape[1]
-        mu_vals = []
-        omega_vals = []
-        alpha_vals = []
-        beta_vals = []
+        mu_vals: list[float] = []
+        omega_vals: list[float] = []
+        alpha_vals: list[float] = []
+        beta_vals: list[float] = []
+        standardized_residuals: list[np.ndarray] = []
 
         for c in range(self.num_channels):
             channel_np = data[:, c].detach().cpu().numpy()
@@ -43,30 +67,91 @@ class GARCH11(StatisticalModel):
             omega_vals.append(float(model_fit.params["omega"]))
             alpha_vals.append(float(model_fit.params["alpha[1]"]))
             beta_vals.append(float(model_fit.params["beta[1]"]))
+            # arch exposes standardized residuals via std_resid (resid / conditional_volatility).
+            if hasattr(model_fit, "std_resid") and model_fit.std_resid is not None:
+                z = np.asarray(model_fit.std_resid, dtype=np.float32)
+            else:
+                z = np.asarray(
+                    model_fit.resid / model_fit.conditional_volatility, dtype=np.float32
+                )
+            standardized_residuals.append(z)
 
         self.mu = torch.tensor(mu_vals, dtype=torch.float32)
         self.omega = torch.tensor(omega_vals, dtype=torch.float32)
-        self.alpha = torch.tensor(alpha_vals, dtype=torch.float32)
-        self.beta = torch.tensor(beta_vals, dtype=torch.float32)
-        print(f"GARCH11 fitted with {self.num_channels} channel(s)")
+        alpha_raw = torch.tensor(alpha_vals, dtype=torch.float32)
+        beta_raw = torch.tensor(beta_vals, dtype=torch.float32)
+
+        # Enforce stationarity: α + β < 1. The ``arch`` library's optimizer
+        # can return non-stationary parameters (α+β ≥ 1), which causes the
+        # conditional variance recursion to explode at long horizons (seq126
+        # hit ±250B and seq252 overflowed to NaN). Clamp to 0.999 so long-
+        # horizon simulations stay finite but retain near-unit-root persistence
+        # (volatility clustering with heavy tails).
+        persistence = alpha_raw + beta_raw
+        over_thresh = persistence > 0.999
+        if over_thresh.any():
+            scale = 0.999 / persistence[over_thresh]
+            alpha_raw[over_thresh] = alpha_raw[over_thresh] * scale
+            beta_raw[over_thresh] = beta_raw[over_thresh] * scale
+            print(
+                f"GARCH11: clamped {int(over_thresh.sum().item())} channel(s) "
+                f"to α+β ≤ 0.999 (raw range: "
+                f"[{persistence.min().item():.4f}, {persistence.max().item():.4f}])"
+            )
+        self.alpha = alpha_raw
+        self.beta = beta_raw
+
+        # Multivariate correlation: from standardized residuals z_t (T, C).
+        if self.num_channels > 1:
+            z_mat = torch.tensor(np.stack(standardized_residuals, axis=1), dtype=torch.float32)
+            corr = torch.corrcoef(z_mat.T)
+        else:
+            corr = torch.tensor([[1.0]], dtype=torch.float32)
+        # Tiny ridge → ensure PSD on near-degenerate residual cross-sections.
+        corr = corr + 1e-6 * torch.eye(self.num_channels, dtype=corr.dtype)
+        try:
+            self.chol_factor = torch.linalg.cholesky(corr.to(torch.float64)).to(torch.float32)
+        except Exception:
+            # Fallback: identity correlation (independent channels — at least per-channel vol persists).
+            self.chol_factor = torch.eye(self.num_channels, dtype=torch.float32)
+        print(
+            f"GARCH11 (multivariate frozen-corr) fitted with {self.num_channels} channel(s); "
+            f"Cholesky derived from standardized-residual correlation matrix"
+        )
 
     def generate(self, num_samples: int, generation_length: int, seed: int = 42) -> torch.Tensor:
         torch.manual_seed(seed)
         np.random.seed(seed)
-
-        if self.mu is None or self.omega is None or self.alpha is None or self.beta is None:
+        if self.chol_factor is None or any(
+            v is None for v in [self.mu, self.omega, self.alpha, self.beta]
+        ):
             raise RuntimeError("Call fit() before generate().")
 
-        log_returns = torch.zeros((num_samples, generation_length, self.num_channels), dtype=self.mu.dtype)
-        sigma2 = torch.zeros((num_samples, generation_length, self.num_channels), dtype=self.mu.dtype)
-        epsilon = torch.zeros((num_samples, generation_length, self.num_channels), dtype=self.mu.dtype)
+        log_returns = torch.zeros(
+            (num_samples, generation_length, self.num_channels), dtype=self.mu.dtype
+        )
+        sigma2 = torch.zeros(
+            (num_samples, generation_length, self.num_channels), dtype=self.mu.dtype
+        )
+        epsilon = torch.zeros(
+            (num_samples, generation_length, self.num_channels), dtype=self.mu.dtype
+        )
 
+        # Stationary long-run variance per channel: ω / (1 - α - β).
         denom = torch.clamp(1 - self.alpha - self.beta, min=1e-8)
         sigma2[:, 0, :] = self.omega.unsqueeze(0) / denom.unsqueeze(0)
-        epsilon[:, 0, :] = torch.sqrt(torch.clamp(sigma2[:, 0, :], min=1e-12)) * torch.randn(
-            num_samples, self.num_channels, dtype=self.mu.dtype
-        )
+
+        # First-step innovation: independent draws correlated via Cholesky.
+        z0_indep = torch.randn(num_samples, self.num_channels, dtype=self.mu.dtype)
+        z0_corr = torch.einsum("rk,kc->rc", z0_indep, self.chol_factor)
+        sigma_t0 = torch.sqrt(torch.clamp(sigma2[:, 0, :], min=1e-12))
+        epsilon[:, 0, :] = sigma_t0 * z0_corr
         log_returns[:, 0, :] = self.mu.unsqueeze(0) + epsilon[:, 0, :]
+
+        # Pre-compute unconditional variance per channel (constant across t).
+        sigma2_uncond = self.omega.unsqueeze(0) / torch.clamp(
+            1 - self.alpha.unsqueeze(0) - self.beta.unsqueeze(0), min=1e-8
+        )
 
         for t in range(1, generation_length):
             sigma2[:, t, :] = (
@@ -74,9 +159,16 @@ class GARCH11(StatisticalModel):
                 + self.alpha.unsqueeze(0) * epsilon[:, t - 1, :] ** 2
                 + self.beta.unsqueeze(0) * sigma2[:, t - 1, :]
             )
-            epsilon[:, t, :] = torch.sqrt(torch.clamp(sigma2[:, t, :], min=1e-12)) * torch.randn(
-                num_samples, self.num_channels, dtype=self.mu.dtype
-            )
+            # Clamp conditional variance: even with α+β < 1, a single
+            # extreme draw can cause a transient variance spike that
+            # cascades across subsequent steps. Cap at 100× the
+            # unconditional variance to keep the 252-step path finite.
+            sigma2[:, t, :] = torch.clamp(sigma2[:, t, :], max=100.0 * sigma2_uncond)
+
+            zt_indep = torch.randn(num_samples, self.num_channels, dtype=self.mu.dtype)
+            zt_corr = torch.einsum("rk,kc->rc", zt_indep, self.chol_factor)
+            sigma_t = torch.sqrt(torch.clamp(sigma2[:, t, :], min=1e-12))
+            epsilon[:, t, :] = sigma_t * zt_corr
             log_returns[:, t, :] = self.mu.unsqueeze(0) + epsilon[:, t, :]
 
         if self.num_channels == 1:

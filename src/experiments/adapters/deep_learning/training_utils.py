@@ -19,7 +19,6 @@ __all__ = [
     "make_loader",
     "parse_training_params",
     "resolve_device",
-    "use_calibration",
 ]
 
 
@@ -54,12 +53,19 @@ class FitTrainingInfo:
 class EarlyStopping:
     """Stop when validation loss fails to improve for `patience` epochs."""
 
-    def __init__(self, patience: int = 12, min_delta: float = 0.0, mode: str = "min") -> None:
+    def __init__(
+        self,
+        patience: int = 12,
+        min_delta: float = 0.0,
+        mode: str = "min",
+        min_epochs: int = 0,
+    ) -> None:
         if patience < 1:
             raise ValueError("patience must be >= 1")
         self.patience = int(patience)
         self.min_delta = float(min_delta)
         self.mode = mode
+        self.min_epochs = int(min_epochs)
         self.best: Optional[float] = None
         self.best_epoch = 0
         self.counter = 0
@@ -71,6 +77,9 @@ class EarlyStopping:
             self.best = float(val_loss)
             self.best_epoch = int(epoch)
             self.counter = 0
+            return False
+        # Do not early-stop before min_epochs (avoids premature GAN/VAE collapse).
+        if int(epoch) < self.min_epochs:
             return False
         self.counter += 1
         if self.counter >= self.patience:
@@ -97,10 +106,6 @@ def parse_training_params(fit_input: AdapterFitInput) -> TrainingParams:
         learning_rate=float(meta.get("learning_rate", 1e-3)),
         batch_size=int(meta.get("batch_size", 64)),
     )
-
-
-def use_calibration(fit_input: AdapterFitInput) -> bool:
-    return bool(fit_input.metadata.get("use_calibration", False))
 
 
 def make_loader(

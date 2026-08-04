@@ -1,8 +1,8 @@
-"""Download daily close and volume from Yahoo Finance for stocks and ETFs.
+"""Download daily close prices from Yahoo Finance for stocks and ETFs.
 
 Run from repo root:
 
-    python src/data_downloader.py --start 2015-01-01 --end 2025-01-01 --index SPY QQQ IWM XLF XLV AAPL MSFT NVDA AVGO JPM LLY UNH AMZN TSLA CAT UNP META NFLX PG COST XOM CVX NEE PLD LIN
+    python src/data_downloader.py --start 2010-01-01 --end 2025-01-01 --index SPY QQQ IWM XLF XLV AAPL MSFT NVDA AVGO JPM LLY UNH AMZN TSLA CAT UNP META NFLX PG COST XOM CVX NEE PLD LIN
 """
 
 from pathlib import Path
@@ -18,7 +18,7 @@ OUTPUT_CSV = DATA_DIR / "combined_data.csv"
 
 
 def download_ticker(ticker: str, start: str, end: str) -> Optional[pd.DataFrame]:
-    """Download daily close and volume for one ticker."""
+    """Download daily close price for one ticker."""
     ticker = ticker.upper()
     hist = yf.Ticker(ticker).history(start=start, end=end, auto_adjust=True)
     if hist.empty:
@@ -30,7 +30,6 @@ def download_ticker(ticker: str, start: str, end: str) -> Optional[pd.DataFrame]
         {
             "timestamp": dates.strftime("%Y%m%d").astype(int),
             ticker: hist["Close"].to_numpy(),
-            f"{ticker}_volume": hist["Volume"].to_numpy(),
         }
     )
 
@@ -49,7 +48,7 @@ def merge_on_timestamp(dfs: List[pd.DataFrame]) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Download daily close and volume for stocks/ETFs via yfinance."
+        description="Download daily close prices for stocks/ETFs via yfinance."
     )
     parser.add_argument(
         "--index",

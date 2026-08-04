@@ -33,3 +33,40 @@ data/*
 */**/run_manifest.json
 
 notebooks/*
+# Agent Context (gitignored planner working folder)
+Agent Context
+/src/models/deep_learning/*/.git/
+/src/models/deep_learning/*/.gitignore
+/src/models/deep_learning/*/.gitattributes
+
+# Canonical pipeline artifacts (regenerable, kept locally under <repo>/outputs/ on each run)
+/outputs/
+/outputs_legacy*/
+# Catch every numbered legacy dir (outputs_legacy2, outputs_legacy3, ..., outputs_legacyN)
+# in a single rule. Without this, future re-runs that create outputs_legacy5/ etc.
+# would re-appear as untracked entries in git status.
+
+# Ignore every folder of the form output*/*/** (depth >= 2 contents under any output* dir).
+# Covers /outputs/, /outputs_legacy/, /outputs_legacy2/, /output_v3/, etc., at any depth in the
+# tree. The leading-/less pattern matches nested output* dirs (e.g. src/output_foo/sub/x.pt)
+# in addition to top-level ones. Keep this additive to /outputs/ + /outputs_legacy/ above so the
+# existing canonical rules remain explicit.
+output*/*/**
+
+# Slurm log artifacts (regenerable on each run)
+/slurm_logs/
+
+# Personal spec/doc files
+spec.md
+
+# Throwaway diagnostic scripts (one-off collapse/scale checks)
+scripts/dev/_diag_*.py
+scripts/dev/diagnose_*.py
+scripts/dev/check_scale.py
+scripts/dev/compare_diagnostics.py
+scripts/dev/crossseq_summary.py
+scripts/dev/multiref_sanity_rerun.py
+scripts/dev/repro_check_condsig.py
+
+# GAN test artifacts in scratch
+/gan_tests/

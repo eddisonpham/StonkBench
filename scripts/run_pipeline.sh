@@ -1,11 +1,11 @@
 #!/bin/bash
-# End-to-end StonkBench pipeline (login node):
-#   HP search -> aggregate -> final training -> eval -> sync to /home/epham/StonkBench/output
+# End-to-end StonkBench pipeline on Trillium GPU login (trig-login01):
+#   HP search -> aggregate -> final training -> eval -> sync to home
 #
-# Usage:
-#   bash scripts/run_pipeline.sh              # submit, wait, sync
-#   bash scripts/run_pipeline.sh --submit-only
-#   bash scripts/run_pipeline.sh sync         # sync staged scratch outputs to home only
+# Usage (from trig-login01):
+#   bash scripts/run_pipeline.sh --smoke --submit-only   # short GPU sanity pipeline
+#   bash scripts/run_pipeline.sh --submit-only            # full GPU pipeline
+#   bash scripts/run_pipeline.sh sync                    # sync scratch -> home
 set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-$HOME/StonkBench}"
@@ -13,6 +13,24 @@ SCRATCH_ROOT="${SCRATCH:-/scratch/$USER}"
 STAGING_ROOT="${SCRATCH_ROOT}/stonkbench/output"
 CANONICAL_OUTPUT="/home/epham/StonkBench/output"
 SLURM_DIR="${PROJECT_ROOT}/scripts/slurm"
+SUBMIT_ONLY=0
+SMOKE=0
+
+require_gpu_login() {
+  local host
+  host="$(hostname)"
+  if [[ "${host}" =~ ^trig ]]; then
+    return 0
+  fi
+
+  # CPU login (tri-login*): forward to GPU login instead of failing immediately.
+  local fwd_args=()
+  [[ "${SMOKE}" == "1" ]] && fwd_args+=(--smoke)
+  [[ "${SUBMIT_ONLY}" == "1" ]] && fwd_args+=(--submit-only)
+  echo "On CPU login (${host}); forwarding submission to trig-login01..."
+  exec ssh -o BatchMode=yes -o ConnectTimeout=15 trig-login01 \
+    "cd $(printf '%q' "${PROJECT_ROOT}") && bash scripts/run_pipeline.sh $(printf '%q ' "${fwd_args[@]}")"
+}
 
 sync_to_home() {
   if [[ ! -d "${STAGING_ROOT}" ]]; then
@@ -74,27 +92,64 @@ wait_for_job() {
   fi
 }
 
+# Bypass login-node sbatch wrapper (--export=NONE) so smoke/device flags reach jobs.
+sbatch_gpu() {
+  /opt/slurm/bin/sbatch --export=NONE --get-user-env \
+    --export=STONKBENCH_SMOKE="${SMOKE}",STONKBENCH_DEVICE=cuda \
+    "$@"
+}
+
 submit_pipeline() {
+  require_gpu_login
   mkdir -p "${SCRATCH_ROOT}/stonkbench/slurm_logs"
   cd "${PROJECT_ROOT}"
 
   local hp_id agg_id train_id eval_id
-  hp_id=$(sbatch --parsable "${SLURM_DIR}/hp_search.sh")
-  # afterany: run aggregate even if some HP array tasks fail (timeouts)
-  agg_id=$(sbatch --parsable --dependency=afterany:"${hp_id}" "${SLURM_DIR}/hp_aggregate.sh")
-  train_id=$(sbatch --parsable --dependency=afterok:"${agg_id}" "${SLURM_DIR}/final_training.sh")
-  eval_id=$(sbatch --parsable --dependency=afterany:"${train_id}" "${SLURM_DIR}/eval.sh")
 
-  echo "Submitted pipeline:"
-  echo "  1 HP search (6 nodes):  ${hp_id}  (9 trials/node, 6 parallel)"
-  echo "  2 HP aggregate:         ${agg_id}  (afterany:${hp_id})"
-  echo "  3 Final training (4):   ${train_id}  (3 models/node, afterok:${agg_id})"
-  echo "  4 Evaluation:           ${eval_id}  (afterany:${train_id})"
+  if [[ "${SMOKE}" == "1" ]]; then
+    # Tiny grid on compute (debug QoS allows only 1 submitted job).
+    # 8 HP trials + 14 model trains, capped concurrency.
+    hp_id=$(sbatch_gpu --parsable \
+      --time=00:45:00 --array=0-7%4 \
+      "${SLURM_DIR}/hp_search.sh")
+    agg_id=$(sbatch_gpu --parsable \
+      --time=00:15:00 \
+      --dependency=afterany:"${hp_id}" "${SLURM_DIR}/hp_aggregate.sh")
+    train_id=$(sbatch_gpu --parsable \
+      --time=00:45:00 --array=0-13%4 \
+      --dependency=afterok:"${agg_id}" "${SLURM_DIR}/final_training.sh")
+    eval_id=$(sbatch_gpu --parsable \
+      --time=00:30:00 \
+      --dependency=afterany:"${train_id}" "${SLURM_DIR}/eval.sh")
+
+    echo "Submitted SMOKE GPU pipeline:"
+    echo "  1 HP search (8 trials, 1 GPU each, max 4): ${hp_id}"
+    echo "  2 HP aggregate:                            ${agg_id}  (afterany:${hp_id})"
+    echo "  3 Final training (14 models, max 4):       ${train_id}  (afterok:${agg_id})"
+    echo "  4 Evaluation:                              ${eval_id}  (afterany:${train_id})"
+  else
+    # Full grid: 72 HP trials (max 8 concurrent GPUs), 14 trains (max 4).
+    hp_id=$(sbatch_gpu --parsable "${SLURM_DIR}/hp_search.sh")
+    agg_id=$(sbatch_gpu --parsable \
+      --dependency=afterany:"${hp_id}" "${SLURM_DIR}/hp_aggregate.sh")
+    train_id=$(sbatch_gpu --parsable \
+      --dependency=afterok:"${agg_id}" "${SLURM_DIR}/final_training.sh")
+    eval_id=$(sbatch_gpu --parsable \
+      --dependency=afterany:"${train_id}" "${SLURM_DIR}/eval.sh")
+
+    echo "Submitted FULL GPU pipeline:"
+    echo "  1 HP search (72 trials, 1 GPU each, max 8): ${hp_id}"
+    echo "  2 HP aggregate:                             ${agg_id}  (afterany:${hp_id})"
+    echo "  3 Final training (14 models, max 4 GPUs):   ${train_id}  (afterok:${agg_id})"
+    echo "  4 Evaluation:                               ${eval_id}  (afterany:${train_id})"
+  fi
+
   echo ""
   echo "Staged on compute: ${STAGING_ROOT}"
   echo "Final destination: ${CANONICAL_OUTPUT}"
+  echo "Logs: ${SCRATCH_ROOT}/stonkbench/slurm_logs/"
 
-  if [[ "${SUBMIT_ONLY:-0}" == "1" ]]; then
+  if [[ "${SUBMIT_ONLY}" == "1" ]]; then
     echo ""
     echo "Jobs submitted. When finished, run: bash scripts/run_pipeline.sh sync"
     return 0
@@ -107,18 +162,32 @@ submit_pipeline() {
   sync_to_home
 }
 
-case "${1:-run}" in
-  sync)
-    sync_to_home
-    ;;
-  --submit-only)
-    SUBMIT_ONLY=1 submit_pipeline
-    ;;
-  run|"")
-    submit_pipeline
-    ;;
-  *)
-    echo "Usage: bash scripts/run_pipeline.sh [--submit-only | sync]"
-    exit 1
-    ;;
-esac
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    sync)
+      sync_to_home
+      exit 0
+      ;;
+    --submit-only)
+      SUBMIT_ONLY=1
+      shift
+      ;;
+    --smoke)
+      SMOKE=1
+      shift
+      ;;
+    run)
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: bash scripts/run_pipeline.sh [--smoke] [--submit-only | sync]"
+      exit 0
+      ;;
+    *)
+      echo "Usage: bash scripts/run_pipeline.sh [--smoke] [--submit-only | sync]"
+      exit 1
+      ;;
+  esac
+done
+
+submit_pipeline

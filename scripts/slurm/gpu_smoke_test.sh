@@ -1,12 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=stonkbench-smoke
 #SBATCH --account=def-yqhuang
-#SBATCH --nodes=1
-#SBATCH --output=/scratch/%u/stonkbench/logs/gpu_smoke_%j.out
-#SBATCH --error=/scratch/%u/stonkbench/logs/gpu_smoke_%j.err
 #SBATCH --partition=debug
+#SBATCH --nodes=1
+#SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=4
 #SBATCH --time=00:20:00
+#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/gpu_smoke_%j.out
+#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/gpu_smoke_%j.err
 
 set -euo pipefail
 PROJECT_ROOT="${PROJECT_ROOT:-$HOME/StonkBench}"
@@ -14,7 +15,7 @@ PROJECT_ROOT="${PROJECT_ROOT:-$HOME/StonkBench}"
 source "${PROJECT_ROOT}/scripts/slurm/common.sh"
 
 cd "${PROJECT_ROOT}"
-SMOKE_OUT="${JOB_ROOT}/smoke_${SLURM_JOB_ID}"
+SMOKE_OUT="${OUTPUT_ROOT}/smoke_${SLURM_JOB_ID}"
 mkdir -p "${SMOKE_OUT}"
 
 echo "=== StonkBench device smoke test ==="
@@ -46,8 +47,8 @@ PY
 
 python -m src.experiments.run_benchmark \
   --smoke_test \
-  --models quantgan gbm_adapter \
-  --generation_length 21 \
+  --models quantgan \
+  --generation_length 100 \
   --num_samples 8 \
   --num_epochs 1 \
   --device cuda \

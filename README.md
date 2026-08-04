@@ -29,12 +29,12 @@ Device resolution is automatic via `src/utils/device.py` (`cuda` when available,
 ### 2. Download and preprocess data
 
 ```bash
-python src/data_downloader.py --index SPY QQQ IWM XLF XLV AAPL MSFT NVDA AVGO JPM LLY UNH AMZN TSLA CAT UNP META NFLX PG COST XOM CVX NEE PLD LIN --start 2023-01-01 --end 2025-01-01
+python src/data_downloader.py --index SPY QQQ IWM XLF XLV AAPL MSFT NVDA AVGO JPM LLY UNH AMZN TSLA CAT UNP META NFLX PG COST XOM CVX NEE PLD LIN --start 2010-01-01 --end 2025-01-01
 
 python src/data_preprocessing.py \
   --input_csv data/combined_data.csv \
   --output_dir data/preprocessed \
-  --window_size 21 \
+  --window_size 100 \
   --stride 1 \
   --train_ratio 0.8
 ```
@@ -49,7 +49,7 @@ Outputs:
 ```bash
 python -m src.experiments.run_benchmark \
   --models quantgan gbm_adapter \
-  --generation_length 52 \
+  --generation_length 100 \
   --num_samples 128 \
   --num_epochs 3 \
   --smoke_test
@@ -57,7 +57,22 @@ python -m src.experiments.run_benchmark \
 
 Device is resolved automatically (`cuda` when available, else `cpu`). Override with `--device cpu` or `export STONKBENCH_DEVICE=cuda`.
 
-### 4. Submit to Slurm (Neptune nodes)
+### 4. Evaluate
+
+```bash
+python -m src.unified_evaluator \
+  --generated_dir output/<RUN_ID>/results \
+  --results_dir output/<RUN_ID>/evaluation \
+  --seq_lengths 100 \
+  --skip_regenerate
+```
+
+Flags:
+
+- `--skip_regenerate` / `--no_skip_regenerate` — use existing artifacts as-is vs. regenerate from latest checkpoint. Only adapters that implement `ModelAdapter.load_state` (currently `ChannelBootstrapAdapter`) regenerate.
+- The unified evaluator uses the legacy vendor `UtilityEvaluator` (mse-only) post-Fecamp-revert (commit `9c4b980` was reverted in this branch). The `--hedger_loss/--loss_alpha/--data_modes/--augmented_mix_ratios` flags from earlier docs have been removed.
+
+### 5. Submit to Slurm (Neptune nodes)
 
 CCDB Trillium has **no GPU GRES** in Slurm (`sinfo` shows `GRES=(null)` on all partitions). The largest CPU nodes are **Neptune** (`compute_neptune`, 160 logical cores, ~467 GiB) and **tri** (`compute`, 192 cores, ~745 GiB). Neptune jobs require `--qos=neptune`.
 
@@ -105,7 +120,7 @@ sbatch scripts/hp_search_slurm.sh
 | Kind | Preprocessed file | Tensor shape | Used by |
 |------|-------------------|--------------|---------|
 | Statistical | `statsmodel_set.pt` | `(T, C)` train series | GBM, GARCH, bootstrap, … |
-| Deep learning | `dl_set.pt` | `(N, L, C)` windows | QuantGAN, TimeGAN, TimeVAE, … |
+| Deep learning | `dl_set.pt` | `(N, L, C)` windows | QuantGAN, TimeGAN, … |
 
 `data_preprocessing.py` writes both artifacts from one CSV pass; adapters select the correct format via `STATISTICAL_MODEL_KEYS` in the pipeline.
 
