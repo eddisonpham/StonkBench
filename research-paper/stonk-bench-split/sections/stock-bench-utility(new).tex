@@ -1,152 +1,321 @@
-\section{Utility Evalution of Downstream Tasks}\label{sec:utility}
-Most market generator research, particularly in this sector, are
-primarly interested in the statsitical similarities while
-ovelook experimenting on downstream effects of synthetic
-market data in practical settings \cite{Horvath2025, Stenger24}.
-While many works consider downstream scenarios such as option delta
-(deep) hedging \cite{Tanaka25,Boursin22}, core time series generation
-benchmakr such as TSGBench fail to incorporate such experiments due to
-the various industries that Ang et. al aimed to benchmark.
-
-We propose three (3) experiments to demostrate the downstream effects of
-synthetic market data through a train-synthetic-test-real (TSTR) framework
-to replicate realistic application of synthetic market data taht financial 
-instituitions and market participants will use \cite{Horvath2025, Stenger24}. 
-In addition to the utility of option deep hedging, a popular utility benchmark 
-among market generator papers \cite{Tanaka25,Boursin22},
-for the first time in the literature, we introduce the application of risk 
-management/portfolio hedging from the perspective of an equity market maker, 
-and portfolio construction/alpha generation from the persective of a 
-hedge fund manager or proprietary trader.
+\section{Utility Evaluation of Downstream Tasks}\label{sec:utility}
+Most market generator research focuses on statistical similarity while
+overlooking practical downstream effects \cite{Horvath2025, Stenger24}.
+While some work explores option hedging \cite{Tanaka25,Boursin22}, benchmarks
+like TSGBench lack broader utility experiments. We introduce three
+downstream tasks \ref{contribute:2} under a train-synthetic-test-real (TSTR)
+framework \cite{Leznik21, Stenger24} --- option delta hedging (options
+market maker), portfolio hedging (equity market maker), and alpha generation
+(hedge fund manager) --- demonstrating synthetic data utility in realistic
+settings \cite{Horvath2025}.
 
 \subsection{Overview of Utility Evaluation}
-    The general framework of utility evalution is structured
-    the same across our three downstream tasks, centering around the 
-    train-synthetic-test-real (TSTR) evaluation framework 
-    \cite{Leznik21} with a rolling-window validation for hyperparameter tuning, 
-    adapted for financial time series 
-    generation. We begin with our real market dataset 
-      part partition as specified in \ref{subsec:data-preprocess}
-      \textemdash along with a specific learning task \(\mathcal{T}\) and a 
-      performance score \(S\) to evaluate task effectiveness.
-      We consider an algorithm \(A\) (e.g. a 5-layer 
-      perceptron) that takes as input the dataset \(D\) and 
-      task \(\mathcal T\).
+    All three tasks follow a common protocol. Each task
+    \(\mathcal{T}\) is specified by a loss function
+    \(\mathcal{L}_{\mathcal{T}}\) over the model's policy \(\theta\), and
+    the optimal policy is
+    \begin{equation}
+      \theta^{*} \coloneq \underset{\theta}{\arg\min}\;
+      \mathcal{L}_{\mathcal{T}}(\theta),
+      \label{eq:utility-optimal-policy}
+    \end{equation}
+    (or \(\arg\max\) for reward-type objectives). Policies are trained
+    under the TSTR framework of §\ref{sec:utility-training-framework} on
+    the data partition of §\ref{subsec:data-preprocess} with rolling-window
+    validation for hyperparameter tuning \cite{Leznik21}, and scored with
+    the metric toolbox of §\ref{sec:utility-evaluation}.
 
-      In the context of market generator evaluation, we consider a market 
-      generator \( G_{TS} \) trained on \( D^{train} \) 
-      and validated with \( D_r^{validate} \) to generate synthetic 
-      FTS data \( D_g \).
+    \subsubsection{Utility Training and Evaluation Framework}
+    \label{sec:utility-training-framework}
+      Consider a market generator \(G_g\) with synthetic data
+      \(\hat{\mathcal{D}}_g\). Training an algorithm \(A\) (e.g.\ a 5-layer
+      perceptron) for task \(\mathcal{T}\) on
+      \(\mathcal{D}^{\mathrm{train}}\) and \(\hat{\mathcal{D}}_g\) yields
+      models \(M_r\) and \(\hat{M}_g\), respectively. Scoring both on the
+      real test set \(\mathcal{D}^{\mathrm{test}}\) by a score \(S\)
+      \footnote{WLOG, we assume a score on \(\mathbb{R}\) where higher is
+      better} gives \(s_r\) and \(s_g\); the generator is useful for the
+      pair \((\mathcal{T}, A)\) if \(s_g > s_r\), and the best generator is
+      \(G_{g^{*}}\) with
+      \(g^{*} \coloneq \max\{s_g : g \in \mathcal{G}\}\).
 
-      Now we can train a algorithm \( A \) on the 
-      datasets \( D_r^{train} \) and \( D_g^{train} \) 
-      respectively, resulting in two models
-      \( M_r \) and \( M_g \).
+      \subsubsection{Augmented Training}
+      \label{sec:augmented-training}
+      We additionally train on the augmented set
+      \(\tilde{\mathcal{D}}_j \coloneq \mathcal{D}^{\mathrm{train}} \cup
+      \hat{\mathcal{D}}_j\), yielding \(\tilde{M}_j\), to assess whether
+      synthetic data adds value on top of real training data.
 
-      Finally, we evaluate both models on the real test set 
-      \( D_r^{test} \) to obtain the corresponding performance 
-      scores \( s_r \) and \( s_g \).
+    \subsubsection{Utility Evaluation Metrics}
+    \label{sec:utility-evaluation}
+      To make downstream evaluations comparable across tasks, we define a
+      common toolbox of utility metrics used by researchers and
+      practitioners. Given a downstream model \(M\) for task
+      \(\mathcal{T}\), let \(\mathbf{\Pi}_M \coloneq (\pi_{t,i})_{t,i} \in
+      \mathbb{R}^{L \times I}\) denote the trading portfolio generated by
+      \(M\), where \(\pi_{t,i}\) is the trading order (position) in asset
+      \(i\) at time \(t\). A utility metric \(U\) maps the portfolio to a
+      scalar score \(u \coloneq U(\mathbf{\Pi}_M)\), instantiating the TSTR
+      score \(S\) of §\ref{sec:utility-training-framework}, i.e.\
+      \(s \equiv u = U(\mathbf{\Pi}_M)\) for
+      \(M \in \{M_r, \hat{M}_j, \tilde{M}_j\}\). The per-period profit and
+      loss (PnL) of the portfolio is
+      \begin{equation}
+        \mathrm{PnL}_t(\mathbf{\Pi}_M) \coloneq \sum_{i=1}^{I}
+        \pi_{t,i}\, r_{t+1,i},
+        \label{eq:utility-pnl}
+      \end{equation}
+      where \(r_{t+1,i}\) is the simple return of asset \(i\) over
+      \([t, t+1)\). The toolbox evaluates the following metrics over the
+      per-period PnL sequence
+      \(\{\mathrm{PnL}_t(\mathbf{\Pi}_M)\}_{t=0}^{L-1}\):
+      \begin{enumerate}[label=\textbf{[U\arabic*]}]
+        \item \textbf{PnL.} Total profit and loss over the window,
+        \(\mathrm{PnL}(\mathbf{\Pi}_M) \coloneq \sum_{t=0}^{L-1}
+        \mathrm{PnL}_t(\mathbf{\Pi}_M)\).
 
-      The goal of the (deep) hedger portfolio evaluation is to 
-      evaluate the effectiveness of the model 
-      \( \mathcal{M}_{TS} \) with downstream tasks (hedging) 
-      by comparing the scores \( s_r \) and \( s_g \). The model 
-      \( \mathcal{M}_{TS} \) is considered effective if the 
-      the results yielded similar scores, i.e. 
-      \( s_r \approx s_g \) \textemdash preferably having higher 
-      performance with results of \( s_g > s_r \) \textemdash 
-      indicating that the synthetic data generated by 
-      \( \mathcal{M}_{TS} \) is useful for training a (deep) hedger.
+        \item \textbf{Annualized Sharpe ratio.} The mean per-period PnL
+        divided by its standard deviation,
+        \begin{equation}
+          \begin{split}
+            \mathrm{Sharpe}(\mathbf{\Pi}_M) &\coloneq
+            \frac{\hat{\mu}}{\hat{\sigma}}, \\\
+            \hat{\mu} \coloneq \frac{1}{L}\sum_{t=0}^{L-1}
+            \mathrm{PnL}_t, \quad &
+            \hat{\sigma}^2 \coloneq \frac{1}{L-1}
+            \sum_{t=0}^{L-1} \left(\mathrm{PnL}_t -
+            \hat{\mu}\right)^2,
+          \end{split}
+          \label{eq:utility-sharpe}
+        \end{equation}
+        Since the evaluation horizon is a single trading year
+        , no annualization factor (i.e.\ \(\sqrt{L}\))
+        is applied.
 
-      \subsubsection{Augmented Testing}
-      \label{sec:augmented-testing}
-      To better evaluate the performance of (deep) hedgers trained 
-      on synthetic data, we train our (deep) hedger \( A \) on a 
-      new dataset \( D_{aug} \) that combines both real training 
-      data \( D_r^{train} \) and synthetic data \( D_g\). In 
-      other words, we train model \( M_g \) on \( D_{aug} \) 
-      where \( D_{aug} := D_r^{train} \cup D_g\).
-      Then we proceed to evaluate scores between models
-      \( M_g \) and \( M_r \) on the real test set, where 
-      \( M_r \) is still trained on only real data 
-      \( D_r^{train} \).
-      This extension, inspired by Stenger et al. \cite{Stenger24}, 
-      allows us to assess whether synthetic data provides additional 
-      value when combined with real training data.
+        % \item \textbf{Entropic risk measure (ERM).} The risk-sensitive
+        % certainty equivalent of the per-period PnL under exponential
+        % utility with risk-aversion \(\gamma > 0\) \cite{Fecamp20},
+        % \begin{equation}
+        %   \mathrm{ERM}_\gamma(\mathbf{\Pi}_M) \coloneq
+        %   -\frac{1}{\gamma}\log\frac{1}{L}\sum_{t=0}^{L-1}
+        %   e^{-\gamma\, \mathrm{PnL}_t},
+        %   \label{eq:utility-erm}
+        % \end{equation}
+        % which reduces to the mean PnL as \(\gamma \to 0\) and increasingly
+        % penalizes losses as \(\gamma\) grows.
 
-\subsection{Option Delta Hedging}
-Option hedging is employed by options market making trading desks to minimize the downside 
-counter-party risk when a call expires or a put is exercised. By the two
-fundamental theorem of asset pricing, the option contract can be priced and
-replicated using the underlying security and the money market. For this utility
-evaluation, we take a perspective of an options market maker selling a
-Europan call option of a cash equity at strike $K$ and maturity $T$.
+        \item \textbf{CVaR.} The conditional value at risk at level
+        \(\alpha\), i.e.\ the expected loss in the worst \(\alpha\)-tail of
+        the per-period PnL distribution \cite{Fecamp20},
+        \begin{equation}
+          \mathrm{CVaR}_\alpha(\mathbf{\Pi}_M) \coloneq
+          -\mathbb{E}\left[\mathrm{PnL}_t \mid \mathrm{PnL}_t \leq
+          \mathrm{VaR}_\alpha\right],
+          \label{eq:utility-cvar}
+        \end{equation}
+        where \(\mathrm{VaR}_\alpha\) is the lower \(\alpha\)-quantile of
+        the per-period PnL distribution.
 
+        \item \textbf{Win rate.} The fraction of periods with positive
+        PnL,
+        \begin{equation}
+          \mathrm{WR}(\mathbf{\Pi}_M) \coloneq \frac{1}{L}
+          \sum_{t=0}^{L-1} \mathbb{I}\left\{\mathrm{PnL}_t >
+          0\right\},
+          \label{eq:utility-winrate}
+        \end{equation}
+        where \(\mathbb{I}\{\cdot\}\) is the indicator function.
+
+        \item \textbf{Max drawdown.} The largest peak-to-trough decline
+        of the cumulative PnL curve \(C_t \coloneq \sum_{s=0}^{t}
+        \mathrm{PnL}_s\),
+        \begin{equation}
+          \mathrm{MDD}(\mathbf{\Pi}_M) \coloneq \max_{0 \leq u \leq v
+          \leq L} \left(C_u - C_v\right).
+          \label{eq:utility-mdd}
+        \end{equation}
+      \end{enumerate}
+
+      Let \(u_n \coloneq U\left(\mathbf{\Pi}_M^{(n)}\right)\) be the value
+      of a metric \(U\) on the \(n\)-th test window. We report each metric
+      as
+      \begin{equation}
+          \bar{u} \coloneq \frac{1}{N}\sum_{n=1}^{N} u_n, \quad
+          \hat{\sigma}_u \coloneq \sqrt{\frac{1}{N-1}
+          \sum_{n=1}^{N} \left(u_n - \bar{u}\right)^2},
+        \label{eq:utility-aggregation}
+      \end{equation}
+      the mean and standard deviation of \(U\) across all \(N \coloneq
+      \vert\mathcal{D}^{\mathrm{test}}\vert\) test windows.
+
+      Every task below instantiates the same protocol: train
+      \(\{M_r, \hat{M}_j, \tilde{M}_j\}\) on
+      \(\{\mathcal{D}^{\mathrm{train}}, \hat{\mathcal{D}}_j,
+      \tilde{\mathcal{D}}_j\}\) per
+      §\ref{sec:utility-training-framework}--\ref{sec:augmented-training},
+      evaluate on \(\mathcal{D}^{\mathrm{test}}\), and report the toolbox
+      metrics above.
+
+\subsection{Option Delta Hedging}\label{sec:option-hedging}
+    Option hedging is a popular downstream utility benchmark in market
+    generator research \cite{Tanaka25, Boursin22}. We take the perspective
+    of an options market maker selling a European call option on a cash
+    equity to minimize counterparty risk when the call expires
+    \cite{Fecamp20}.
+
+    \subsubsection{Problem Definition}
+    Consider a European call at strike \(K\), maturing at time \(L\), on
+    cash equity \(i\) with payoff \(g(L) \coloneq (S_{L,i} - K)_+\),
+    rebalanced at the discrete times \(\mathbb{T} \coloneq \{t \in
+    \mathbb{N} : 0 \leq t \leq L-1\}\) (end-of-day). The hedger's policy
+    is the hedge position \(\mathbf{\Delta} \coloneq (\Delta_t)_{t=0}^{L-1}
+    \in \mathbb{R}^{L}\), i.e.\ the trading portfolio \(\mathbf{\Pi}_M
+    \equiv \mathbf{\Delta}\). The loss is the quadratic replication
+    error of the short call,
+    \begin{equation}
+      \mathcal{L}_{\Delta}(\mathbf{\Delta}) \coloneq
+      \mathbb{E}\left[\left(g'(L) - \sum_{t=0}^{L-1} \Delta_{t}\,
+      \tilde{g}(t)\, \left(e^{R_{t+1,i}} - 1\right)\right)^2\right],
+      \label{eq:option-hedger-loss}
+    \end{equation}
+    where \(\tilde{g}(t) \coloneq S_{t,i}/K\) is the moneyness of the
+    contract, \(\tilde{g}(L) \coloneq (S_{L,i}/K - 1)_+\) its payoff in
+    moneyness units, and \(g'(L) \coloneq \tilde{g}(L) - c_0/K\) with
+    \(c_0\) the call premium from the Black-Scholes-Merton equation. The
+    optimal policy minimizes this loss,
+    \begin{equation}
+      \mathbf{\Delta}^{*} \coloneq \underset{\mathbf{\Delta}}{\arg\min}\;
+      \mathcal{L}_{\Delta}(\mathbf{\Delta}).
+      \label{eq:option-hedger-optimizer}
+    \end{equation}
+
+    \subsubsection{Framework}
+    We use a long-short-term-memory (LSTM) network under the loss of
+    equation \ref{eq:option-hedger-loss} \cite{Fecamp20}. While related
+    work feeds raw price data \cite{Fecamp20,Boursin22,Tanaka25}, our
+    framework recurrently feeds the moneyness \(\tilde{g}(t)\) instead of
+    the raw price, allowing the network to generalize the payoff across
+    strikes. At each step the LSTM takes the triplet
+    \((\Delta_{t-1}, \tilde{g}(t), \tau_t)\) --- the previous hedge
+    position, the current moneyness, and the normalized time-to-maturity
+    \(\tau_t \coloneq 1 - t/L\).
+
+    \subsubsection{Training}
+    Since the LSTM hedges one asset at a time, each training window
+    \(\mathbf{w} \in \mathcal{D}\) is treated as one channel. For each
+    window we append an initial hedge \(\Delta(0) = 0\) and an initial
+    moneyness \(\tilde{g}(0)\) \footnote{Equivalent to fixing the strike
+    \(K = S_{0,i}/\tilde{g}(0)\) for the contract of maturity \(L\)},
+    drawn from \(0.7\) to \(1.3\) at \(0.1\) increments \footnote{These
+    values correspond to option contracts \(10\%\)--\(30\%\) out-of- and
+    in-the-money relative to the initial price}, and propagate the
+    log-moneyness recursively as
+    \(\log \tilde{g}(t) = \log \tilde{g}(t-1) + R_{t,i}\)
+    \footnote{For a training set of size \(N = \vert\mathcal{D}\vert\),
+    this yields \(N \times 7\) training examples}. Models are trained per
+    §\ref{sec:utility-training-framework}.
+
+    \subsubsection{Evaluation}
+    Models \(\{M_r, \hat{M}_j, \tilde{M}_j\}\) are scored on
+    \(\mathcal{D}^{\mathrm{test}}\) with the toolbox of
+    §\ref{sec:utility-evaluation}; we additionally report the hedging loss
+    \(\mathcal{L}_{\Delta}\) of equation \ref{eq:option-hedger-loss},
+    aggregated per equation \ref{eq:utility-aggregation}.
 
 \subsection{Portfolio Hedging}
-    Portfolio hedging is a common practice among equity market makers 
-    to mitigate the risk of adverse price movements in their inventory. 
-    In this utility evaluation, we simulate a market maker's inventory 
-    management strategy using synthetic market data generated by the 
-    market generator $ G $. The market maker aims to maintain a 
-    balanced portfolio by dynamically adjusting their positions in 
-    response to market fluctuations.
+    Portfolio hedging mitigates the risk of adverse price movements in a
+    market maker's inventory. Classical market-making models assume dealers
+    hedge inventory risk externally once it becomes sufficiently large
+    \cite{Gueant2011}; we instantiate this external hedge with \(J = 5\)
+    liquid U.S.\ ETFs (table \ref{tab:asset-classification}) serving as
+    proxies for market and sector exposures.
 
-    Classical market-making models assume that dealers can reduce inventory 
-    risk through an external hedging venue once inventory becomes sufficiently large
-    \cite{Gueant2011}. 
-    To mitigate aggregate market and sector risk, we assume the market
-    maker can partially hedge accumulated stock inventory using broad-market 
-    and sector ETFs. This reflects common industry practice of using highly 
-    liquid index-tracking instruments as temporary hedges before inventory is 
-    fully unwound. While classical market-making models generally represent 
-    hedging via a generic external market rather than a specific instrument, 
-    our implementation instantiates this external hedge using liquid U.S. 
-    ETFs (see table \ref{tab:asset-classification}),
-    which serve as liquid proxies for market and sector exposures.
-
-    \subsubsection{Portfolio Hedging Definition}
-    For a time horizon \( T \) and a universe of $K$ assets, we define the
-    market maker's inventory
-    at time \( t \) as \( I_t\coloneq (I_{t,1}, \ldots, I_{t,K})\in \mathbb{R}^K \).
-    Inventory positions are
-    modeled as continuous exposures rather than integer share counts, consistent 
-    with the portfolio-level nature of the daily hedging problem.
-
-    Given a hedging model \( M \) trained on market data and a market generator \( P \)
-    that produces synthetic price trajectories, the portfolio hedging task is to find
-    a set of hedge positions \( H = \{h_{t,j}\}_{t=1,j=1}^{T,J} \) in $J=5$ liquid ETFs
-    that minimize the notional exposure of the inventory portfolio netted against the
-    ETF hedge portfolio as follows. Formally, the objective is to solve the
-    following optimization problem:
+    \subsubsection{Problem Definition}
+    For a time horizon \(L\) and a universe of \(I = 20\) inventory
+    stocks, let \(P_t \coloneq (p_{t,i})_{i=1}^{I} \in \mathbb{R}^{I}\) be
+    the market maker's inventory at time \(t\), modeled as continuous
+    exposures. The hedge policy \(\mathbf{H} \coloneq (h_{t,j})_{t,j} \in
+    \mathbb{R}^{L \times J}\) --- the trading portfolio \(\mathbf{\Pi}_M
+    \coloneq \mathbf{H}\) --- nets the inventory notional exposure against
+    the ETF hedge. The loss is the cumulative absolute net exposure,
     \begin{equation}
-      \begin{aligned}
-        \min_H \sum_{t=1}^{T-1}  \left\vert \sum_{i=1}^K x_{t+1,i}I_{t,i} - \sum_{j=1}^{J} \tilde{x}_{t+1,j}h_{t,j}\right\vert\quad 
-      \end{aligned}
+      \mathcal{L}_{H}(\mathbf{H}) \coloneq \sum_{t=1}^{L-1} \left\vert
+      \sum_{i=1}^{I} R_{t+1,i}p_{t,i} - \sum_{j=1}^{J}
+      R_{t+1,j}h_{t,j}\right\vert,
+      \label{eq:portfolio-hedging-loss}
+    \end{equation}
+    where \(R_{t,i}\) and \(R_{t,j}\) are the daily log returns of the
+    inventory stocks and ETFs, respectively. The optimal hedge minimizes
+    this loss,
+    \begin{equation}
+      \mathbf{H}^{*} \coloneq \underset{\mathbf{H}}{\arg\min}\;
+      \mathcal{L}_{H}(\mathbf{H}).
       \label{eq:portfolio-hedging-objective}
     \end{equation}
-    where $x_{t,i}$ and $\tilde{x}_{t,j}$ are the daily log returns of the inventory
-    and ETF per share, respectively. The hedging model \( M \) learns to
-    dynamically adjust the hedge positions across the five ETFs to offset inventory
-    risk and maintain a market-neutral stance.
 
     \subsubsection{Inventory Simulation}
-    Since proprietary inventory records are unavailable, we model 
-    inventory as a stationary first-order autogressive process. 
-    This choice is motivated by the inventory-risk framework of Guéant et al.,
-    where optimal quoting strategies continuously adjust bid and ask quotes
-    to reduce inventory exposure toward a target level \cite{Gueant2011}. 
-    Rather than explicitly simulating the market-making strategy and order arrivals, 
-    we adopt a reduced-form approximation that preserves the primary stylized fact 
-    of dealer inventories: mean reversion toward a risk-neutral inventory level.
-    
-    We consider a mean-reverting Ornstein–Uhlenbeck process for each asset \( i \):
-    \begin{equation}
-        I_t = \alpha I_{t-1} + \sqrt{1-\alpha^2} \Sigma^{1/2}\epsilon_t
-    \end{equation}
-    where \( \alpha \in (0,1) \) is the ``persistence'' parameter of the inventory
-    process, \( \Sigma^{1/2} \) is the Cholesky decomposition of the sample covariance 
-    matrix of the inventory shocks, and \( \epsilon_t \sim \mathcal{N}_K(0, I) \) 
-    is a standard K-dimensional Gaussian white noise.
+    Since proprietary inventory records are unavailable, a natural
+    alternative is to simulate inventory with dedicated synthetic inventory
+    generators \cite{Gueant2011}; however, this introduces external
+    uncertainty that obscures the generator's utility in a controlled
+    setting. We therefore evaluate on a static portfolio:
+    \(P_t = \mathbf{1}, t \in [L]\), the \(I\)-dimensional unit vector.
 
-    \subsection{Alpha Generation}
+    \subsubsection{Framework and Training}
+    We apply the same LSTM framework as §\ref{sec:option-hedging}, feeding
+    at each step the previous hedge \(\mathbf{H}_{t-1}\) and the current
+    returns \(R_{t,i}, R_{t,j}\) for all \(i \in [I], j \in [J]\).
+    Training follows §\ref{sec:utility-training-framework}.
+
+    \subsubsection{Evaluation}
+    Models \(\{M_r, \hat{M}_j, \tilde{M}_j\}\) are scored on
+    \(\mathcal{D}^{\mathrm{test}}\) with the toolbox of
+    §\ref{sec:utility-evaluation}, reported as the mean and standard
+    deviation across all test windows.
+
+\subsection{Alpha Generation}\label{sec:alpha-generation}
+    Alpha generation takes the perspective of a hedge fund manager or
+    proprietary trader seeking to capture excess returns by trading the
+    full asset universe. Unlike the hedging tasks, which neutralize an
+    existing exposure, the model takes directional positions to maximize
+    risk-adjusted PnL.
+
+    \subsubsection{Problem Definition}
+    For a horizon \(L\) and the full universe of \(I = 25\) assets (20
+    stocks and 5 ETFs, table \ref{tab:asset-classification}), the model
+    \(M\) produces the trading portfolio \(\mathbf{\Pi}_M \coloneq
+    (\pi_{t,i})_{t,i} \in \mathbb{R}^{L \times I}\), where \(\pi_{t,i}\) is
+    the position in asset \(i\) held over \([t, t+1)\), with per-period PnL
+    as in equation \ref{eq:utility-pnl}. The loss is the negative
+    differentiable Sharpe ratio,
+    \begin{equation}
+      \mathcal{L}_{\Pi}(\mathbf{\Pi}_M) \coloneq -
+      \mathrm{Sharpe}(\mathbf{\Pi}_M) = -\frac{\hat{\mu}}{\hat{\sigma}},
+      \label{eq:alpha-sharpe-loss}
+    \end{equation}
+    where \(\mathrm{Sharpe}(\cdot)\) is defined in equation
+    \ref{eq:utility-sharpe} (and equals the annualized value at the
+    one-trading-year horizon). The optimal portfolio is
+    \begin{equation}
+        \mathbf{\Pi}^{*} \coloneq
+        \underset{\mathbf{\Pi}}{\arg\min}\;
+        \mathcal{L}_{\Pi}(\mathbf{\Pi}) 
+        = \underset{\mathbf{\Pi}}{\arg\max}\;
+        \mathrm{Sharpe}(\mathbf{\Pi}).
+      \label{eq:alpha-objective}
+    \end{equation}
+
+    \subsubsection{Framework}
+    We employ the same LSTM architecture as §\ref{sec:option-hedging}, with
+    an output head emitting cross-sectional trading orders for all \(I\)
+    assets. At each step \(t\), the LSTM feeds the previous order vector
+    \(\mathbf{\Pi}_{t-1}\) and the current log returns \(\mathbf{R}_t\), and
+    outputs the updated orders \(\mathbf{\Pi}_t \coloneq
+    (\pi_{t,i})_{i=1}^{I} \in \mathbb{R}^{I}\). Training follows
+    §\ref{sec:utility-training-framework}.
+
+    \subsubsection{Evaluation}
+    Models \(\{M_r, \hat{M}_j, \tilde{M}_j\}\) are scored on
+    \(\mathcal{D}^{\mathrm{test}}\) with the toolbox of
+    §\ref{sec:utility-evaluation}  reported as the mean and standard deviation across all
+    \(N\) test windows.

@@ -1,5 +1,6 @@
 .env
 venv/
+.freebuff/
 
 # LaTeX intermediate and auxiliary files
 *.aux

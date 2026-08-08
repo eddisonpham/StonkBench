@@ -54,15 +54,15 @@
 
           \item \label{metric:skewness} \textbf{Skewness Difference (SD):}  
           \begin{align*}
-          \mathrm{SD} =& \big|\gamma(r_{\text{real}}) - \gamma(r_{\text{synth}})\big|, \\
-          \gamma(r) =& \frac{\mathbb{E}[(r - \mu)^3]}{(\sigma)^3}.
+          \mathrm{SD} =& \big|\gamma(\mathbf{R}_{\text{real}}) - \gamma(\mathbf{R}_{\text{synth}})\big|, \\
+          \gamma(\mathbf{R}) =& \frac{\mathbb{E}[(\mathbf{R} - \mu)^3]}{(\sigma)^3}.
           \end{align*}
           
           \item \label{metric:kd} \textbf{Kurtosis Difference (KD):}  
           \begin{align*}
-          \mathrm{KD} &= \big|\kappa^{\mathrm{ex}}(r_{\text{real}}) 
-          - \kappa^{\mathrm{ex}}(r_{\text{synth}})\big|, \\
-          \kappa^{\mathrm{ex}}(r) &= \frac{\mathbb{E}[(r - \mu)^4]}{(\sigma)^4} - 3.
+          \mathrm{KD} &= \big|\kappa^{\mathrm{ex}}(\mathbf{R}_{\text{real}}) 
+          - \kappa^{\mathrm{ex}}(\mathbf{R}_{\text{synth}})\big|, \\
+          \kappa^{\mathrm{ex}}(\mathbf{R}) &= \frac{\mathbb{E}[(\mathbf{R} - \mu)^4]}{(\sigma)^4} - 3.
           \end{align*}
           
           \end{enumerate}
@@ -94,10 +94,10 @@
           Distance (ICD-ED):}  
           \[
           \mathrm{ICD\text{-}ED} = \frac{2}{R(R-1)} 
-          \sum_{1 \le a < b \le R} \left\| \textbf{r}_a - 
-          \textbf{r}_b \right\|_2,
+          \sum_{1 \le a < b \le R} \left\| \mathbf{R}_a - 
+          \mathbf{R}_b \right\|_2,
           \]
-          where \(\textbf{r}_a \in \mathbb{R}^{L}\) is the \(a\)-th 
+          where \(\mathbf{R}_a \in \mathbb{R}^{L}\) is the \(a\)-th 
           sample.
           
           \item \label{metric:dtw} \textbf{Intra-Class Dynamic Time 
@@ -105,7 +105,7 @@
           \[
           \mathrm{ICD\text{-}DTW} = \frac{2}{R(R-1)} 
           \sum_{1 \le a < b \le R} d_{\mathrm{DTW}}\bigl(
-          \textbf{r}_a, \textbf{r}_b\bigr).
+          \mathbf{R}_a, \mathbf{R}_b\bigr).
           \]
           \end{enumerate}
           
@@ -133,9 +133,9 @@
           Absolute difference in lag-1 autocorrelation:
           \[
           \begin{aligned}
-          \rho(1) &= \frac{\sum_{t=2}^{L} (r_t - \bar{r})
-          (r_{t-1} - \bar{r})}
-               {\sum_{t=1}^{L} (r_t - \bar{r})^2}, \\
+          \rho(1) &= \frac{\sum_{t=2}^{L} (\mathbf{R}_t - \bar{\mathbf{R}})
+          (\mathbf{R}_{t-1} - \bar{\mathbf{R}})}
+            {\sum_{t=1}^{L} (\mathbf{R}_t - \bar{\mathbf{R}})^2}, \\
           \mathrm{ACD} &= \big|\rho_{\text{real}}(1) - 
           \rho_{\text{synth}}(1)\big|.
           \end{aligned}
@@ -148,10 +148,10 @@
           tend to cluster in time \cite{Cont01}:
           \[
           \begin{aligned}
-          \rho_{r^2}(1) &= \mathrm{Corr}\big((r_t)^2, 
-          (r_{t-1})^2\big), \\
-          \rho_{|r|}(1) &= \mathrm{Corr}\big(|r_t|, 
-          |r_{t-1}|\big).
+          \rho_{\mathbf{R}^2}(1) &= \mathrm{Corr}\big((\mathbf{R}_t)^2, 
+          (\mathbf{R}_{t-1})^2\big), \\
+          \rho_{|\mathbf{R}|}(1) &= \mathrm{Corr}\big(|\mathbf{R}_t|, 
+          |\mathbf{R}_{t-1}|\big).
           \end{aligned}
           \]
 
@@ -160,8 +160,8 @@
         Cont (2001) \cite{Cont01} and study the autocorrelation of
         absolute (or squared) returns:
         \[
-        C_\alpha(\tau) \,=\, \mathrm{corr}\!\big(|r_{t+\tau}|^\alpha,\,
-        |r_t|^\alpha\big), \qquad \alpha \in \{1,2\}.
+        C_\alpha(\tau) \,=\, \mathrm{corr}\!\big(|\mathbf{R}_{t+\tau}|^\alpha,\,
+        |\mathbf{R}_t|^\alpha\big), \qquad \alpha \in \{1,2\}.
         \]
         Empirically, this correlation decays slowly according to a
         power law,
@@ -188,11 +188,3 @@
         and report \(\widehat{\beta}\) together with the goodness-of-fit
         of the linear regression.
         \end{enumerate}
-    
-    \subsection{Statistical Evaluation Framework}
-    We compare the statistical measures outlined above between the synthetic
-    market data to the trained historical dataset. Consider a market generator
-    $G_j, j\in\mathcal{J}$ trained on the dataset $D^{train}$ and its generated data
-    $\mathcal{D}_{G_j}$ as specified in \ref{subsec:generator-training},
-    we can apply an evaluation metric E, as mentioned in \ref{subsec:stats-measure}, defined an measurable function 
-    $\mathbb{R}^{T\times K}\to \mathbb{R}$.

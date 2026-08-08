@@ -1,171 +1,97 @@
 \section{Introduction}
-  Synthetic market data generation has emerged as a crucial tool in
-  financial markets, particularly time series
-  of financial asset returns, trading volume, and limit order books
-  \cite{Potluru24, Horvath2025}, emerged from the rising popularity 
-  of generative models in other domains over the past decade. 
-  The ability to generate high-quality
-  synthetic financial data addresses several critical challenges in
-  the field, like simulating fat-tail behaviors and volatility clustering
-  observed in financial returns time series and developing
-  back-testing procedures for prediction and (deep) hedging
-  algorithms \cite{Stenger24}.
+  Synthetic market data generation has become an important tool in
+  finance, particularly for time series such as asset returns, trading
+  volume, and limit order books \cite{Potluru24, Horvath2025}. It can
+  help researchers simulate fat-tail behavior, volatility clustering,
+  and back-testing scenarios for prediction and hedging algorithms
+  \cite{Stenger24}.
 
-  Despite the growing importance of market generators,
-  there is a notable lack of standardization in evaluating the 
-  quality and effectiveness of these generative models; 
-  \textit{Stenger et al.} surveyed 56 research papers on time series
-  data and concluded that there are no concensus in the
-  evaluation metrics and their interpretations.
-  \cite{Stenger24}. Current evaluation 
-  methods vary widely across studies, making it difficult to 
-  compare different approaches objectively and determine their 
-  relative strengths and weaknesses.
+  Despite this growth, evaluation practices remain poorly
+  standardized. Stenger et al. surveyed 56 studies and found little
+  consensus on the metrics used or how they should be interpreted
+  \cite{Stenger24}. As a result, comparisons across methods are often
+  difficult and their relative strengths remain unclear.
 
-  \subsection{A brief overview on market generators}
-    Synthetic market data are (multivariate) time series related to financial
-    assets and market microstructures; such examples are limit order books, trading volume,
-    volatility surfaces and, as the focus of this paper, asset returns \cite{Assefa2019, Stenger24, Horvath2025}.
-    We refer to synthetic generated data for financial asset returns time series and its data generator 
-    as simply synthetic market data and market generator, respectively, from now on. 
-    There are generally two primary reasons \cite{Horvath2025} why academic 
-    researchers and practitioners are interested in generating synthetic market data:
-    \begin{enumerate}
-      \item \textbf{Forecasting and Prediction:} Synthetic market data can generate future market paths
-      to used for training
-      and evaluation of forecasting models, enabling researchers to test their algorithms on a 
-      wide range of scenarios. With recent advances in deep learning, generative models 
-      like GANs and VAEs, particularly their conditional variants, gives more desireable results
-      as they can learn conditional distributions of financial time series data as opposed to 
-      point estimators \cite{Horvath2025}.
-      \item \textbf{Simulating Market Scenarios:} The ability to generate synthetic market 
-      data allows researchers and practitioners to simulate various market scenarios alternativly
-      from historical data, 
-      including extreme events and rare occurrences. This is particularly valuable for 
-      stress testing trading strategies, risk management models, and financial algorithms 
-      under different market conditions. It comes to no surpise as other domains like computer 
-      vision and natural language processing have seen similar trends in the use of 
-      synthetic data for training and testing models \cite{Wang20, Lu25}. However, financial
-      market data is inherently more challenging due to its non-stationary, time-dependent nature, 
-      on top of the fact that there is only "one realization" of the market to which the market
-      generator wishes to learn the distribution from. Market generators that captures historical
-      data distributions can act as data augmentation
-      to improve backtesting robustness and reduce overfitting to historical data \cite{Horvath2025}.
-    \end{enumerate}
-  We refer to Horvath et al. \cite{Horvath2025} for a more comprehensive historical overview of 
-  market generators and their applications in financial research and practice.
+  \subsection{A Brief Overview on Market Generators}
+    Synthetic market data are multivariate time series related to
+    financial assets and market microstructures, such as limit order
+    books, trading volume, volatility surfaces, and asset returns
+    \cite{Assefa2019, Stenger24, Horvath2025}. Researchers and
+    practitioners are mainly interested in them for two reasons
+    \cite{Horvath2025}: forecasting and prediction, where synthetic
+    paths can support model training and evaluation, and simulating
+    market scenarios, where they can reproduce rare events and
+    stress-test strategies. Recent generative models such as GANs and
+    VAEs, especially conditional variants, are attractive because they
+    can learn conditional distributions of financial time series rather
+    than only point estimators \cite{Horvath2025}.
 
-  \subsection{Limitations in the market generator Literature}
-    Among other things, we observed that there is currently no 
-      universal or generally accepted approach to evaluating synthetic 
-      time series; this issue extends beyond sythetic market generator
-      to generative frameworks like GANs as a whole \cite{Wang20}
-      and time series generation \cite{Stenger24}. 
-      Many evaluation measures are insufficiently defined and lack 
-      public implementations, making reuse and reproduction 
-      troublesome and error-prone \cite{Stenger24}. This presents a 
-      challenge unique to the generation task compared to areas like 
-      time series forecasting or classification \cite{Stenger24}. 
-      Hence, future research would immensely benefit from a widely 
-      accepted, reasonably sized set of qualified measures for the 
-      central evaluation criteria. Here we outline observations on 
-      the current limitations in market generator research and evaluation 
-      practices:
-      
-      \begin{enumerate}[label=\textbf{[L\arabic*]}]
-        \item \label{limitation:metrics}
-        \textbf{Inconsistent Evaluation Metrics:} Different 
-        studies employ varying metrics, hindering direct comparisons 
-        between models. For instance, some focus on statistical 
-        similarity, while others emphasize utility in downstream tasks 
+  \subsection{Limitations in Market Generator Literature}
+    Existing evaluation practices for synthetic time series remain
+    fragmented, with no broadly accepted standard \cite{Wang20,
+    Stenger24}. Many measures are poorly defined, inconsistently
+    implemented, and hard to reproduce \cite{Stenger24}. This is
+    especially problematic for generative tasks, where evaluation must
+    capture more than marginal similarity and instead reflect temporal
+    structure, diversity, and downstream utility \cite{Stenger24,
+    Horvath2025}. Our review highlights four main limitations:
+
+    \begin{enumerate}[label=\textbf{[L\arabic*]}]
+      \item \label{limitation:metrics}
+        \textbf{Inconsistent evaluation metrics:} Different studies use
+        different measures, making comparisons difficult
         \cite{Stenger24}.
-        
-        \item \textbf{Lack of Standardized Datasets and 
-        Preprocessing:} The absence of common benchmark datasets leads 
-        to evaluations on disparate data, making it challenging to 
-        assess model performance uniformly \cite{Stenger24} in terms 
-        of both asset classes, data granularity, and data length. 
-        Furthermore, preprocessing steps (e.g., normalization, 
-        windowing) vary widely, affecting results and complicating 
-        comparisons.
-        
-        \item \textbf{Narrow Scope of Evaluation:} Many evaluations 
-        concentrate on a narrow set of criteria, such as marginal 
-        distributions, neglecting other important aspects like 
-        temporal dependencies, generation diversity, and downstream
-        tasks
-        \cite{Stenger24, Horvath2025}.
-        
-        \item \textbf{Reproducibility Issues:} The lack of 
-        open-source implementations and detailed evaluation protocols 
-        impedes reproducibility and validation of results across 
-        different studies \cite{Stenger24,Potluru24}. It is important
-        to note that most model papers did not provide code for their 
-        evaluations.
-      \end{enumerate}
+
+      \item \textbf{Lack of standardized datasets and preprocessing:}
+        Benchmarking is often done on different assets, horizons, and
+        preprocessing choices, which weakens comparability
+        \cite{Stenger24}.
+
+      \item \textbf{Narrow evaluation scope:} Many studies focus on
+        marginal distributions and overlook temporal dependencies,
+        diversity, and downstream usefulness \cite{Stenger24,
+        Horvath2025}.
+
+      \item \textbf{Reproducibility issues:} Missing implementations and
+        detailed protocols make results hard to verify across studies
+        \cite{Stenger24, Potluru24}.
+    \end{enumerate}
 
   \subsection{Our Contributions}
-  In this paper, we developed a unified market generator for historical  financial time series on 
-  equity returns by adopting the time series evaluation
-  taxonomy outlined from Stenger et al. \cite{Stenger24}, improve the time series
-  generation framework from Ang et al. \cite{Ang23}, and extending the utility
-  evaluation frameworks implimented by Boursin et al.and
-  outlined by Fecamp et al. \cite{Boursin22, Fecamp20} (from option pricing deep hedging
-  to portfolio hedging and alpha generation). We also investigate the various
-  potential trade-offs between different evaluation metrics and categories of metrics.
-  Our key contributions include:
-  \begin{enumerate}[label=\textbf{[C\arabic*]}]
-    \item \label{contribute:1} \textbf{Consolidated Evaluation
-      Framework:}
-      In effort to address \ref{limitation:metrics}, we systematically
-      review and consolidate evaluation methods from leading papers
-      (models and surveys) in market generators
-      \cite{Stenger24, Ang23, Boursin22} and create a comprehensive
-      assessment toolkit based on established practices.
+    We develop a unified benchmark for synthetic equity-return
+    generation that combines statistical and utility-based evaluation.
+    Building on the taxonomy of Stenger et al. \cite{Stenger24}, the
+    framework of Ang et al. \cite{Ang23}, and utility-focused work by
+    Boursin et al. and Fecamp et al. \cite{Boursin22, Fecamp20}, we
+    study how different metrics trade off in practice. Our key
+    contributions are:
 
-    \item \label{contribute:2} \textbf{Unified Statistical and
-      Utility Measures:}
-      For the first time, we integrate both statistical fidelity metrics
-      and practical utility measures in a single benchmark,
-      providing a more complete evaluation of synthetic data quality.
+    \begin{enumerate}[label=\textbf{[C\arabic*]}]
+      \item \label{contribute:1} \textbf{A consolidated evaluation
+        framework:} We review and integrate measures from prior work
+        to provide a more systematic benchmark for market generators
+        \cite{Stenger24, Ang23, Boursin22}.
 
-    \item \label{contribute:3} \textbf{Outline Benchmark Framework:}
-      We deliver an open-source benchmark framework to share with the
-      research community, aiming to establish cohesion and standard for
-      future market generator research in evaluation and comparison.
-  \end{enumerate}
+      \item \label{contribute:2} \textbf{Unified statistical and utility
+        measures:} We combine fidelity metrics with downstream utility
+        metrics in a single evaluation suite.
+
+      \item \label{contribute:3} \textbf{An open benchmark framework:}
+        We provide an open-source setup to support more consistent
+        comparisons in future market-generator research.
+    \end{enumerate}
 
   \subsection{Research Questions}
-  Our benchmark aims to address the following research questions:
-  \begin{enumerate}[label=\textbf{[Q\arabic*]}]
-    \item \label{rq:1} \textbf{How do different sequence lengths during
-      training affect market generator performance?}
-      We investigate the impact of varying training sequence lengths on
-      the performance of deep learning market generators as an
-      extension of existing work like Allen et al. \cite{Allen2024}.
-      The selected training sequence lengths are described in 
-      §\ref{subsub:sliding-window}.
-
-    \item \label{rq:2} \textbf{Is there a trade-off between certain
-      metrics or categories of metrics?}
-      In an effort to incorporate an ensemble of evaluation metrics, we
-      are interested in understanding potential trade-offs between these
-      metrics and how they impact the overall performance synthetic market data
-      \cite{Ang23}. Particularly, we are interested in a market generator's 
-      ability to balance fidelity and diversity as highlighted in
-      recent studies \cite{Lu25}. More importanly, we pay special care
-      to the statistical quality of a market generator versus its utility when
-      augmenting downstream task performance.
-
-    \item \label{rq:3} \textbf{Whether new deep learning models
-      actually outperform classical parametric models in downstream tasks?}
-     Most existing literature focuses on deep learning-based methods tend 
-     to dominate the field and claims their superiority in capturing complex
-     market data distributions \cite{Horvath2025,Tanaka25,Takahashi24,Assefa2019}. 
-     We aim to provide a comprehensive comparison 
-     between deep learning-based approaches and traditional methods, focusing on
-      their respective strengths and weaknesses in generating high-quality
-      market data and its utility in downstream tasks.
-
-      \end{enumerate}
+    Our benchmark addresses three main questions:
+    \begin{enumerate}[label=\textbf{[Q\arabic*]}]
+      \item How do different training sequence lengths affect generator
+        performance?
+      \item Are there trade-offs between fidelity, diversity, and
+        downstream utility?
+      \item Do modern deep-learning generators outperform classical
+        parametric models in practical tasks?
+    \end{enumerate}
+    These questions are explored further in
+    §\ref{sec:generator-framework} and the evaluation sections that
+    follow.
 

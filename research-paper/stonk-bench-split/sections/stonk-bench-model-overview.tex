@@ -3,10 +3,18 @@
   We categorize synthetic financial time series generation methods into
   two main families: classical stochastic (parametric) models, which
   rely on explicit assumptions about the data-generating process, and
-  modern deep learning (deep learning) models, which learn complex
+  modern deep learning models, which learn complex
   dependencies directly from data without predefined functional forms.
   The following subsections provide a detailed overview of the methods
   included in our benchmark.
+
+    Throughout the paper, we denote by $\mathbf{S}_t$ and
+    $\mathbf{R}_t$ the vectors of raw prices and log returns of the
+    $I$ assets at time $t$, with scalar entries $S_{t,i}$ and $R_{t,i}$
+    for asset $i$, and by lowercase $r_t$ the simple (non-log) return.
+    $\mathbf{X}$ denotes a generic multivariate series, interchangeable
+    between $\mathbf{S}$ and $\mathbf{R}$; bold symbols denote vectors
+    or matrices, while non-bold symbols denote scalars.
 
 
   \subsection{Classical Stochastic (Parametric) Methods}
@@ -20,24 +28,25 @@
     assumptions. Below we outline several widely-used parametric 
     models in financial markets.\\
 
-      \begin{table}[h]
-        \centering
-        \caption{Common notation and variables.}
-        \label{tab:notation}
-        \begin{tabular}{ll}
-        \toprule
-        \textbf{Symbol} & \textbf{Description} \\
-        \midrule
-        \( S_t \) & Asset price \\
-        \( X_t = \ln S_t \) & Log-price \\
-        \( r_t = \ln(S_t / S_{t-1}) \) & Log-return \\
-        \( \mu \) & Drift \\
-        \( \sigma \) & Volatility \\
-        \( W_t \) & Standard Brownian motion \\
-        \( \Delta t \) & Discrete time step \\
-        \bottomrule
-        \end{tabular}
-      \end{table}
+      % \begin{table}[h]
+      %   \centering
+      %   \caption{Common notation and variables.}
+      %   \label{tab:notation}
+      %   \begin{tabular}{ll}
+      %   \toprule
+      %   \textbf{Symbol} & \textbf{Description} \\
+      %   \midrule
+      %   \( \mathbf{S}_t \) & Asset price \\
+      %   \( \mathbf{X}_t = \ln \mathbf{S}_t \) & Log-price \\
+      %   \( \mathbf{R}_t = \ln(\mathbf{S}_t / \mathbf{S}_{t-1}) \) & Log-return \\
+      %   \( \mu \) & Drift \\
+      %   \( \sigma \) & Volatility \\
+      %   \( B_t \) & Standard Brownian motion \\
+      %   \( \Delta t \) & Discrete time step \\
+      %   \bottomrule
+      %   \end{tabular}
+      % \end{table}
+        
         
         
 
@@ -45,20 +54,21 @@
         \item \label{alg:gbm} \textbf{Geometric Brownian Motion 
         (GBM).} 
         The price process follows a continuous-time stochastic 
-        process with constant drift and volatility. Model-specific 
-        parameters are \(\mu\) and \(\sigma\).
+        process with constant drift vector $\mu$ and volatility $\Sigma^{1/2}$ 
+        \footnote{In the following section, the volatility matrix $\Sigma^{1/2}$ is the
+        Cholesky decomposition of the sample variance matrix $\Sigma$ of a given data}.
         \begin{equation}
-        dS_t = \mu S_t\,dt + \sigma S_t\,dW_t.
+        \mathrm{d}\mathbf{S}_t = \mu \mathbf{S}_t\,\mathrm{d}t + \Sigma^{1/2} \mathbf{S}_t\,\mathrm{d}\mathbf{B}_t.
         \label{eq:gbm}
         \end{equation}
 
-        \item \label{alg:ou} \textbf{Ornstein–Uhlenbeck (OU).} 
+        \item \label{alg:ou} \textbf{Ornstein-Uhlenbeck (OU).} 
         A mean-reverting Gaussian process for log-prices or 
-        spreads. Model-specific parameters are \(\theta>0\) 
+        spreads. Model-s  pecific parameters are \(\theta>0\) 
         (reversion rate), \(\mu\) (long-term mean), and \(\sigma\) 
         (volatility).
         \begin{equation}
-        dX_t = \theta(\mu - X_t)\,dt + \sigma\,dW_t.
+        \mathrm{d}\mathbf{S}_t = \theta(\mu - \mathbf{S}_t)\,\mathrm{d}t + \Sigma^{1/2} \,\mathrm{d}\mathbf{B}_t.
         \end{equation}
 
         \item \label{alg:mjd} \textbf{Merton Jump Diffusion (MJD).} 
@@ -68,9 +78,9 @@
         \(\mu_j\) and \(\sigma_j\) (mean and standard deviation of 
         jump sizes).
         \begin{equation}
-        \frac{dS_t}{S_t} = \mu\,dt + \sigma\,dW_t + J\,dN_t,\\
+        \frac{\mathrm{d}(\log\mathbf{S}_t)}{\log\mathbf{S}_t} = \mu\,\mathrm{d}t + \sigma\,\mathrm{d}\mathbf{B}_t + J\,\mathrm{d}\mathbf{N}_t,\\
         \end{equation}
-        where $J \sim \mathcal N(\mu_j, \sigma_j^2),\quad N_t\sim\mathrm{Poisson}(\lambda t)$.
+        where $J \sim \mathcal N(\mu_j, \sigma_j^2),\quad \mathbf{N}_t\sim\mathrm{Poisson}(\lambda t)$.
 
 
         \item \label{alg:dejd} \textbf{Double-Exponential Jump 
@@ -81,7 +91,7 @@
         (probability of upward jump) and \(\eta_1, \eta_2\) 
         (exponential parameters for upward/downward jumps).
         \begin{align}
-          \frac{dS_t}{S_t} &= \mu\,dt + \sigma\,dW_t + Y\,dN_t,\\
+          \frac{\mathrm{d}(\log\mathbf{S}_t)}{\log\mathbf{S}_t} &= \mu\,\mathrm{d}t + \sigma\,\mathrm{d}\mathbf{B}_t + Y\,\mathrm{d}\mathbf{N}_t,\\
           Y &=
           \begin{cases}
           \mathrm{Exp}(\eta_1), &\text{with probability } p,\\[4pt]
@@ -91,184 +101,263 @@
 
         \item \label{alg:garch} \textbf{GARCH(1,1).} 
         A discrete-time conditional heteroskedastic model for 
-        returns. Model-specific parameters are \(\omega>0,\ 
+        simple returns. Model-specific parameters are \(\omega>0,\ 
         \alpha\ge0,\ \beta\ge0\) (GARCH coefficients) and 
-        \(\mathcal D\) (innovation distribution, usually standard 
-        Normal or Student-t). Captures volatility clustering via 
+        \(\mathcal L\) (innovation law, usually standard 
+        Normal or Student-t). Here $r_t$ denotes simple, non-log 
+        returns. Captures volatility clustering via 
         time-varying conditional variance.
         \begin{align}
-          r_t &= \sigma_t z_t,\quad z_t\sim\mathcal D,\\
+          \mathrm{d}r_t &= \sigma_t \mathrm{d}z_t,\quad z_t\sim\mathcal L,\\
           \sigma_t^2 &= \omega + \alpha r_{t-1}^2 + \beta \sigma_{t-1}^2. \nonumber
         \end{align}
       \end{enumerate}
 
 
   \subsection{Deep Learning Methods}\label{sub:deep-learning-methods}
-    Deep learning models, in this context, refer to generative 
-    (often implicit) models that do not assume a fixed parametric 
-    form for the underlying data-generating process. Instead, they 
-    learn latent structures directly from data through flexible 
-    architectures such as neural networks, enabling the modeling 
-    of highly nonlinear, high-dimensional, and multi-modal 
-    dependencies (e.g., multivariate financial time series with 
-    interactions across assets, time horizons, and features). 
-    While these models trade off interpretability and analytical 
-    tractability, they offer substantially greater expressive 
-    power and flexibility. This expressiveness, however, comes at 
-    the cost of increased data requirements, more intensive 
-    hyperparameter tuning, and higher computational demands. 
+    Deep learning methods learn complex patterns directly from data
+    without assuming a fixed parametric form. They are flexible enough
+    to model nonlinear and high-dimensional financial dependencies, but
+    they typically require more data, tuning, and computation than
+    classical approaches. In this paper, we focus on three major deep
+    generative families: Generative Adversarial Networks (GANs),
+    Variational Autoencoders (VAEs), and diffusion models.
 
-    We categorize these approaches into two major families of
-    deep generative models, considered in this paper: 
-    Generative Adversarial Networks (GANs)
-    and Variational Autoencoders (VAEs).
-    
-
-  %   \subsubsection{Diffusion Models}
-  %     Diffusion models (or score-based generative models) have 
-  %     emerged as powerful methods for modeling complex data 
-  %     distributions via a forward (noise-adding) process and a 
-  %     learned reverse (denoising) process \cite{ho2020denoising}. 
-  %     In the forward direction, one gradually corrupts a data sample 
-  %     \(x_0\) into noise via a Markov chain:
-  %    
-  %     \begin{align}
-  %       q(x_{1:T}\mid x_0) &= \prod_{t=1}^T q(x_t \mid x_{t-1}), \\
-  %       q(x_t \mid x_{t-1}) &= \mathcal{N}\left(x_t; \sqrt{1-\beta_t}\,x_{t-1}, \beta_t I\right). \nonumber
-  %     \end{align}
-  %    
-  %     
-  %     The reverse (generative) model is parameterized as
-  %     \[
-  %       p_\theta(x_{t-1} \mid x_t) = \mathcal{N}\bigl(x_{t-1}; 
-  %       \mu_\theta(x_t, t), \Sigma_\theta(x_t, t)\bigr),
-  %     \]
-  %     where \(\mu_\theta\) and \(\Sigma_\theta\) are often 
-  %     expressed via a neural network that estimates the score 
-  %     \(\nabla_{\theta} \log p_\theta(x_t)\). A common training 
-  %     objective is the simplified denoising score-matching loss:
-  %     \[
-  %       \mathbb{E}_{t, x_0, \epsilon}\Bigl[ \bigl\| \epsilon - \epsilon_\theta(x_t, t)\bigr\|^2 \Bigr],
-  %     \]
-  %     where \(x_t = \sqrt{\bar\alpha_t}\,x_0 + \sqrt{1-\bar\alpha_t}\,\epsilon\).
-  %     
-  %     In finance/time-series, diffusion models have recently been 
-  %     adapted to generate synthetic asset paths by converting 
-  %     multivariate time series into suitable representations (e.g. 
-  %     wavelet-transformed images) and then sampling via reverse 
-  %     diffusion \cite{Tanaka25}. For instance, Takahashi and Mizuno 
-  %     shows that such an approach can reproduce key statistical 
-  %     properties of financial data (e.g.\ volatility clustering, 
-  %     tail behavior) \cite{Takahashi24}.  
-  %     Another relevant work is "A Financial Time Series Denoiser 
-  %     Based on Diffusion Model", which shows how diffusion can help 
-  %     improve downstream predictability and reduce noise in 
-  %     financial signals \cite{wang24denoiser}.
-    \subsubsection{Variational Autoencoders (VAEs)}
-    VAEs \cite{kingma2022vae, 
-    rezende2014stochastic} are latent-variable generative models 
-    that posit a probabilistic encoder \(q_\phi(z \mid x)\) and 
-    decoder \(p_\theta(x \mid z)\). One maximizes the evidence 
-    lower bound (ELBO):
-    \[
-    \mathcal{L}_{\text{VAE}} = \mathbb{E}_{q_\phi(z \mid x)}
-    \bigl[\log p_\theta(x \mid z)\bigr] - \mathrm{KL}\bigl(
-    q_\phi(z \mid x)\,\Vert\,p(z)\bigr).
-    \]
-    Often one uses a standard Gaussian prior \(p(z) = 
-    \mathcal{N}(0, I)\). The encoder–decoder structure allows 
-    sampling by first drawing \(z \sim p(z)\), then generating 
-    \(x \sim p_\theta(x \mid z)\).
-    
-    In financial time-series generation, specialized versions such 
-    as the Time-Causal VAE (TC-VAE) have been proposed to enforce 
-    causality in the encoding/decoding of temporal data. For 
-    instance, Acciaio et al.\ (2024) propose TC-VAE, which 
-    ensures that generated paths respect temporal causality and 
-    show that the model reproduces stylized facts (e.g., heavy 
-    tails, volatility clustering) on real markets 
-    \cite{acciaio2024vae}. Because VAEs provide a principled 
-    latent representation, they are useful in finance to model 
-    underlying latent drivers of asset dynamics and to sample 
-    coherent trajectories.
-    \begin{enumerate}[label=\textbf{[A\arabic*]},resume]
-      \item \label{alg:timevae} \textbf{TimeVAE.}
-      A time-series specific VAE variant that combines causal
-      temporal encoders (e.g., causal convolutions or RNNs) with an
-      autoregressive decoder to preserve path coherence. Training
-      typically augments the ELBO with prediction or stepwise
-      reconstruction losses to improve short- and long-range
-      dependencies; TimeVAE is used in our benchmark as a
-      dedicated VAE baseline for temporal data \cite{Desai21}.
-    \end{enumerate}
-    
     \subsubsection{Generative Adversarial Networks (GANs)}
-    GANs models approach 
-    generation as a two-player game between a generator \(G\) and 
-    a discriminator \(D\) \cite{Goodfellow14}. The discriminator 
-    is trained to 
-    maximize the probability of correctly classifying real data 
-    and generated data, with loss
-    \[
-    L_D = -\mathbb{E}_{x \sim p_{\text{data}}}\bigl[\log D(x)
-    \bigr] - \mathbb{E}_{z \sim p(z)}\bigl[\log (1 - D(G(z)))
-    \bigr].
-    \]
-    The generator aims to fool the discriminator and is trained to 
-    minimize
-    \[
-    L_G = -\mathbb{E}_{z \sim p(z)}[\log D(G(z))].
-    \]
-    Many GAN variants, such as Wasserstein GAN or Least Squares 
-    GAN, modify these loss functions to promote more stable 
-    training and address issues like mode collapse \cite{Goodfellow14} .
-    
-    In financial data synthesis, GANs have been widely used to 
-    generate realistic synthetic time series. For example, 
-    GAN-based financial data generation models (often using WGAN 
-    or improvements) show that one can improve the authenticity 
-    and predictive ability of generated financial statements or 
-    time series \cite{Qi25}. Another example is 
-    VRNNGAN, which uses a recurrent VAE as the generator and a 
-    recurrent discriminator to capture temporal dependencies in 
-    synthetic sequence generation \cite{Lee22}. GANs are 
-    relevant in finance because they can capture complex joint 
-    distributions and dependencies in multivariate time-series 
-    without requiring explicit likelihood models.
-    
+    GANs model generation as a two-player game between a generator and
+    a discriminator. The generator tries to create realistic samples,
+    while the discriminator learns to distinguish real from synthetic
+    data \cite{Goodfellow14}. In this benchmark, we include three GAN
+    variants tailored to sequential and financial data.
+
     \begin{enumerate}[label=\textbf{[A\arabic*]},resume]
       \item \label{alg:quantgan} \textbf{QuantGAN.}
-      A GAN variant tailored for financial applications that
-      incorporates quantile-aware objectives or conditional
-      quantile matching and temporal architectures (e.g.,
-      temporal convnets or transformers). QuantGANs aim to better
-      capture tail behaviour and risk-sensitive statistics
-      (e.g., VaR/CVaR) important for downstream financial tasks
-      \cite{Wiese2020}.
+      A GAN tailored for financial time series that operates on
+      log-returns mapped onto a grid of quantile bins and
+      parameterizes both the generator and the discriminator with
+      temporal convolutional networks (TCNs) \cite{Wiese2020}. The
+      generator \(G\) and discriminator \(D\) are trained with the
+      Wasserstein GAN with gradient penalty (WGAN-GP) objective
+      \cite{Arjovsky17}:
+      \begin{equation}
+        \begin{split}
+          \min_G \max_D \; & \mathbb{E}_{\mathbf{R}\sim\mathbb{P}}[D(\mathbf{R})] -
+          \mathbb{E}_{\hat{\mathbf{R}}\sim\mathbb{Q}}[D(\hat{\mathbf{R}})] \\
+          &+ \lambda_{\mathrm{GP}}\, \mathbb{E}_{\breve{\mathbf{R}}}\Big[
+          \big(\|\nabla_{\breve{\mathbf{R}}} D(\breve{\mathbf{R}})\|_2 - 1\big)^2\Big],
+        \end{split}
+        \label{eq:quantgan}
+      \end{equation}
+      where \(\mathbb{P}\) and \(\mathbb{Q}\) denote the real and
+      generated distributions of the log-return series
+      \(\mathbf{R}\), and \(\breve{\mathbf{R}}\) are points sampled
+      along straight lines between real and generated windows. By
+      matching the full return distribution, QuantGAN aims to
+      reproduce tail behaviour and risk-sensitive statistics (e.g.,
+      VaR/CVaR) important for downstream financial tasks.
+
+      \item \label{alg:sigcwgan} \textbf{Conditional Sig-Wasserstein
+      GAN (SigCWGAN).}
+      SigCWGAN replaces the neural discriminator with a linear
+      functional on the path signature \(\mathrm{Sig}(\mathbf{X})\)
+      of the time series, giving rise to the conditional
+      Sig-Wasserstein distance \cite{Ni21}:
+      \begin{equation}
+        \begin{split}
+          \mathrm{SW}_1(\mathbb{P}, \mathbb{Q}) =
+          \sup_{\ell:\,\|\ell\|_*\le 1} \mathbb{E}_{c}\Big[
+          \big| & \mathbb{E}_{\mathbf{X}\sim\mathbb{P}(\cdot\mid c)}
+          [\ell(\mathrm{Sig}(\mathbf{X}))] \\
+          &- \mathbb{E}_{\hat{\mathbf{X}}\sim\mathbb{Q}(\cdot\mid c)}
+          [\ell(\mathrm{Sig}(\hat{\mathbf{X}}))]\big|\Big],
+        \end{split}
+        \label{eq:sigcwgan}
+      \end{equation}
+      where \(\mathrm{Sig}(\cdot)\) denotes the signature transform
+      of a path, \(\ell\) ranges over linear functionals on the
+      signature space, and \(c\) is a conditioning variable (e.g.\
+      volatility). The generator is trained to minimize this distance,
+      which yields more stable training than classical GAN critics
+      while targeting conditional return distributions.
+
+      \item \label{alg:pcfgan} \textbf{PCF-GAN.}
+      PCF-GAN compares path-space measures through their
+      characteristic functions (PCF distance) \cite{Lou23}:
+      \begin{equation}
+        \begin{split}
+          \mathrm{PCF}(\mathbb{P}, \mathbb{Q}) &=
+          \sup_{\zeta\in\mathcal{Z}} \big|
+          \phi_{\mathbb{P}}(\zeta) - \phi_{\mathbb{Q}}(\zeta)\big|, \\
+          \phi_{\mathbb{P}}(\zeta) &=
+          \mathbb{E}_{\mathbf{X}\sim\mathbb{P}}\big[e^{i\langle\zeta,
+          \mathbf{X}\rangle}\big],
+        \end{split}
+        \label{eq:pcfgan}
+      \end{equation}
+      where \(\phi_{\mathbb{P}}\) is the characteristic function of
+      the path-valued random variable \(\mathbf{X}\) and \(\zeta\)
+      a frequency parameter. The generator is trained to minimize this
+      distance, which is injective on the path space and can be
+      estimated without a learned discriminator, providing a
+      statistically grounded divergence for sequential data.
     \end{enumerate}
-  \subsection{Non-parametric}
-  Non-parametric models are generator classes that does not rely
-  on probability distribution assumptions or, in the case of Bayesian
-  non-parametric models, does not require a specified model parameters.
-  Among the simplest but most effective of the non-parametric models are
-  the variations of time series block boostrap that, in general, sample
-  blocks of time data to preserve temporal dependencies.
-  \ref{sub:deep-learning-methods}.
-  \begin{enumerate}[label=\textbf{[A\arabic*]}, resume]
-        \item \label{alg:blockbootstrap2} \textbf{Block Bootstrap 
-        (Resampling Method).} 
-        A resampling technique that preserves short-range 
-        dependence by sampling contiguous blocks of returns. 
-        Although not parametric, it is included here for 
-        completeness and baseline comparison.
-      \end{enumerate}
 
-      \begin{figure*}[h]
-        \centering
-        \includegraphics[width=\textwidth,keepaspectratio]{../../results/stonk_bench_architecture.png}
-        \caption{Stonk Bench system architecture overview.}
-        \Description{Diagram illustrating the complete Stonk Bench pipeline including data preprocessing, model evaluation, and benchmark framework components.}
-        \label{fig:stonk_bench_architecture}
-      \end{figure*}
+    \subsubsection{Variational Autoencoders (VAEs)}
+    VAEs are latent-variable generative models that learn a compact
+    representation of the data and reconstruct realistic samples from
+    it. Recurrent variants impose temporal structure on the latent
+    space so that generated trajectories remain coherent across time.
 
+    \begin{enumerate}[label=\textbf{[A\arabic*]},resume]
+      \item \label{alg:vrnn} \textbf{Variational Recurrent Neural
+      Network (VRNN).}
+      VRNN embeds a VAE at every time step of an RNN, with the prior
+      over the latent variable \(z_t\) conditioned on the previous
+      hidden state \(h_{t-1}\) \cite{Chung15}:
+      \begin{equation}
+        \begin{split}
+          z_t &\sim \mathcal{N}\big(m_{0,t},
+          \mathrm{diag}(s_{0,t}^2)\big), \qquad
+          [m_{0,t}, s_{0,t}] = \psi^{\mathrm{prior}}(h_{t-1}), \\
+          h_t &= f_\psi(h_{t-1}, \mathbf{X}_t, z_t), \\
+          \mathbf{X}_t &\sim p_\psi(\mathbf{X}_t \mid z_t, h_{t-1}),
+        \end{split}
+        \label{eq:vrnn}
+      \end{equation}
+      trained by maximizing the ELBO with the KL term regularizing the
+      latent space, allowing the model to capture stochastic
+      dependencies in sequential data.
 
+      \item \label{alg:kalmanvae} \textbf{Kalman-VAE.}
+      Kalman-VAE is a VAE whose latent dynamics follow a linear
+      Gaussian state-space model, so that posterior inference is
+      performed exactly with a Kalman filter/smoother \cite{Fraccaro17}:
+      \begin{equation}
+        \begin{split}
+          z_t &= \tanh(A z_{t-1} + \epsilon_t),\quad
+          \epsilon_t \sim \mathcal{N}(0, Q), \\
+          \mathbf{X}_t &= \tanh(C z_t + \delta_t),\quad
+          \delta_t \sim \mathcal{N}(0, V),
+        \end{split}
+        \label{eq:kalmanvae}
+      \end{equation}
+      where \(A\) and \(C\) are (possibly time-varying) transition
+      and emission matrices, and \(Q\) and \(V\) are the process and
+      observation noise covariances, respectively. Exact Gaussian
+      inference in the latent space yields a tractable KL divergence
+      and disentangles the latent dynamics from the observation model.
+    \end{enumerate}
+
+    \subsubsection{Diffusion Models}
+    Diffusion (or score-based) generative models corrupt data through
+    a forward noise-adding process and learn a reverse denoising
+    process that generates samples from noise \cite{ho2020denoising}.
+    Given a noise schedule \(\beta_1,\dots,\beta_K\), the forward
+    process and the reparameterized noised samples are
+    \begin{equation}
+      \begin{split}
+        q(\mathbf{X}^k \mid \mathbf{X}^{k-1}) &=
+        \mathcal{N}\big(\sqrt{1-\beta_k}\,\mathbf{X}^{k-1},
+        \beta_k \mathbf{I}\big), \\
+        \mathbf{X}^k &= \sqrt{\bar\alpha_k}\, \mathbf{X}^0 +
+        \sqrt{1-\bar\alpha_k}\, \epsilon,
+        \qquad \bar\alpha_k = \prod_{i=1}^k (1-\beta_i),
+      \end{split}
+      \label{eq:ddpm-forward}
+    \end{equation}
+    and training minimizes the simplified denoising score-matching
+    objective
+    \begin{equation}
+      \mathcal{L} = \mathbb{E}_{k, \mathbf{X}^0, \epsilon}\Big[
+      \big\|\epsilon - \epsilon_\psi(\mathbf{X}^k, k)\big\|^2\Big],
+      \label{eq:ddpm}
+    \end{equation}
+
+    \begin{enumerate}[label=\textbf{[A\arabic*]},resume]
+      \item \label{alg:timegrad} \textbf{TimeGrad.}
+      TimeGrad is an autoregressive diffusion model for multivariate
+      probabilistic time series \cite{Rasul21}.      At each time step
+      \(t\), a denoising network conditioned on the hidden state
+      \(h_t\) of a recurrent encoder models the conditional
+      distribution of \(\mathbf{X}_t\) given the history
+      \(\mathbf{X}_{<t}\):
+      \begin{equation}
+        \begin{split}
+          \mathcal{L}_t = \mathbb{E}_{k, \mathbf{X}^0_t, \epsilon} &
+          \Big[\big\|\epsilon - \epsilon_\psi(\mathbf{X}^k_t, k,
+          h_t)\big\|^2\Big],
+        \end{split}
+        \label{eq:timegrad}
+      \end{equation}
+      enabling sample-based forecasts of the full multivariate return
+      distribution.
+
+      \item \label{alg:diffusionts} \textbf{Diffusion-TS (TSDiff).}
+      Diffusion-TS combines an interpretable encoder that decomposes
+      the input series into trend and seasonal components with a
+      conditional diffusion decoder \cite{Yuan24}. The encoder maps
+      the input to a latent code \(\mathbf{c} =
+      f_\psi(\mathbf{X}^0)\) capturing these interpretable
+      components, and the decoder generates samples conditioned on
+      \(\mathbf{c}\):
+      \begin{equation}
+        \begin{split}
+          \mathcal{L} = \mathbb{E}_{k, \mathbf{X}^0, \epsilon} &
+          \Big[\big\|\epsilon - \epsilon_\psi(\mathbf{X}^k, k,
+          \mathbf{c})\big\|^2\Big],
+        \end{split}
+        \label{eq:diffusionts}
+      \end{equation}
+      where the decomposition into interpretable basis functions
+      (e.g. Fourier and linear trends) is applied before diffusion,
+      exposing the trend-seasonal structure of the generated series.
+    \end{enumerate}
+
+  \subsection{Block Bootstrap Methods}\label{sub:bootstrap-methods}
+    Non-parametric methods do not require a fixed parametric
+    distributional form. Block bootstrap approaches resample
+    contiguous blocks of a time series to preserve the short-range
+    dependence structure of the observed data while generating new
+    series; below, \(X\) generically denotes the series, which in
+    our benchmark is the log-return series \(\mathbf{R}\).
+    \begin{enumerate}[label=\textbf{[A\arabic*]},resume]
+      \item \label{alg:blockbootstrap2} \textbf{Moving Block Bootstrap
+      (MBB).}
+      MBB resamples blocks of fixed length \(l\) uniformly with
+      replacement from the observed series and concatenates them
+      \cite{Kunsch89}. For a series \(X_1,\dots,X_n\), overlapping
+      blocks \(B_i = (X_i,\dots,X_{i+l-1})\), \(i=1,\dots,N\) with
+      \(N = n - l + 1\), are formed; drawing \(k = \lceil n/l \rceil\)
+      blocks i.i.d.\ and concatenating them yields a bootstrap sample
+      \begin{equation}
+        \begin{split}
+          X^* &= \big(B_{I_1}, \dots, B_{I_k}\big), \\
+          I_j &\overset{\mathrm{iid}}{\sim} \mathrm{Unif}\{1,\dots,N\},
+        \end{split}
+        \label{eq:mbb}
+      \end{equation}
+      truncated to length \(n\). This preserves within-block
+      dependence at the cost of a discontinuity at block boundaries.
+
+      \item \label{alg:sbb} \textbf{Stationary Block Bootstrap (SBB).}
+      SBB draws block lengths from a geometric distribution, so the
+      resulting resampled series is (strictly) stationary
+      \cite{Politis94}. Each block starts at a uniformly chosen index
+      and has random length \(l \sim \mathrm{Geom}(\varrho)\) with
+      expected block length \(1/\varrho\); blocks are wrapped around
+      the circular series and concatenated until the desired length
+      \(n\) is reached:
+      \begin{equation}
+        \begin{split}
+          X^* &= \big(B_{I_1}^{l_1}, \dots, B_{I_k}^{l_k}\big), \\
+          B_i^l &= (X_{i}, \dots, X_{i+l-1}), \\
+          I_j &\sim \mathrm{Unif}\{1,\dots,n\}, \qquad
+          l_j \sim \mathrm{Geom}(\varrho),
+        \end{split}
+        \label{eq:sbb}
+      \end{equation}
+      where indices in each block are taken modulo \(n\) (wrapping
+      around the end of the series). Random block lengths avoid the
+      periodicity artifacts of the fixed-length MBB while maintaining
+      dependence structure.
+    \end{enumerate}

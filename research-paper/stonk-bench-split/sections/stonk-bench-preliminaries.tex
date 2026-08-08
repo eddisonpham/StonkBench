@@ -1,63 +1,93 @@
 \section{Preliminaries}
   \subsection{Problem Definition}\label{prelim:definition}
-    Let us formally define the markt generation problem.
-    Given a financial time series of asset prices movements
-    $\textbf{X} = (\textbf{x}_1,...,\textbf{x}_K)^T \in \mathbb R^{T\times K}$ 
-    with $K$ individual securites spanning time $T$. Let 
-    $p(\textbf{x}_1,...,\textbf{x}_K)$ denote the real distribution 
-    of the given time series $\textbf{X}$. The objective 
-    of the market generator is to synthesize a time series
-    $\mathbf{\hat{X}} = (\mathbf{\hat{x}}_1, \ldots, 
-    \mathbf{\hat{x}}_n)^{T}$ such that its distribution 
-    $q(\mathbf{\hat{x}}_1, \ldots, \mathbf{\hat{x}}_n)$ 
-    approximates $p(\textbf{x}_1,...,\textbf{x}_K)$, while 
-    preserving the key properties exhibited in the real financial 
-    time series, such as autocorrelation structure, volatility 
-    clustering, and distributional moments.
+    Let us formally define the market generation problem. Given a
+    financial time series of asset price movements
+    $\mathbf{X} = (\mathbf{X}_1,\ldots,\mathbf{X}_I)^T = (\mathbf{X}_t)_{t=1}^T\in \mathbb R^{T\times I}$
+    with $I$ individual securities spanning time $T$, let $p(\mathbf{X})$ denote
+    its real distribution. The objective of the market generator is to
+    synthesize a time series $\hat{\mathbf{X}} = (\hat{\mathbf{X}}_t)_{t=1}^T$
+    such that its distribution $q(\hat{\mathbf{X}})$ approximates $p(\mathbf{X})$ while
+    preserving key stylized facts, generating diverse samples, and
+    improving downstream task training and evaluation. More importantly
+    we wish to evaluate the generalization capabilites of $q(\hat{\mathbf{X}})$
+    against unseen data $p(\mathbf{X}_{\mathrm{new}})$.
 
   \subsection{Scope of Project}
     \subsubsection{Evaluated Methods}
-      Our benchmark encompasses a diverse range of models
-      from traditional parametric approaches to modern deep 
-      learning architectures. We selected models satisifying one
-      of three main criteria: (1) proven industry adoption, (2) research 
-      community acceptance, and (3) recent methodological 
-      innovations and interest.
+      Our benchmark covers models from classical parametric methods to
+      modern deep-learning architectures. We selected models that meet
+      one of three criteria: (1) proven industry adoption, (2) research
+      community acceptance, and (3) recent methodological innovation.
 
-      Our evaluation includes classical parametric models, which 
-      rely on predefined statistical distributions and assumptions 
-      about the underlying data generation process. These models 
-      have been extensively used in financial institutions for 
-      their interpretability and theoretical foundations. 
+      Classical parametric models rely on predefined statistical
+      distributions and assumptions about the data-generating process.
+      They remain common in financial institutions because of their
+      interpretability and strong theoretical foundations.
 
-      We also evaluate modern deep learning approaches, 
-      particularly deep learning-based models that learn the data 
-      distribution directly from observations without assuming a 
-      specific form. These include generative adversarial 
-      networks, and variational autoencoders, 
-      representing the cutting edge in synthetic market data generation.
+      We also evaluate modern deep-learning approaches, especially
+      models that learn the data distribution directly from
+      observations rather than assuming a specific form. These include
+      generative adversarial networks and variational autoencoders,
+      which represent the current state of the art in synthetic market
+      data generation.
 
-      An overview of the classes of market generator evaluate is outlined
-      in §\ref{sec:model-overview}.
+      An overview of the market-generator classes is provided in
+      §\ref{sec:model-overview}.
 
-      \subsubsection{Datasets}
-      The market generators' objective is to generate realistic and diverse
-      synthetic time series from daily financial asset returns, spanning across
-      10 years and collected from Yahoo Finance.
-      In the interest of evaluating cross-asset distributive properties,
-      we have select a range of financial equities, including 25 US large-cap
-      stocks from the following sectors. Furthermore, we have included 5
-      of the most popular US index-tracking ETFs. 
+    \subsubsection{Datasets}
+      The benchmark aims to generate realistic and diverse synthetic
+      time series from daily financial asset prices over 15 years
+      (2010--2025), collected from Yahoo Finance. To evaluate
+      cross-asset behavior, we include 20 US large-cap stocks from
+      several sectors and 5 popular US index-tracking ETFs (see table
+      \ref{tab:asset-classification})
 
-      \subsubsection{Scope of Evaluation Taxonomical Criteria}
-      Our evaluation framework follows the taxonomy structure 
-      proposed by Stenger et al. \cite{Stenger24}, incorporating 
-      various evaluation measures from different papers in the 
-      field.
+        \begin{table}[t]
+        \centering
+        \caption{Asset classification used in StonkBench.}
+        \label{tab:asset-classification}
+        \begin{tabular}{l l l l}
+        \hline
+        Ticker & Name & Type & Sector/Exposure \\
+        \hline
 
-      We systematically integrate evaluation metrics from multiple 
-      sources while maintaining this structured taxonomical 
-      approach, ensuring comprehensive coverage of all critical 
-      aspects of evaluation and setting a standard for 
-      future research in market generators as a whole. A full description
-      of the evaluation suite are outlined in §\ref{subsec:stats-measure}, \ref{sec:utility}.
+        AAPL & Apple & Stock & Technology \\
+        MSFT & Microsoft & Stock & Technology \\
+        NVDA & NVIDIA & Stock & Technology \\
+        AVGO & Broadcom & Stock & Technology \\
+        JPM & JPMorgan Chase & Stock & Financials \\
+        LLY & Eli Lilly & Stock & Healthcare \\
+        UNH & UnitedHealth Group & Stock & Healthcare \\
+        AMZN & Amazon & Stock & Consumer Disc. \\
+        TSLA & Tesla & Stock & Consumer Disc. \\
+        CAT & Caterpillar & Stock & Industrials \\
+        UNP & Union Pacific & Stock & Industrials \\
+        META & Meta Platforms & Stock & Communication \\
+        NFLX & Netflix & Stock & Communication \\
+        PG & Procter \& Gamble & Stock & Consumer Staples \\
+        COST & Costco Wholesale & Stock & Consumer Staples \\
+        XOM & Exxon Mobil & Stock & Energy \\
+        CVX & Chevron & Stock & Energy \\
+        NEE & NextEra Energy & Stock & Utilities \\
+        PLD & Prologis & Stock & Real Estate \\
+        LIN & Linde & Stock & Materials \\
+        SPY & S\&P 500& ETF & S\&P 500 \\
+        QQQ & Nasdaq-100& ETF & Nasdaq-100 \\
+        XLF & Finance & ETF & U.S. Financials \\
+        IWM & Russell 2000& ETF & Small Caps \\
+        XLV & Health Care & ETF & U.S. Healthcare \\
+        \hline
+        \end{tabular}
+    \end{table}
+
+    \subsubsection{Scope of Evaluation Taxonomical Criteria}
+      Our evaluation framework follows the taxonomy proposed by
+      Stenger et al. \cite{Stenger24} and incorporates measures from
+      multiple papers in the field.
+
+      We integrate evaluation metrics from several sources while
+      maintaining a structured taxonomy, providing broad coverage of
+      the key aspects of evaluation and setting a standard for future
+      market-generator research. A full description of the evaluation
+      suite is provided in §\ref{subsec:stats-measure} and
+      §\ref{sec:utility}.
