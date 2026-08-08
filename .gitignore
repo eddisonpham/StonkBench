@@ -2,6 +2,8 @@
 env
 .venv
 venv
+.freebuff/
+stonk-bench-*
 
 # Ignore Python cache
 __pycache__/
