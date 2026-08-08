@@ -29,7 +29,9 @@ venv/
 *.ps
 *.pdfsync
 research-paper/*.pdf
+research-paper/**/*.pdf
 research-paper/non-essensals/*.pdf
+comment.cut
 *.nav
 *.snm
 *.vrb
