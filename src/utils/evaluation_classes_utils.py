@@ -1,5 +1,7 @@
 """Evaluation classes for the taxonomy metrics."""
 
+import multiprocessing
+import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict
@@ -14,8 +16,12 @@ from src.taxonomies.fidelity import (
     calculate_sdd,
     calculate_sd,
     calculate_kd,
+    calculate_cmd,
+    calculate_dcor_diff,
     visualize_tsne,
     visualize_distribution,
+    visualize_qq,
+    visualize_per_channel,
 )
 from src.taxonomies.stylized_facts import (
     autocorr_returns,
@@ -24,7 +30,6 @@ from src.taxonomies.stylized_facts import (
 )
 from src.taxonomies.utility import (
     AugmentedTestingEvaluator,
-    AlgorithmComparisonEvaluator,
 )
 
 __all__ = [
@@ -34,6 +39,8 @@ __all__ = [
     "StylizedFactsEvaluator",
     "VisualAssessmentEvaluator",
     "UtilityEvaluator",
+    "PortfolioEvaluator",
+    "PnLEvaluatorWrapper",
 ]
 
 
@@ -67,6 +74,43 @@ def _aggregate_channel_metrics(channel_metrics: list[dict[str, float]]) -> dict[
     return aggregated
 
 
+def _eval_workers() -> int:
+    """Number of parallel channel workers from env, or 0 for sequential."""
+    try:
+        return max(0, int(os.environ.get("STONKBENCH_EVAL_WORKERS", "0") or 0))
+    except ValueError:
+        return 0
+
+
+def _parallel_channel_map(worker_fn, jobs: list, n_workers: int) -> list:
+    """Evaluate independent per-channel jobs in a process pool.
+
+    Uses the ``spawn`` context so each worker is a fresh process with its own
+    CPU-time accounting (login-node ``ulimit -t`` caps are per-process) and no
+    inherited CUDA context. Falls back to sequential evaluation if the pool
+    cannot be created (e.g. oversubscription).
+    """
+    ctx = multiprocessing.get_context("spawn")
+    try:
+        pool = ctx.Pool(processes=max(1, min(n_workers, len(jobs))))
+        try:
+            return pool.map(worker_fn, jobs)
+        finally:
+            # terminate() + join() avoids the occasional pool.join() hang seen
+            # when a worker lingers in teardown; map() has already collected
+            # every result so killing idle workers is safe.
+            pool.terminate()
+            pool.join()
+    except Exception:
+        return [worker_fn(job) for job in jobs]
+
+
+def _diversity_channel_worker(args) -> dict:
+    """Compute ICD (euclidean + dtw) for a single channel in a worker process."""
+    channel, metrics = args
+    return {f"icd_{m}": calculate_icd(channel, metric=m) for m in metrics}
+
+
 class TaxonomyEvaluator(ABC):
     """Abstract base class for taxonomy evaluators."""
 
@@ -88,9 +132,19 @@ class DiversityEvaluator(TaxonomyEvaluator):
     def evaluate(self) -> Dict[str, np.ndarray]:
         metrics = ["euclidean", "dtw"]
         syn = np.asarray(self.syn_data)
-        channel_results = []
-        for channel in _split_channels(syn):
-            channel_results.append({f"icd_{m}": calculate_icd(channel, metric=m) for m in metrics})
+        channels = _split_channels(syn)
+        n_workers = _eval_workers()
+        if n_workers >= 2 and len(channels) > 1:
+            # Parallelize the (expensive, pure-Python DTW) per-channel ICD
+            # computation across worker processes: identical results, much
+            # lower wall time and per-process CPU usage.
+            jobs = [(channel, metrics) for channel in channels]
+            channel_results = _parallel_channel_map(_diversity_channel_worker, jobs, n_workers)
+        else:
+            channel_results = [
+                {f"icd_{m}": calculate_icd(channel, metric=m) for m in metrics}
+                for channel in channels
+            ]
         if len(channel_results) == 1:
             self.results = channel_results[0]
         else:
@@ -102,6 +156,12 @@ class DiversityEvaluator(TaxonomyEvaluator):
 
 class FidelityEvaluator(TaxonomyEvaluator):
     def evaluate(self) -> Dict[str, np.ndarray]:
+        """Evaluate all fidelity metrics including cross-channel (multivariate) metrics.
+
+        Per-channel marginal metrics (mdd, md, sdd, sd, kd) are computed channel-wise
+        and aggregated to a mean when C > 1. Cross-channel metrics (cmd, dcor_diff)
+        operate on all channels jointly and are only reported when C > 1.
+        """
         fidelity_metrics = {
             "mdd": calculate_mdd,
             "md": calculate_md,
@@ -126,6 +186,16 @@ class FidelityEvaluator(TaxonomyEvaluator):
             summary = _aggregate_channel_metrics(channel_results)
             self.results = {k: v["mean"] for k, v in summary.items()}
             self.results["per_channel"] = channel_results
+
+        # --- Cross-channel (multivariate) fidelity metrics ---
+        num_channels = len(ori_channels)
+        if num_channels > 1:
+            try:
+                self.results["cmd"] = calculate_cmd(self.ori_data, self.syn_data)
+                self.results["dcor_diff"] = calculate_dcor_diff(self.ori_data, self.syn_data)
+            except Exception as exc:
+                print(f"Warning: Cross-channel fidelity metrics failed: {exc}")
+
         return self.results
 
 
@@ -175,63 +245,68 @@ class StylizedFactsEvaluator(TaxonomyEvaluator):
 
 
 class VisualAssessmentEvaluator(TaxonomyEvaluator):
-    def __init__(self, ori_data: np.ndarray, syn_data: np.ndarray, results_dir: Path):
+    def __init__(self, ori_data: np.ndarray, syn_data: np.ndarray, results_dir: Path,
+                 channel_names: list | None = None):
         super().__init__(ori_data, syn_data)
         self.results_dir = results_dir
+        self.channel_names = channel_names
 
     def evaluate(self):
-        try:
-            model_results_dir = self.results_dir / "visualizations"
-            model_results_dir.mkdir(parents=True, exist_ok=True)
+        model_results_dir = self.results_dir / "visualizations"
+        model_results_dir.mkdir(parents=True, exist_ok=True)
+        per_channel_dir = self.results_dir / "per_asset"
+        per_channel_dir.mkdir(parents=True, exist_ok=True)
 
-            visualize_tsne(self.ori_data, self.syn_data, str(model_results_dir))
-            visualize_distribution(self.ori_data, self.syn_data, str(model_results_dir))
-        except Exception as e:
-            print(f"Warning: Visual assessment failed: {e}")
+        # Each visualization is independent: a failure in one (e.g. t-SNE on
+        # tiny sample sets) must never prevent the QQ / distribution / per-asset
+        # plots from being written.
+        steps = [
+            ("tsne", lambda: visualize_tsne(self.ori_data, self.syn_data, str(model_results_dir))),
+            ("distribution", lambda: visualize_distribution(self.ori_data, self.syn_data, str(model_results_dir))),
+            ("qq", lambda: visualize_qq(
+                self.ori_data, self.syn_data, str(model_results_dir),
+                channel_names=self.channel_names, per_asset_dir=str(per_channel_dir))),
+            ("per_channel", lambda: visualize_per_channel(
+                self.ori_data, self.syn_data, str(per_channel_dir),
+                channel_names=self.channel_names)),
+        ]
+        for name, fn in steps:
+            try:
+                fn()
+            except Exception as e:  # noqa: BLE001
+                print(f"Warning: {name} visualization failed: {e}")
 
 
 class UtilityEvaluator(TaxonomyEvaluator):
-    """Utility-based evaluation for deep hedging models."""
+    """Utility-based evaluation for deep hedging models (augmented testing only)."""
 
     def __init__(
         self,
         real_train_log_returns: torch.Tensor,
         real_val_log_returns: torch.Tensor,
-        real_test_log_returns: torch.Tensor,
         synthetic_train_log_returns: torch.Tensor,
-        synthetic_val_log_returns: torch.Tensor,
-        synthetic_test_log_returns: torch.Tensor,
         real_train_initial: torch.Tensor,
         real_val_initial: torch.Tensor,
-        real_test_initial: torch.Tensor,
         synthetic_train_initial: torch.Tensor | None = None,
-        synthetic_val_initial: torch.Tensor | None = None,
-        synthetic_test_initial: torch.Tensor | None = None,
         seq_length: int | None = None,
-        num_epochs: int = 2,
+        num_epochs: int = 40,
         batch_size: int = 64,
         learning_rate: float = 1e-3,
     ):
         super().__init__()
         self.real_train_log_returns = real_train_log_returns
         self.real_val_log_returns = real_val_log_returns
-        self.real_test_log_returns = real_test_log_returns
         self.synthetic_train_log_returns = synthetic_train_log_returns
-        self.synthetic_val_log_returns = synthetic_val_log_returns
-        self.synthetic_test_log_returns = synthetic_test_log_returns
         self.real_train_initial = real_train_initial
         self.real_val_initial = real_val_initial
-        self.real_test_initial = real_test_initial
         self.synthetic_train_initial = synthetic_train_initial
-        self.synthetic_val_initial = synthetic_val_initial
-        self.synthetic_test_initial = synthetic_test_initial
         self.seq_length = seq_length
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
 
     def evaluate(self) -> Dict[str, Any]:
-        """Run both augmented testing and algorithm comparison evaluations."""
+        """Run augmented testing evaluation only."""
         print("[UtilityEvaluator] Starting utility evaluation...")
 
         augmented_evaluator = AugmentedTestingEvaluator(
@@ -253,29 +328,93 @@ class UtilityEvaluator(TaxonomyEvaluator):
             print(f"Warning: Augmented testing evaluation failed: {e}")
             augmented_results = {"error": str(e)}
 
-        algorithm_evaluator = AlgorithmComparisonEvaluator(
-            real_train_log_returns=self.real_train_log_returns,
-            real_test_log_returns=self.real_test_log_returns,
-            synthetic_train_log_returns=self.synthetic_train_log_returns,
-            real_train_initial=self.real_train_initial,
-            real_test_initial=self.real_test_initial,
-            synthetic_train_initial=self.synthetic_train_initial,
-            seq_length=self.seq_length,
-            num_epochs=self.num_epochs,
-            batch_size=self.batch_size,
-            learning_rate=self.learning_rate,
-        )
-
-        try:
-            algorithm_comparison_results = algorithm_evaluator.evaluate()
-        except Exception as e:
-            print(f"Warning: Algorithm comparison evaluation failed: {e}")
-            algorithm_comparison_results = {"error": str(e)}
-
         self.results = {
             "augmented_testing": augmented_results,
-            "algorithm_comparison": algorithm_comparison_results,
         }
 
         print("[UtilityEvaluator] Utility evaluation complete.")
+        return self.results
+
+
+class PortfolioEvaluator(TaxonomyEvaluator):
+    """Portfolio optimization downstream evaluation (DeMiguel et al. 2009)."""
+
+    def __init__(
+        self,
+        real_test_log_returns: torch.Tensor,
+        synthetic_log_returns: torch.Tensor,
+        estimation_window: int = 252,
+        rebalance_freq: int = 21,
+        periods_per_year: int = 252,
+        rf: float = 0.0,
+        num_assets_ablation: list[int] | None = None,
+    ):
+        super().__init__()
+        self.real_test_log_returns = real_test_log_returns
+        self.synthetic_log_returns = synthetic_log_returns
+        self.estimation_window = estimation_window
+        self.rebalance_freq = rebalance_freq
+        self.periods_per_year = periods_per_year
+        self.rf = rf
+        self.num_assets_ablation = num_assets_ablation
+
+    def evaluate(self) -> Dict[str, Any]:
+        from src.taxonomies.portfolio import PortfolioOptimizationEvaluator
+
+        real = self.real_test_log_returns.cpu().numpy() if isinstance(self.real_test_log_returns, torch.Tensor) else self.real_test_log_returns
+        synth = self.synthetic_log_returns.cpu().numpy() if isinstance(self.synthetic_log_returns, torch.Tensor) else self.synthetic_log_returns
+
+        evaluator = PortfolioOptimizationEvaluator(
+            real_test_returns=real,
+            synthetic_returns=synth,
+            estimation_window=self.estimation_window,
+            rebalance_freq=self.rebalance_freq,
+            periods_per_year=self.periods_per_year,
+            rf=self.rf,
+            num_assets_ablation=self.num_assets_ablation,
+        )
+        try:
+            self.results = evaluator.evaluate()
+        except Exception as e:
+            print(f"Warning: Portfolio evaluation failed: {e}")
+            self.results = {"error": str(e)}
+        return self.results
+
+
+class PnLEvaluatorWrapper(TaxonomyEvaluator):
+    """P&L downstream evaluation wrapper."""
+
+    def __init__(
+        self,
+        real_log_returns: torch.Tensor,
+        synthetic_log_returns: torch.Tensor,
+        strategy: str = "equal_weight_bh",
+        periods_per_year: int = 252,
+        initial_value: float = 1.0,
+    ):
+        super().__init__()
+        self.real_log_returns = real_log_returns
+        self.synthetic_log_returns = synthetic_log_returns
+        self.strategy = strategy
+        self.periods_per_year = periods_per_year
+        self.initial_value = initial_value
+
+    def evaluate(self) -> Dict[str, Any]:
+        from src.taxonomies.pnl import PnLEvaluator
+
+        real = self.real_log_returns.cpu().numpy() if isinstance(self.real_log_returns, torch.Tensor) else self.real_log_returns
+        synth = self.synthetic_log_returns.cpu().numpy() if isinstance(self.synthetic_log_returns, torch.Tensor) else self.synthetic_log_returns
+
+        evaluator = PnLEvaluator(
+            real_log_returns=real,
+            synthetic_log_returns=synth,
+            strategy=self.strategy,
+            periods_per_year=self.periods_per_year,
+            initial_value=self.initial_value,
+        )
+        try:
+            self.results = evaluator.evaluate()
+        except Exception as e:
+            print(f"Warning: P&L evaluation failed: {e}")
+            self.results = {"error": str(e)}
         return self.results

@@ -52,7 +52,10 @@ class DeepHedgingModel(nn.Module, ABC):
         """
         price_diffs = prices[:, 1:] - prices[:, :-1]  # (batch_size, L-1)
         delta_weighted_changes = torch.sum(deltas * price_diffs, dim=1)
-        terminal_value = self.premium + delta_weighted_changes
+        # Non-deep hedgers keep ``self.premium`` on CPU (plain tensor created
+        # in __init__/fit); move it to the computation device on the fly so
+        # terminal value arithmetic never mixes cuda and cpu tensors.
+        terminal_value = self.premium.to(delta_weighted_changes.device) + delta_weighted_changes
         return terminal_value
     
     def compute_loss(
@@ -197,7 +200,10 @@ class NonDeepHedgingModel(ABC):
         """
         price_diffs = prices[:, 1:] - prices[:, :-1]  # (batch_size, L-1)
         delta_weighted_changes = torch.sum(deltas * price_diffs, dim=1)
-        terminal_value = self.premium + delta_weighted_changes
+        # Non-deep hedgers keep ``self.premium`` on CPU (plain tensor created
+        # in __init__/fit); move it to the computation device on the fly so
+        # terminal value arithmetic never mixes cuda and cpu tensors.
+        terminal_value = self.premium.to(delta_weighted_changes.device) + delta_weighted_changes
         return terminal_value
     
     def compute_loss(

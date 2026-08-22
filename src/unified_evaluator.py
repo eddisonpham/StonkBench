@@ -8,6 +8,7 @@ in `refactor.md` and be produced by the generation scripts.
 
 import argparse
 import json
+import multiprocessing
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -27,6 +28,9 @@ from src.utils.evaluation_classes_utils import (  # noqa: E402
     StylizedFactsEvaluator,
     VisualAssessmentEvaluator,
     UtilityEvaluator,
+    PortfolioEvaluator,
+    PnLEvaluatorWrapper,
+    _eval_workers,
 )
 
 from src.utils.preprocessed_data_utils import (  # noqa: E402
@@ -240,7 +244,8 @@ class CoreMetricsEvaluator:
             FidelityEvaluator(real_data, generated_data),
             DiversityEvaluator(real_data, generated_data),
             StylizedFactsEvaluator(real_data, generated_data),
-            VisualAssessmentEvaluator(real_data, generated_data, self.output_dir),
+            VisualAssessmentEvaluator(real_data, generated_data, self.output_dir,
+                                      channel_names=self.asset_columns),
         ]
 
         for evaluator in evaluators:
@@ -260,6 +265,39 @@ class CoreMetricsEvaluator:
                 results.update(self._post_process(evaluator_name, metric_results))
 
         return results
+
+
+def _evaluate_mse_channel_worker(job: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
+    """Evaluate the utility (deep hedging) suite for a single channel.
+
+    Runs in a worker process (see ``_eval_workers``): hedger training is
+    CPU-overhead-bound at these sample sizes, and spawning fresh processes
+    spreads CPU time so per-process ``ulimit -t`` caps are never hit while
+    cutting wall time roughly by the worker count.
+    """
+    c = int(job["channel"])
+    np.random.seed(int(job.get("seed", 42)) + c)
+    torch.manual_seed(int(job.get("seed", 42)) + c)
+    try:
+        real_val_c = torch.from_numpy(job["real_val_c"]).float()
+        if real_val_c.shape[0] == 0:
+            real_val_c = torch.from_numpy(job["real_test_c"]).float()
+        evaluator = UtilityEvaluator(
+            real_train_log_returns=torch.from_numpy(job["real_tr_c"]).float(),
+            real_val_log_returns=real_val_c,
+            synthetic_train_log_returns=torch.from_numpy(job["syn_c"]).float(),
+            real_train_initial=torch.from_numpy(job["real_train_init_c"]).float(),
+            real_val_initial=torch.from_numpy(job["real_val_init_c"]).float(),
+            synthetic_train_initial=torch.from_numpy(job["synthetic_initials_c"]).float(),
+            seq_length=int(job["seq_length"]),
+            num_epochs=int(job["num_epochs"]),
+            batch_size=int(job["batch_size"]),
+            learning_rate=float(job["learning_rate"]),
+        )
+        return c, evaluator.evaluate()
+    except Exception as exc:  # noqa: BLE001
+        print(f"Warning: Utility evaluation failed for channel {c}: {exc}")
+        return c, {"error": str(exc)}
 
 
 class UtilityMetricsEvaluator:
@@ -306,43 +344,137 @@ class UtilityMetricsEvaluator:
         dataset: Dict[str, Any],
         seq_length: int,
     ) -> Dict[str, Any]:
-        """Single-pass vendor ``UtilityEvaluator`` (MSE deep hedging)."""
+        """Single-pass vendor ``UtilityEvaluator`` (MSE deep hedging).
+
+        Uses raw (actual) initial asset prices for log-return → price conversion
+        and for computing the at-the-money (ATM) strike. The hedging evaluation
+        is performed per channel (each channel = one asset), following the
+        standard deep hedging framework (Buehler et al. 2019).
+        """
         num_samples = synthetic.shape[0]
         device = synthetic.device
-        synthetic_initials = torch.zeros(num_samples, device=device)
-        real_train_init = dataset["deep_learning_train_init"]
-        if real_train_init.ndim > 1:
-            real_train_init = real_train_init.mean(dim=-1)
-        real_val_init = dataset["deep_learning_valid_init"]
-        if real_val_init.ndim > 1:
-            real_val_init = real_val_init.mean(dim=-1) if real_val_init.shape[0] else real_val_init
-        real_test_init = dataset["deep_learning_test_init"]
-        if real_test_init.ndim > 1:
-            real_test_init = real_test_init.mean(dim=-1) if real_test_init.shape[0] else real_test_init
+        num_channels = synthetic.shape[2] if synthetic.ndim == 3 else 1
 
-        evaluator = UtilityEvaluator(
-            real_train_log_returns=dataset["deep_learning_train"],
-            real_val_log_returns=dataset["deep_learning_valid"] if dataset["deep_learning_valid"].shape[0] else dataset["deep_learning_test"],
-            real_test_log_returns=dataset["deep_learning_test"],
-            synthetic_train_log_returns=synthetic,
-            synthetic_val_log_returns=synthetic,
-            synthetic_test_log_returns=synthetic,
-            real_train_initial=real_train_init,
-            real_val_initial=real_val_init,
-            real_test_initial=real_test_init,
-            synthetic_train_initial=synthetic_initials,
-            synthetic_val_initial=synthetic_initials,
-            synthetic_test_initial=synthetic_initials,
-            seq_length=seq_length,
-            num_epochs=self.num_epochs,
-            batch_size=self.batch_size,
-            learning_rate=self.learning_rate,
+        # --- Use raw actual prices for initial values, NOT z-scored values ---
+        # The dataset cache stores raw series in "deep_learning_train" as
+        # denormalized windows. For initial prices we use the FIRST value of
+        # each window; for synthetic paths we use the mean first value across
+        # real train windows to anchor paths at realistic price levels.
+        dl_train = dataset["deep_learning_train"]
+        # dl_train is (N, L_max, C) in denormalized log-return space.
+        # Trim to seq_length to match the evaluation target (e.g. 21, 42, 126).
+        if dl_train.ndim == 3 and dl_train.shape[1] > seq_length:
+            dl_train = dl_train[:, -seq_length:, :]
+
+        # Compute S₀ per channel from the real training data.
+        from src.utils.preprocessed_data_utils import load_dl_set, resolve_dl_set_path
+
+        dl_set_raw = load_dl_set(resolve_dl_set_path())
+        raw_first_prices = dl_set_raw.get("train_series_raw")
+        if raw_first_prices is not None and raw_first_prices.shape[0] > 0:
+            # train_series_raw is (T, C) of actual prices at first timestep.
+            asset_initial_prices = raw_first_prices[0].float().to(device)  # (C,)
+        else:
+            # Fallback: use 100 as a placeholder (reasonable for stock prices).
+            asset_initial_prices = torch.ones(num_channels, device=device) * 100.0
+
+        # Broadcast to per-sample (R, C) initial prices.
+        real_train_init = asset_initial_prices.unsqueeze(0).expand(
+            dl_train.shape[0], num_channels
+        )  # (N_train, C)
+
+        # For validation and test, use the same asset initial prices.
+        dl_val = dataset.get("deep_learning_valid", dl_train)
+        if dl_val.ndim == 3 and dl_val.shape[1] > seq_length:
+            dl_val = dl_val[:, -seq_length:, :]
+        dl_test = dataset["deep_learning_test"]
+        if dl_test.ndim == 3 and dl_test.shape[1] > seq_length:
+            dl_test = dl_test[:, -seq_length:, :]
+        real_val_init = asset_initial_prices.unsqueeze(0).expand(
+            dl_val.shape[0], num_channels
+        ) if dl_val.shape[0] else real_train_init[:1]
+        real_test_init = asset_initial_prices.unsqueeze(0).expand(
+            dl_test.shape[0], num_channels
         )
-        try:
-            raw = evaluator.evaluate()
-        except Exception as exc:  # noqa: BLE001
-            return {"utility_error": str(exc)}
-        return {"summary": raw}
+
+        # Synthetic initial prices: all paths start from the same S₀.
+        synthetic_initials = asset_initial_prices.unsqueeze(0).expand(
+            num_samples, num_channels
+        )
+
+        # Evaluate hedging per channel and aggregate.
+        if synthetic.ndim == 2:
+            synthetic = synthetic.unsqueeze(-1)
+
+        def _job_array(t: torch.Tensor) -> np.ndarray:
+            return t.cpu().numpy() if isinstance(t, torch.Tensor) else np.asarray(t)
+
+        jobs = []
+        for c in range(num_channels):
+            jobs.append({
+                "channel": c,
+                "syn_c": _job_array(synthetic[:, :, c]),
+                "real_tr_c": _job_array(dl_train[:, :, c] if dl_train.ndim == 3 else dl_train),
+                "real_val_c": _job_array(dl_val[:, :, c] if dl_val.ndim == 3 else dl_val),
+                "real_test_c": _job_array(dl_test[:, :, c] if dl_test.ndim == 3 else dl_test),
+                "real_train_init_c": _job_array(real_train_init[:, c] if real_train_init.ndim > 1 else real_train_init),
+                "real_val_init_c": _job_array(real_val_init[:, c] if real_val_init.ndim > 1 else real_val_init),
+                "synthetic_initials_c": _job_array(synthetic_initials[:, c]),
+                "seq_length": seq_length,
+                "num_epochs": self.num_epochs,
+                "batch_size": self.batch_size,
+                "learning_rate": self.learning_rate,
+            })
+
+        n_workers = _eval_workers()
+        if n_workers >= 2 and num_channels > 1:
+            ctx = multiprocessing.get_context("spawn")
+            try:
+                pool = ctx.Pool(processes=max(1, min(n_workers, num_channels)))
+                try:
+                    results = pool.map(_evaluate_mse_channel_worker, jobs)
+                finally:
+                    # terminate() + join(): map() has all results; do not wait
+                    # indefinitely on workers lingering in CUDA teardown.
+                    pool.terminate()
+                    pool.join()
+                per_channel_results = [r for _, r in sorted(results, key=lambda x: x[0])]
+            except Exception:  # noqa: BLE001 — fall back to sequential on spawn failure.
+                per_channel_results = [_evaluate_mse_channel_worker(job)[1] for job in jobs]
+        else:
+            per_channel_results = [_evaluate_mse_channel_worker(job)[1] for job in jobs]
+
+        if num_channels == 1:
+            return {"summary": per_channel_results[0]}
+
+        # Aggregate per-channel: average numeric values across channels.
+        aggregated: Dict[str, Any] = {}
+        keys = ["augmented_testing"]
+        for key in keys:
+            channel_values = [r.get(key, {}) for r in per_channel_results]
+            if not any(channel_values):
+                continue
+            aggregated[key] = {}
+            # Collect per-hedger results. Each hedger's payload is itself
+            # nested (e.g. ``{'real_train': {...}, 'mixed_train': {...}}``),
+            # so average recursively instead of only flattening scalars.
+            all_hedgers = set()
+            for cv in channel_values:
+                all_hedgers.update(k for k, v in cv.items() if isinstance(v, dict))
+            for hedger in sorted(all_hedgers):
+                hedger_results = [
+                    cv[hedger] for cv in channel_values
+                    if hedger in cv and isinstance(cv[hedger], dict)
+                ]
+                if hedger_results:
+                    aggregated[key][hedger] = (
+                        UtilityMetricsEvaluator._average_nested_dicts(hedger_results)
+                    )
+
+        return {
+            "summary": aggregated,
+            "per_channel": per_channel_results,
+        }
 
     def evaluate(
         self,
@@ -378,12 +510,16 @@ class UnifiedEvaluator:
         results_dir: Path,
         seq_length_filter: Optional[List[int]] = None,
         skip_regenerate: bool = UTILITY_SKIP_REGENERATE_DEFAULT,
+        model_filter: Optional[str] = None,
+        seq_length_single: Optional[int] = None,
     ):
         self.generated_dir = Path(generated_dir)
         self.results_dir = Path(results_dir)
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.seq_length_filter = set(seq_length_filter or [])
         self.skip_regenerate = bool(skip_regenerate)
+        self.model_filter = model_filter  # only evaluate this model (for parallelization)
+        self.seq_length_single = seq_length_single  # only evaluate this seq_len
 
         # Initialize components
         self.dataset_cache = DatasetCache()
@@ -551,6 +687,13 @@ class UnifiedEvaluator:
                 real_data = real_data[:, :, :min_channels]
                 generated_data = generated_data[:, :, :min_channels]
 
+            # Align sample counts — real data may have fewer test windows
+            # than generated samples (e.g. seq_252 on finite test series).
+            n_align = min(real_data.shape[0], generated_data.shape[0])
+            if n_align < real_data.shape[0] or n_align < generated_data.shape[0]:
+                real_data = real_data[:n_align]
+                generated_data = generated_data[:n_align]
+
             output_dir = self._prepare_output_directory(
                 target_length, artifact_info["model_name"]
             )
@@ -580,6 +723,30 @@ class UnifiedEvaluator:
                 generated_data, dataset, target_length
             )
             results["utility"] = utility_results
+
+            # --- Downstream: Portfolio optimization ---
+            if generated_data.shape[-1] >= 5:
+                try:
+                    portfolio_eval = PortfolioEvaluator(
+                        real_test_log_returns=torch.from_numpy(real_data).float(),
+                        synthetic_log_returns=torch.from_numpy(generated_data).float(),
+                    )
+                    results["portfolio"] = portfolio_eval.evaluate()
+                except Exception as exc:
+                    print(f"[WARN] Portfolio evaluation failed: {exc}")
+                    results["portfolio"] = {"error": str(exc)}
+
+            # --- Downstream: P&L evaluation ---
+            try:
+                pnl_eval = PnLEvaluatorWrapper(
+                    real_log_returns=torch.from_numpy(real_data).float(),
+                    synthetic_log_returns=torch.from_numpy(generated_data).float(),
+                )
+                results["pnl"] = pnl_eval.evaluate()
+            except Exception as exc:
+                print(f"[WARN] P&L evaluation failed: {exc}")
+                results["pnl"] = {"error": str(exc)}
+
             self._save_results(results, output_dir)
             per_length_results[target_length] = results
             show_with_end_divider(
@@ -612,10 +779,29 @@ class UnifiedEvaluator:
                 f"Generated data directory not found: {self.generated_dir}"
             )
 
-        # Find all artifacts
-        artifacts = sorted(self.generated_dir.glob("*/*.pt"))
+        # Find all model artifacts (skip ground_truth)
+        artifacts = sorted(self.generated_dir.glob("*/artifacts/*.pt"))
         if not artifacts:
-            artifacts = sorted(self.generated_dir.glob("*/artifacts/*.pt"))
+            artifacts = [p for p in sorted(self.generated_dir.glob("*/*.pt"))
+                         if "ground_truth" not in str(p)]
+
+        # Apply model filter for parallel evaluation
+        if self.model_filter:
+            artifacts = [p for p in artifacts
+                         if self.model_filter in p.parent.name
+                         or self.model_filter in p.name]
+
+        # Apply single-seq_length filter: keep only the artifact whose NATIVE
+        # length equals the requested length. Artifacts are named
+        # ``<model>_seq<N>.pt``. A trim-only filter would evaluate EVERY
+        # artifact of the model against the same output dir (racing on
+        # ``metrics.json``) and let the last writer win — silently reporting
+        # results computed on the wrong native-length artifact.
+        if self.seq_length_single is not None:
+            self.seq_length_filter = {self.seq_length_single}
+            artifacts = [p for p in artifacts
+                         if p.name.endswith(f"_seq{self.seq_length_single}.pt")]
+
         if not artifacts:
             raise FileNotFoundError(f"No artifacts found in {self.generated_dir}")
 
@@ -691,6 +877,18 @@ def parse_args():
         action="store_false",
         help="Force regeneration from latest checkpoint when supported.",
     )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Evaluate only this model (for parallelization).",
+    )
+    parser.add_argument(
+        "--seq_length",
+        type=int,
+        default=None,
+        help="Evaluate only this sequence length (for parallelization).",
+    )
     return parser.parse_args()
 
 
@@ -701,6 +899,8 @@ def main() -> None:
         results_dir=Path(args.results_dir),
         seq_length_filter=args.seq_lengths,
         skip_regenerate=bool(args.skip_regenerate),
+        model_filter=args.model,
+        seq_length_single=args.seq_length,
     )
     evaluator.run()
 

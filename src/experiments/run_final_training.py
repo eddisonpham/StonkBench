@@ -196,6 +196,9 @@ def main() -> None:
         print(f"Training {model_key} (seq_lengths={all_seq_lengths})")
         print(f"{'='*60}")
 
+        # Bootstrap models generate natively at each seq_len; trim_from_max
+        # would slice a longer bootstrap draw which changes block structure.
+        is_bootstrap = model_key in ("block_bootstrap", "stationary_block_bootstrap")
         model_artifacts = run_model_experiment(
             model_key=model_key,
             generation_length=max(all_seq_lengths),
@@ -207,7 +210,7 @@ def main() -> None:
             training_metadata=training_metadata,
             sanity_output_dir=sanity_dir,
             seq_lengths=all_seq_lengths,
-            trim_from_max=args.trim_from_max,
+            trim_from_max=args.trim_from_max and not is_bootstrap,
         )
         artifacts.extend(model_artifacts)
 

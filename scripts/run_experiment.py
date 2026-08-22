@@ -216,7 +216,11 @@ def _run_stat_model(
     print(f"STAT MODEL: {model_key}")
     print(f"{'='*60}")
 
-    trim = model_key not in ("block_bootstrap", "stationary_block_bootstrap")
+    # Bootstrap models generate natively at each seq_len (they accept
+    # generation_length in generate() and support arbitrary lengths).
+    # Non-bootstrap models (Merton, DEJD, GARCH) use trim_from_max
+    # because they generate via Cholesky diffusion at the trained length.
+    is_bootstrap = model_key in ("block_bootstrap", "stationary_block_bootstrap")
     num_samples = _test_set_size(model_key)
     run_model_experiment(
         model_key=model_key,
@@ -228,8 +232,8 @@ def _run_stat_model(
         output_root=output_root,
         training_metadata={"generation_length": GENERATION_LENGTH},
         sanity_output_dir=output_root / "sanity" / run_id,
-        seq_lengths=SEQ_LENGTHS if trim else None,
-        trim_from_max=trim,
+        seq_lengths=SEQ_LENGTHS,
+        trim_from_max=not is_bootstrap,
     )
 
 
