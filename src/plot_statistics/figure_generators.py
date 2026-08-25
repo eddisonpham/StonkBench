@@ -39,7 +39,9 @@ TAXONOMY_MAIN = {
         ('md', 'MD', False),
         ('sdd', 'SDD', False),
         ('sd', 'SD', False),
-        ('kd', 'KD', False)
+        ('kd', 'KD', False),
+        ('cmd', 'CMD', False),
+        ('dcor_diff', 'dCorDiff', False),
     ],
     'Efficiency': [('generation_time_1000_samples', 'Time (s)', False)],
     'Distance': [('icd_euclidean', 'ICD Euclidean', False), ('icd_dtw', 'ICD DTW', False)],
@@ -57,6 +59,8 @@ TAXONOMY_ABLATION = {
         ('sdd', 'SDD', False),
         ('sd', 'SD', False),
         ('kd', 'KD', False),
+        ('cmd', 'CMD', False),
+        ('dcor_diff', 'dCorDiff', False),
     ],
     "Diversity": [
         ('icd_euclidean', 'ICD Euclidean', False),
@@ -221,37 +225,7 @@ class Figure1Generator(BaseFigureGenerator):
                 if np.sum(~np.isnan(raw_col)) else (np.nan, np.nan)
             )
         
-        # Add Spearman correlations
-        sp_models = [m for m in models_r if m != "Real Data"]
-        spv = np.array([extract_metric_value(self.main_data[m], "spearman_correlation") 
-                       for m in sp_models])
-        spv_mixed = np.array([extract_metric_value(self.main_data[m], "spearman_correlation_mixed") 
-                            for m in sp_models])
-        
-        if disp_labels and (np.any(~np.isnan(spv)) or np.any(~np.isnan(spv_mixed))):
-            disp_labels.append("")
-            disp_arrays.append(make_blank_column((len(models_r),)))
-            minmax_cols.append((np.nan, np.nan))
-        
-        if np.any(~np.isnan(spv)):
-            idx_real = models_r.index("Real Data") if "Real Data" in models_r else None
-            spv_r = np.insert(spv, idx_real, np.nan) if idx_real is not None else spv
-            disp_labels.append("Spearman Correlation")
-            disp_arrays.append(spv_r)
-            minmax_cols.append(
-                (np.nanmin(spv), np.nanmax(spv))
-                if np.sum(~np.isnan(spv)) else (np.nan, np.nan)
-            )
-        
-        if np.any(~np.isnan(spv_mixed)):
-            idx_real = models_r.index("Real Data") if "Real Data" in models_r else None
-            spv_mixed_r = np.insert(spv_mixed, idx_real, np.nan) if idx_real is not None else spv_mixed
-            disp_labels.append("Spearman Correlation (Algorithm Testing)")
-            disp_arrays.append(spv_mixed_r)
-            minmax_cols.append(
-                (np.nanmin(spv_mixed), np.nanmax(spv_mixed))
-                if np.sum(~np.isnan(spv_mixed)) else (np.nan, np.nan)
-            )
+
         
         if disp_arrays:
             mat2 = np.column_stack(disp_arrays)
@@ -426,7 +400,6 @@ class Figure3Generator(BaseFigureGenerator):
         for tax_name, metrics in TAXONOMY_ABLATION.items():
             self._generate_taxonomy_ablation_heatmap(fig_dir, tax_name, metrics, seqs, models)
         
-        self._generate_spearman_ablation_heatmap(fig_dir, seqs, models)
     
     def _generate_taxonomy_ablation_heatmap(self, fig_dir: Path, tax_name: str, 
                                            metrics: List[Tuple], seqs: List[int], models: List[str]):
@@ -540,81 +513,7 @@ class Figure3Generator(BaseFigureGenerator):
         )
         plt.close()
     
-    def _generate_spearman_ablation_heatmap(self, fig_dir: Path, seqs: List[int], models: List[str]):
-        """Generate heatmap for Spearman correlations across sequences."""
-        ncols = 2 * len(seqs) + 1
-        n_models = len(models)
-        mat_both = np.full((n_models, ncols), np.nan)
-        raw_both = np.full((n_models, ncols), np.nan)
-        
-        # Extract Spearman correlations
-        for ci, seq in enumerate(seqs):
-            seq_key = f"seq_{seq}"
-            for mi, model in enumerate(models):
-                model_data = self.ablation_data.get(seq_key, {}).get(model, {})
-                val = model_data.get('utility', {}).get('algorithm_comparison', {}).get(
-                    'spearman_correlation', np.nan
-                )
-                mat_both[mi, ci] = val
-                raw_both[mi, ci] = val
-        
-        offset = len(seqs) + 1
-        for ci, seq in enumerate(seqs):
-            seq_key = f"seq_{seq}"
-            for mi, model in enumerate(models):
-                model_data = self.ablation_data.get(seq_key, {}).get(model, {})
-                val = model_data.get('utility', {}).get('algorithm_comparison', {}).get(
-                    'spearman_correlation_mixed', np.nan
-                )
-                mat_both[mi, offset + ci] = val
-                raw_both[mi, offset + ci] = val
-        
-        bot_row = [f"K={k}" for k in seqs] + [""] + [f"K={k}" for k in seqs]
-        
-        fig, ax = plt.subplots(
-            figsize=(max(16, ncols * 0.8), max(6, n_models * 0.7)), 
-            dpi=DEFAULT_DPI
-        )
-        cmap = get_white_green_colormap()
-        
-        sns.heatmap(
-            mat_both,
-            annot=True,
-            fmt=HEATMAP_ANNOTATION_FMT,
-            cmap=cmap,
-            cbar_kws={'label': 'Spearman Correlation'},
-            xticklabels=bot_row,
-            yticklabels=models,
-            ax=ax,
-            vmin=0,
-            vmax=1,
-        )
-        ax.set_xlabel("")
-        ax.set_xticklabels(bot_row, rotation=45, ha='right')
-        
-        ax2 = ax.secondary_xaxis('top')
-        ax2.set_xticks(np.arange(ncols) + 0.5)
-        ax2.set_xticklabels([""] * ncols, rotation=0, ha='center', fontsize=13, weight='bold')
-        ax2.tick_params(axis='x', length=0)
-        
-        # Add min-max labels
-        for ci in range(ncols):
-            if ci == len(seqs):
-                continue
-            arr = raw_both[:, ci]
-            mask = ~np.isnan(arr)
-            if np.any(mask):
-                minmax = format_minmax_label(np.nanmin(arr[mask]), np.nanmax(arr[mask]), precision=2)
-                ax.text(
-                    ci + 0.75, -0.15, minmax, rotation=40,
-                    ha='center', va='bottom', fontsize=MINMAX_FONTSIZE,
-                    color='black', clip_on=False
-                )
-        
-        plt.tight_layout()
-        plt.savefig(fig_dir / "figure_3_utility_spearman_and_mixed_per_seq.png", 
-                   bbox_inches="tight", dpi=DEFAULT_DPI)
-        plt.close()
+
 
 
 class Figure4Generator(BaseFigureGenerator):

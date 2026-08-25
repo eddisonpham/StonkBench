@@ -6,19 +6,20 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=04:00:00
-#SBATCH --array=0-5%4
+#SBATCH --array=0-4%4
 #SBATCH --output=/scratch/%u/stonkbench/slurm_logs/train_stat_%A_%a.out
 #SBATCH --error=/scratch/%u/stonkbench/slurm_logs/train_stat_%A_%a.err
 
-# Statistical model fit + generate (no HP search). Generation length defaults to 100.
+# Statistical model fit + generate (no HP search). Generates at all 4 canonical
+# seq lengths (21, 42, 126, 252). Bootstrap models generate natively at each
+# length; jump-diffusion/GARCH models trim from the 252-length draw.
 set -euo pipefail
 source "${PROJECT_ROOT:-$HOME/StonkBench}/scripts/slurm/common.sh"
 cd "${PROJECT_ROOT}"
 
 MODELS=(
- 
   block_bootstrap
- 
+  stationary_block_bootstrap
   merton_jump_diffusion
   de_jump_diffusion
   garch11
@@ -37,15 +38,28 @@ if [[ ! -f "${HP_SUMMARY}" ]]; then
   echo '{"models": {}}' > "${HP_SUMMARY}"
 fi
 
-echo "=== STAT FIT ${MODEL} run=${STONKBENCH_RUN_ID} gen_len=${GENERATION_LENGTH:-100} $(date -Is) ==="
+# Bootstrap models use native generation at each seq_len (--trim_from_max is
+# skipped); jump-diffusion/GARCH models use trim_from_max from 252.
+GENERATION_LENGTH="${GENERATION_LENGTH:-252}"
+SEQ_LENGTHS="${SEQ_LENGTHS:-21 42 126}"
+TRIM_FLAG="--trim_from_max"
+case "${MODEL}" in
+  block_bootstrap|stationary_block_bootstrap)
+    TRIM_FLAG=""
+    ;;
+esac
+
+echo "=== STAT FIT ${MODEL} run=${STONKBENCH_RUN_ID} gen_len=${GENERATION_LENGTH} seqs=${SEQ_LENGTHS} $(date -Is) ==="
 python -m src.experiments.run_final_training \
   --hp_summary "${HP_SUMMARY}" \
   --output_root "${OUTPUT_ROOT}" \
   --run_id "${STONKBENCH_RUN_ID}" \
-  --generation_length "${GENERATION_LENGTH:-100}" \
+  --generation_length "${GENERATION_LENGTH}" \
+  --seq_lengths ${SEQ_LENGTHS} \
   --num_samples "${NUM_SAMPLES:-1000}" \
   --seed "${SEED:-42}" \
   --device "${STONKBENCH_DEVICE:-cuda}" \
   --models "${MODEL}" \
+  ${TRIM_FLAG} \
   "${SMOKE_ARGS[@]}"
 echo "=== DONE ${MODEL} $(date -Is) ==="

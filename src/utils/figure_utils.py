@@ -112,17 +112,6 @@ def extract_metric_value(model_data: Dict[str, Any], metric_name: str) -> float:
             return float(value)
         return np.nan
     
-    # Check nested in utility
-    if metric_name == 'spearman_correlation':
-        utility = model_data.get('utility', {})
-        algo_comp = utility.get('algorithm_comparison', {})
-        return float(algo_comp.get('spearman_correlation', np.nan))
-    
-    if metric_name == 'spearman_correlation_mixed':
-        utility = model_data.get('utility', {})
-        algo_comp = utility.get('algorithm_comparison', {})
-        return float(algo_comp.get('spearman_correlation_mixed', np.nan))
-    
     return np.nan
 
 
