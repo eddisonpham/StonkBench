@@ -37,13 +37,17 @@ data/*
 notebooks/*
 # Agent Context (gitignored planner working folder)
 Agent Context
+
+# Cloned model repositories (kept locally for reference)
 /src/models/deep_learning/*/.git/
 /src/models/deep_learning/*/.gitignore
 /src/models/deep_learning/*/.gitattributes
+/src/models/deep_learning/Conditional-Sig-Wasserstein-GANs/
 
 # Canonical pipeline artifacts (regenerable, kept locally under <repo>/outputs/ on each run)
 /outputs/
 /outputs_legacy*/
+
 # Catch every numbered legacy dir (outputs_legacy2, outputs_legacy3, ..., outputs_legacyN)
 # in a single rule. Without this, future re-runs that create outputs_legacy5/ etc.
 # would re-appear as untracked entries in git status.
