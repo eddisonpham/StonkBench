@@ -13,11 +13,14 @@ from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutpu
 from src.experiments.adapters.deep_learning.training_utils import (
     EarlyStopping,
     FitTrainingInfo,
+    checkpoint_seq_length,
     make_loader,
     parse_training_params,
     resolve_device,
+    resolve_final_checkpoint,
 )
 from src.models.deep_learning.VariationalRecurrentNeuralNetwork.model import VRNN
+from src.utils.epoch_events import emit_epoch
 
 
 class VRNNAdapter(ModelAdapter):
@@ -25,6 +28,7 @@ class VRNNAdapter(ModelAdapter):
 
     model_name = "VRNN"
     supports_arbitrary_generation = True
+    can_regenerate_from_checkpoint = True
 
     def __init__(self) -> None:
         super().__init__()
@@ -119,6 +123,14 @@ class VRNNAdapter(ModelAdapter):
 
             val_loss = self._eval_val_loss(valid_loader, device, kl_weight)
             info.val_loss_history.append(val_loss)
+            # Live training-curve event (no-op unless $STONKBENCH_MINI_EVENTS set).
+            emit_epoch(
+                str((fit_input.metadata or {}).get("model_key", self.model_name)),
+                epoch + 1,
+                train_loss=train_loss / max(len(train_loader), 1),
+                val_loss=val_loss,
+                kl_weight=kl_weight,
+            )
             if val_loss < info.best_val_loss:
                 info.best_val_loss = val_loss
                 info.best_epoch = epoch + 1
@@ -150,6 +162,56 @@ class VRNNAdapter(ModelAdapter):
             h_dim=h_dim,
             z_dim=z_dim,
         )
+
+    def load_state(self, checkpoints: List[Path]) -> Dict[str, Any]:
+        """Rehydrate a VRNN from a bare ``*_seq{L}_final.pt`` state_dict.
+
+        The checkpoint stores only the weights, so every architectural
+        hyper-parameter is read back out of tensor shapes:
+
+        * ``x_dim``  = ``phi_x.0.weight.shape[1]``  (first Linear is x_dim -> h_dim)
+        * ``h_dim``  = ``phi_x.0.weight.shape[0]``
+        * ``z_dim``  = ``enc_mean.weight.shape[0]``
+        * ``n_layers`` = number of ``rnn.weight_ih_l{i}`` entries (GRU)
+        """
+        if not checkpoints:
+            raise ValueError("VRNNAdapter.load_state received an empty checkpoint list.")
+        path = resolve_final_checkpoint(checkpoints)
+        state = torch.load(path, map_location="cpu", weights_only=False)
+        if not isinstance(state, dict) or "phi_x.0.weight" not in state:
+            raise ValueError(
+                f"{path.name} is not a bare VRNN state_dict "
+                "(missing 'phi_x.0.weight')."
+            )
+
+        x_dim = int(state["phi_x.0.weight"].shape[1])
+        h_dim = int(state["phi_x.0.weight"].shape[0])
+        z_dim = int(state["enc_mean.weight"].shape[0])
+        n_layers = len(
+            {k.rsplit("_", 1)[-1] for k in state if k.startswith("rnn.weight_ih_")}
+        )
+
+        device = resolve_device()
+        model = VRNN(x_dim=x_dim, h_dim=h_dim, z_dim=z_dim, n_layers=n_layers).to(device)
+        model.load_state_dict(state)
+        model.eval()
+
+        self.model = model
+        self.device = str(device)
+        self.num_channels = x_dim
+        self.base_length = checkpoint_seq_length(path, default=self.base_length)
+        self.checkpoints = [path]
+        self._is_fitted = True
+        return {
+            "restored": True,
+            "checkpoint": str(path),
+            "num_channels": x_dim,
+            "h_dim": h_dim,
+            "z_dim": z_dim,
+            "n_layers": n_layers,
+            "base_length": self.base_length,
+            "device": self.device,
+        }
 
     def generate(self, num_samples: int, generation_length: int, seed: int) -> AdapterGenerateOutput:
         if not self._is_fitted or self.model is None:

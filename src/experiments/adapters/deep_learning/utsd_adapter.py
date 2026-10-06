@@ -28,9 +28,12 @@ from src.experiments.adapters.deep_learning.training_utils import (
     FitTrainingInfo,
     make_loader,
     parse_training_params,
+    reconcile_gluonts,
     resolve_device,
+    resolve_final_checkpoint,
 )
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
+from src.utils.epoch_events import emit_epoch
 
 
 class UnconditionalTSDiffusionAdapter(ModelAdapter):
@@ -39,6 +42,8 @@ class UnconditionalTSDiffusionAdapter(ModelAdapter):
     Trains one diffusion model on the full (N, L, C) tensor.  The backbone
     accepts any ``input_dim`` so multivariate works out of the box.
     """
+
+    can_regenerate_from_checkpoint = True
 
     def __init__(self) -> None:
         super().__init__()
@@ -55,6 +60,13 @@ class UnconditionalTSDiffusionAdapter(ModelAdapter):
     # ------------------------------------------------------------------
     @staticmethod
     def _import_utsd():
+        # Cross-vendor hygiene: if TimeGrad already ran in this process its
+        # vendored gluonts shadows the installed one that uncond_ts_diff
+        # needs (ImportError: DataEntry). Drop it before importing.
+        reconcile_gluonts(
+            Path(__file__).resolve().parents[3] / "models" / "deep_learning" / "timegrad",
+            prefer_vendor=False,
+        )
         root = (
             Path(__file__).resolve().parents[3]
             / "models"
@@ -206,7 +218,14 @@ class UnconditionalTSDiffusionAdapter(ModelAdapter):
         # random batches rather than processing the full dataset. This
         # matches the original Lightning-based training loop.
         num_batches_per_epoch = 128
-        early_stop = EarlyStopping(patience=params.patience)
+        # min_epochs guard mirrors vrnn/kalman/quantgan: without it the
+        # diffusion models early-stop on noisy validation before ever seeing
+        # the improvement window (production runs stopped at best_epoch=2;
+        # with this guard the mini run's val curve kept improving through
+        # epoch 21). Same formula as the sibling adapters.
+        early_stop = EarlyStopping(
+            patience=params.patience, min_epochs=max(20, params.patience * 2)
+        )
         best_state = copy.deepcopy(model.state_dict())
         info = FitTrainingInfo(
             best_val_loss=float("inf"), best_epoch=0, stopped_early=False
@@ -241,6 +260,13 @@ class UnconditionalTSDiffusionAdapter(ModelAdapter):
 
             val_loss = self._eval_val_loss(model, valid_loader, device)
             info.val_loss_history.append(val_loss)
+            # Live training-curve event (no-op unless $STONKBENCH_MINI_EVENTS set).
+            emit_epoch(
+                str(_meta.get("model_key", self.model_name)),
+                epoch + 1,
+                train_loss=train_loss / max(batch_count, 1),
+                val_loss=val_loss,
+            )
             if val_loss < info.best_val_loss:
                 info.best_val_loss = val_loss
                 info.best_epoch = epoch + 1
@@ -276,6 +302,74 @@ class UnconditionalTSDiffusionAdapter(ModelAdapter):
             "best_val_loss": info.best_val_loss,
             "best_epoch": info.best_epoch,
             "stopped_early": info.stopped_early,
+            "train_loss_history": [float(x) for x in info.train_loss_history],
+            "val_loss_history": [float(x) for x in info.val_loss_history],
+        }
+
+    # ------------------------------------------------------------------
+    # load_state — rebuild from a consolidated ``*_seq{L}_final.pt``
+    # ------------------------------------------------------------------
+    def load_state(self, checkpoints: List[Path]) -> Dict[str, Any]:
+        """Rebuild the diffusion model from the persisted training config.
+
+        The checkpoint stores ``context_length`` / ``prediction_length`` /
+        ``input_dim`` alongside the weights, so the model is reconstructed
+        with the exact ``diffusion_small_config`` hyper-parameters ``fit``
+        used (the vendored config is the only source of timesteps / scheduler /
+        backbone shape) and the state is loaded verbatim.
+
+        Inherited by :class:`ConditionalTSDiffusionAdapter`, whose
+        ``_import_utsd`` / ``_build_model`` overrides swap in ``TSDiffCond``.
+        """
+        if not checkpoints:
+            raise ValueError("TSDiffusionAdapter.load_state received an empty checkpoint list.")
+        path = resolve_final_checkpoint(checkpoints)
+        payload = torch.load(path, map_location="cpu", weights_only=False)
+        if not isinstance(payload, dict) or "state_dict" not in payload:
+            raise ValueError(
+                f"{path.name} is not a consolidated TSDiffusion checkpoint "
+                "(missing 'state_dict')."
+            )
+
+        diffusion_configs, _ = self._import_utsd()
+        device = resolve_device()
+
+        self.num_channels = int(payload["num_channels"])
+        self.base_length = int(payload["base_length"])
+        self.context_length = int(payload["context_length"])
+        self.prediction_length = int(payload["prediction_length"])
+        input_dim = int(payload.get("input_dim", self.num_channels))
+
+        # Mirror fit(): deepcopy the vendored small config and override only
+        # the channel dims. lr is optimizer-only (no state_dict impact).
+        cfg = copy.deepcopy(diffusion_configs.diffusion_small_config)
+        backbone_params = cfg["backbone_parameters"].copy()
+        backbone_params["input_dim"] = input_dim
+        backbone_params["output_dim"] = input_dim
+
+        model = self._build_model(
+            backbone_params=backbone_params,
+            cfg=cfg,
+            context_length=self.context_length,
+            prediction_length=self.prediction_length,
+            lr=1e-3,
+            device=device,
+        )
+        model.load_state_dict(payload["state_dict"])
+        model.eval()
+
+        self.model = model
+        self.checkpoints = [path]
+        self._is_fitted = True
+        return {
+            "restored": True,
+            "checkpoint": str(path),
+            "num_channels": self.num_channels,
+            "base_length": self.base_length,
+            "context_length": self.context_length,
+            "prediction_length": self.prediction_length,
+            "input_dim": input_dim,
+            "device": str(device),
         }
 
     # ------------------------------------------------------------------

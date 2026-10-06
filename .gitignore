@@ -70,3 +70,10 @@ scripts/dev/repro_check_condsig.py
 
 # GAN test artifacts in scratch
 /gan_tests/
+
+# Trained checkpoints are deliberately kept inside the repo (durability
+# mandate: weights must not live only in scratch). This re-includes the
+# checkpoint trees that the generic *.pt/*.pth rules above would otherwise
+# drop; everything outside checkpoints/ stays ignored.
+!checkpoints/**/*.pt
+!checkpoints/**/*.pth

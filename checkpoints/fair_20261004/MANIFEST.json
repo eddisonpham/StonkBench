@@ -1,0 +1,67 @@
+{
+  "run": "fair_20261004",
+  "note": "Trained once at seq252 (W252 windows); short-seq artifacts were produced by slicing/rolling per pipeline semantics. Full-scale generation must generate at 252 then trim to target L.",
+  "n_files": 10,
+  "files": [
+    {
+      "file": "cond_sig_wgan/cond_sig_wgan_G.pt",
+      "bytes": 206130,
+      "sha256": "3fb0ec65b33f9d9fedbca281564f15c4d951eb308af220ab53c20dd28bd58af0",
+      "is_final_seq252": false
+    },
+    {
+      "file": "cond_sig_wgan/cond_sig_wgan_seq252_final.pt",
+      "bytes": 206434,
+      "sha256": "878aca0c6ccab13de3135241a093bdeef8469aac08bc339465d9bf3367e77720",
+      "is_final_seq252": true
+    },
+    {
+      "file": "conditional_tsdiffusion/conditional_tsdiffusion_seq252_final.pt",
+      "bytes": 806528,
+      "sha256": "24d248a6ae84b423064d601319f583b87361e1a903428d5fd33d99348c644df7",
+      "is_final_seq252": true
+    },
+    {
+      "file": "kalman_vae_safe/kalman_vae_checkpoint.pt",
+      "bytes": 1001933,
+      "sha256": "64f0b76c18daf536a3174cd4d49850179546d203063581ad3a59a09a8fcc3125",
+      "is_final_seq252": false
+    },
+    {
+      "file": "kalman_vae_safe/kalman_vae_safe_seq252_final.pt",
+      "bytes": 1002228,
+      "sha256": "359ae73c01f5112dda47f6e30279661b196dc865d124144b915c2fc6227727cf",
+      "is_final_seq252": true
+    },
+    {
+      "file": "quantgan/quantgan_seq252_final.pt",
+      "bytes": 33447758,
+      "sha256": "64e0545c6ce01d92516101dcaf6927e13c1fb16924b52a94390122a6bf4cd8bd",
+      "is_final_seq252": true
+    },
+    {
+      "file": "timegrad/timegrad_seq252_final.pt",
+      "bytes": 591064,
+      "sha256": "3ee6f9c666f1d5bce54daeafa2789e72e63e24649cd9c0e307c14395a923f053",
+      "is_final_seq252": true
+    },
+    {
+      "file": "unconditional_tsdiffusion/unconditional_tsdiffusion_seq252_final.pt",
+      "bytes": 811286,
+      "sha256": "a1ca3b8396bbd69d0f2c94d4aec01e053db6b31b3b3204602fd02404d79faf59",
+      "is_final_seq252": true
+    },
+    {
+      "file": "vrnn_klsched/vrnn_checkpoint.pt",
+      "bytes": 826503,
+      "sha256": "ad2c923a4971d049411ec0b33e74fe000ec516e0acda4c8d6857942b104ae278",
+      "is_final_seq252": false
+    },
+    {
+      "file": "vrnn_klsched/vrnn_klsched_seq252_final.pt",
+      "bytes": 826897,
+      "sha256": "5d28cee0ae0d16a9f44972e716352ac92e0589a865db02330d6247e6e335e712",
+      "is_final_seq252": true
+    }
+  ]
+}

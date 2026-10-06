@@ -11,12 +11,15 @@ from torch.utils.data import DataLoader
 
 from src.experiments.adapters.base_adapter import ModelAdapter
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
+from src.utils.epoch_events import emit_epoch
 from src.experiments.adapters.deep_learning.training_utils import (
     EarlyStopping,
     FitTrainingInfo,
+    checkpoint_seq_length,
     make_loader,
     parse_training_params,
     resolve_device,
+    resolve_final_checkpoint,
 )
 
 
@@ -47,6 +50,7 @@ class KalmanVAEAdapter(ModelAdapter):
 
     model_name = "KalmanVAE"
     supports_arbitrary_generation = True
+    can_regenerate_from_checkpoint = True
 
     def __init__(self) -> None:
         super().__init__()
@@ -204,6 +208,13 @@ class KalmanVAEAdapter(ModelAdapter):
 
             val_loss = self._eval_val_loss(valid_loader)
             info.val_loss_history.append(val_loss)
+            # Live training-curve event (no-op unless $STONKBENCH_MINI_EVENTS set).
+            emit_epoch(
+                str((fit_input.metadata or {}).get("model_key", self.model_name)),
+                epoch + 1,
+                train_loss=train_loss / max(len(train_loader), 1),
+                val_loss=val_loss,
+            )
             if val_loss < info.best_val_loss:
                 info.best_val_loss = val_loss
                 info.best_epoch = epoch + 1
@@ -233,6 +244,100 @@ class KalmanVAEAdapter(ModelAdapter):
             z_dim=self.z_dim,
             image_side=self.image_side,
         )
+
+    # ------------------------------------------------------------------
+    # Checkpoint regeneration
+    # ------------------------------------------------------------------
+    def load_state(self, checkpoints: List[Path]) -> Dict[str, Any]:
+        """Rebuild the K-VAE from a bare ``*_seq{L}_final.pt`` state_dict.
+
+        Architecture is recovered from tensor shapes:
+
+        * ``a_dim`` = ``encoder.fc_mean.weight.shape[0]``
+        * ``z_dim`` = ``state_space_model._mat_Q_L.shape[0]`` (z -> z noise)
+        * ``K``     = ``state_space_model._mat_A_K.shape[0]``
+        * ``image_side`` = 8 * sqrt(encoder.fc_mean in_features / conv3 out)
+          — the encoder ends in a 1x1 feature map, so three stride-2 convs
+          reduce a ``side x side`` input to ``side/8`` spatial cells.
+        * ``dynamics`` = "lstm" when the weight model has GRU/LSTM gates.
+
+        The channel count is NOT part of the weights (channels are zero-padded
+        into the square image), so it is resolved from the canonical dl_set —
+        the same source ``fit`` read it from (mirrors ChannelBootstrapAdapter).
+        """
+        if not checkpoints:
+            raise ValueError("KalmanVAEAdapter.load_state received an empty checkpoint list.")
+        path = resolve_final_checkpoint(checkpoints)
+        state = torch.load(path, map_location="cpu", weights_only=False)
+        if not isinstance(state, dict) or "state_space_model._mat_A_K" not in state:
+            raise ValueError(
+                f"{path.name} is not a bare Kalman-VAE state_dict "
+                "(missing 'state_space_model._mat_A_K')."
+            )
+
+        a_dim = int(state["encoder.fc_mean.weight"].shape[0])
+        z_dim = int(state["state_space_model._mat_Q_L"].shape[0])
+        k = int(state["state_space_model._mat_A_K"].shape[0])
+        conv_out = int(state["encoder.conv3.weight"].shape[0])
+        spatial = int(round(math.sqrt(state["encoder.fc_mean.weight"].shape[1] / conv_out)))
+        side = spatial * 8
+        if side < 8 or spatial * spatial * conv_out != state["encoder.fc_mean.weight"].shape[1]:
+            raise ValueError(f"Cannot infer image_side from {path.name} encoder shapes.")
+        dynamics = (
+            "lstm"
+            if "state_space_model.weight_model.lstm.weight_ih_l0" in state
+            else "mlp"
+        )
+
+        from src.utils.preprocessed_data_utils import load_dl_set, resolve_dl_set_path
+
+        dl_set = load_dl_set(resolve_dl_set_path())
+        num_channels = int(dl_set["train_series"].shape[-1])
+        image_side = max(8, int(math.ceil(math.sqrt(num_channels) / 8) * 8))
+        if image_side != side:
+            raise ValueError(
+                f"Checkpoint image_side={side} disagrees with dl_set-derived "
+                f"image_side={image_side} for {num_channels} channels."
+            )
+
+        device = resolve_device()
+        model = self.KalmanVariationalAutoencoder(
+            image_size=(image_side, image_side),
+            image_channels=1,
+            a_dim=a_dim,
+            z_dim=z_dim,
+            K=k,
+            init_transition_reg_weight=0.9,
+            init_observation_reg_weight=0.9,
+            learn_noise_covariance=True,
+            init_noise_scale=1.0,
+            dynamics_parameter_network=dynamics,
+            decoder_type="gaussian",
+        ).to(device)
+        model.load_state_dict(state)
+        model.eval()
+
+        self.model = model
+        self.device = str(device)
+        self.num_channels = num_channels
+        self.image_side = image_side
+        self.a_dim = a_dim
+        self.z_dim = z_dim
+        self.base_length = checkpoint_seq_length(path, default=self.base_length)
+        self.checkpoints = [path]
+        self._is_fitted = True
+        return {
+            "restored": True,
+            "checkpoint": str(path),
+            "num_channels": num_channels,
+            "a_dim": a_dim,
+            "z_dim": z_dim,
+            "K": k,
+            "image_side": image_side,
+            "dynamics": dynamics,
+            "base_length": self.base_length,
+            "device": self.device,
+        }
 
     # ------------------------------------------------------------------
     # Generation

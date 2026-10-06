@@ -35,6 +35,10 @@ import torch
 
 from src.experiments.adapters.base_adapter import ModelAdapter
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
+from src.experiments.adapters.deep_learning.training_utils import (
+    resolve_device,
+    resolve_final_checkpoint,
+)
 
 # Vendor-faithful: import only the trainer class + dataclasses. The per-asset
 # loop instantiates vendor code internally via QuantGANTrainer; we never touch
@@ -59,6 +63,7 @@ class QuantGANAdapter(ModelAdapter):
     """
 
     model_name = "QuantGAN"
+    can_regenerate_from_checkpoint = True
 
     def __init__(self) -> None:
         super().__init__()
@@ -109,6 +114,9 @@ class QuantGANAdapter(ModelAdapter):
         # Per-asset loop: instantiate ``num_channels`` independent vendor-faithful
         # QuantGANTrainer objects (each wrapping a univariate TCN with
         # n_hidden=80) and fit each on its channel slice.
+        model_key_early = str(
+            (fit_input.metadata or {}).get("model_key", self.model_name)
+        )
         self.trainers = []
         per_asset_results: List[QuantGANFitResult] = []
         for c in range(self.num_channels):
@@ -123,6 +131,9 @@ class QuantGANAdapter(ModelAdapter):
                 output_bound=output_bound,
             )
             trainer = QuantGANTrainer(device=fit_input.device, cfg=cfg)
+            # Logger label so live epoch events distinguish per-asset trainers
+            # (only written when $STONKBENCH_MINI_EVENTS is set).
+            trainer._emit_label = f"{model_key_early}.ch{c}"
             train_slice = windows[..., c]                       # (N, L)
             valid_slice = (
                 valid_windows[..., c] if valid_windows is not None else None
@@ -135,6 +146,18 @@ class QuantGANAdapter(ModelAdapter):
         best_val = float(np.mean([r.best_val_loss for r in per_asset_results]))
         best_epoch = int(max(r.best_epoch for r in per_asset_results))
         stopped_early = bool(any(r.stopped_early for r in per_asset_results))
+        # Channel-averaged epoch curves (logger pass-through; identical for
+        # every channel count since each trainer is trained independently).
+        n_ep = min((len(r.train_loss_history) for r in per_asset_results), default=0)
+        n_vp = min((len(r.val_loss_history) for r in per_asset_results), default=0)
+        agg_train = [
+            float(np.mean([r.train_loss_history[i] for r in per_asset_results]))
+            for i in range(n_ep)
+        ]
+        agg_val = [
+            float(np.mean([r.val_loss_history[i] for r in per_asset_results]))
+            for i in range(n_vp)
+        ]
 
         # Per-asset consolidated checkpoint: all C generator + discriminator
         # state_dicts in a single file. The downstream pipeline still loads it
@@ -174,6 +197,62 @@ class QuantGANAdapter(ModelAdapter):
                 r.best_val_loss for r in per_asset_results
             ],
             "per_asset_best_epoch": [r.best_epoch for r in per_asset_results],
+            "train_loss_history": agg_train,
+            "val_loss_history": agg_val,
+        }
+
+    def load_state(self, checkpoints: List[Path]) -> Dict[str, Any]:
+        """Rebuild the per-asset trainers from a consolidated QuantGAN checkpoint.
+
+        The file stores ``config_snapshot`` (noise_dim / clip / d_steps) plus
+        one generator ``state_dict`` per channel, so the vendor trainers can be
+        reconstructed exactly as ``fit`` built them and the generators reloaded.
+        Discriminators are restored too when present (never used by generate,
+        but keeps the trainer complete).
+        """
+        if not checkpoints:
+            raise ValueError("QuantGANAdapter.load_state received an empty checkpoint list.")
+        path = resolve_final_checkpoint(checkpoints)
+        payload = torch.load(path, map_location="cpu", weights_only=False)
+        if not isinstance(payload, dict) or "per_asset_state_dicts" not in payload:
+            raise ValueError(
+                f"{path.name} is not a consolidated QuantGAN checkpoint "
+                "(missing 'per_asset_state_dicts')."
+            )
+
+        snap = payload.get("config_snapshot") or {}
+        cfg = QuantGANConfig(
+            noise_dim=int(snap.get("noise_dim", 3)),
+            clip_value=float(snap.get("clip_value", 0.01)),
+            d_steps_per_g_step=int(snap.get("d_steps_per_g_step", 5)),
+            output_bound=float(snap.get("output_bound", 0.0)),
+        )
+        device = resolve_device()
+        gen_states = payload["per_asset_state_dicts"]
+        disc_states = payload.get("per_asset_disc_state_dicts") or []
+
+        trainers: List[QuantGANTrainer] = []
+        for idx, gen_state in enumerate(gen_states):
+            trainer = QuantGANTrainer(device=device, cfg=cfg)
+            trainer._init_models()
+            trainer.generator.load_state_dict(gen_state)
+            if idx < len(disc_states):
+                trainer.discriminator.load_state_dict(disc_states[idx])
+            trainer.generator.eval()
+            trainers.append(trainer)
+
+        self.trainers = trainers
+        self.num_channels = int(payload.get("num_channels", len(trainers)))
+        self.base_length = int(payload.get("base_length", 1))
+        self.checkpoints = [path]
+        self._is_fitted = True
+        return {
+            "restored": True,
+            "checkpoint": str(path),
+            "num_channels": self.num_channels,
+            "base_length": self.base_length,
+            "noise_dim": cfg.noise_dim,
+            "device": str(device),
         }
 
     def generate(

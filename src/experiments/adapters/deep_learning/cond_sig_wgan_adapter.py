@@ -14,19 +14,23 @@ Key design points:
 """
 from __future__ import annotations
 
+import re
 import sys
 import importlib.util
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import numpy as np
 import torch
 
 from src.experiments.adapters.base_adapter import ModelAdapter
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
+from src.utils.epoch_events import emit_epoch
 from src.experiments.adapters.deep_learning.training_utils import (
+    checkpoint_seq_length,
     parse_training_params,
     resolve_device,
+    resolve_final_checkpoint,
 )
 from src.utils.preprocessed_data_utils import (
     load_dl_set,
@@ -41,6 +45,7 @@ class ConditionalSigWGANAdapter(ModelAdapter):
     _vendor_module = None
     _vendor_root = None
     supports_arbitrary_generation = True  # AR-FNN can generate any length
+    can_regenerate_from_checkpoint = True
 
     def __init__(self) -> None:
         super().__init__()
@@ -50,6 +55,10 @@ class ConditionalSigWGANAdapter(ModelAdapter):
         self._base_config: Any = None
         self._p: int = 10  # past conditioning window
         self._device: str = "cpu"
+        # Provenance for pipeline metadata / evaluator regeneration. fit()
+        # fills it with the canonical ``_final.pt`` (+ the legacy name); before
+        # fit it is empty so generate() on a fresh adapter stays honest.
+        self.checkpoints: List[Path] = []
         # Vendor-faithful (2026-07-29 cleanup): the previously-default
         # post-rollout machinery (time_flatten / per_step_clamp / clamp_val)
         # was REMOVED per the user mandate 'no post-hoc moment injection'
@@ -365,6 +374,35 @@ class ConditionalSigWGANAdapter(ModelAdapter):
         algo.sigs_pred = algo.sigs_pred.to(device)
         algo.fit()
 
+        # Logger pass-through: vendor step losses (loss / sig_w1 / total_norm)
+        # collected during fit(), plus a single end-of-fit live event.
+        # Defensive: logging must NEVER be able to fail a finished training
+        # run (vendor may append arrays, not scalars, for some keys).
+        try:
+            def _as_float(x):
+                # Vendor may append python floats, numpy arrays, or (cuda)
+                # torch tensors — normalize all to a scalar.
+                if isinstance(x, torch.Tensor):
+                    v = x.detach().cpu()
+                    return float(v.mean()) if v.numel() > 1 else float(v)
+                arr = np.asarray(x, dtype=np.float64).reshape(-1)
+                return float(arr.mean()) if arr.size else float("nan")
+
+            _step_losses = getattr(algo, "training_loss", None) or {}
+            self.step_losses: Dict[str, List[float]] = {
+                k: [_as_float(x) for x in v] for k, v in _step_losses.items()
+            }
+            _last_loss = (self.step_losses.get("loss") or [None])[-1]
+            emit_epoch(
+                str(meta.get("model_key", self.model_name)),
+                total_steps,
+                train_loss=_last_loss,
+                steps=float(total_steps),
+            )
+        except Exception as exc:  # noqa: BLE001 — telemetry only
+            self.step_losses = {}
+            print(f"[cond_sig_wgan] WARN: step-loss logging failed: {exc}")
+
         # Save generator state
         self._generator = algo.G
         self._sig_config = sig_config
@@ -417,6 +455,11 @@ class ConditionalSigWGANAdapter(ModelAdapter):
         final_ckpt = checkpoints_dir / f"{model_key_}_seq{generation_length}_final.pt"
         torch.save(self._generator.state_dict(), final_ckpt)
 
+        # Expose the checkpoints so generate() can report them in
+        # ``model_checkpoint_manifest`` (it previously hardcoded ``[]``, which
+        # made every cond_sig_wgan artifact un-regenerable from the manifest).
+        self.checkpoints = [final_ckpt, ckpt_path]
+
         self._is_fitted = True
 
         # Include n_val_used so HP summary.txt/operator logs can audit the
@@ -441,6 +484,84 @@ class ConditionalSigWGANAdapter(ModelAdapter):
             "aug_scale": aug_scale,
             "noise_std": noise_std,
             "var_reg_lambda": var_reg_lambda,
+        }
+
+    # ------------------------------------------------------------------ checkpoint regen
+    def load_state(self, checkpoints: List[Path]) -> Dict[str, Any]:
+        """Rebuild the AR-FNN generator from a ``*_seq{L}_final.pt`` state_dict.
+
+        The file holds only generator weights, so the architecture is read
+        back out of the shapes (vendor ``BaseAlgo`` builds
+        ``SimpleGenerator(p*dim, dim, hidden_dims, dim)`` where ``dim`` is the
+        channel count):
+
+        * ``dim``         = final linear ``network.network.{n}.weight`` rows
+        * ``hidden_dims`` = rows of each ``network.network.{i}.linear.weight``
+        * ``in_features`` = ``p*dim + dim``  ->  ``p = (in - dim) / dim``
+        * ``noise_std``   = latent-amplification buffer (registered only when
+          the variant opted in) — must be re-registered before
+          ``load_state_dict`` or the strict key match fails.
+        """
+        if not checkpoints:
+            raise ValueError("ConditionalSigWGANAdapter.load_state received an empty checkpoint list.")
+        self._import_vendor()  # installs the noise_std-aware sample() patch
+        path = resolve_final_checkpoint(checkpoints)
+        state = torch.load(path, map_location="cpu", weights_only=False)
+        if not isinstance(state, dict) or "network.network.0.linear.weight" not in state:
+            raise ValueError(
+                f"{path.name} is not a SigWGAN generator state_dict "
+                "(missing 'network.network.0.linear.weight')."
+            )
+
+        block_ids = sorted(
+            int(m.group(1))
+            for key in state
+            for m in [re.match(r"network\.network\.(\d+)\.linear\.weight", key)]
+            if m is not None
+        )
+        if not block_ids:
+            raise ValueError(f"{path.name}: no residual blocks found in state_dict.")
+        hidden_dims = tuple(
+            int(state[f"network.network.{i}.linear.weight"].shape[0])
+            for i in block_ids
+        )
+        final_key = f"network.network.{block_ids[-1] + 1}.weight"
+        if final_key not in state:
+            raise ValueError(f"{path.name}: missing output layer '{final_key}'.")
+        dim = int(state[final_key].shape[0])
+        in_features = int(state[f"network.network.{block_ids[0]}.linear.weight"].shape[1])
+        # in_features = latent_dim + p * dim and vendor sets latent_dim == dim.
+        if (in_features - dim) <= 0 or (in_features - dim) % dim != 0:
+            raise ValueError(
+                f"{path.name}: in_features={in_features} is not dim + p*dim "
+                f"for dim={dim}."
+            )
+        p = (in_features - dim) // dim
+
+        _arfnn = importlib.import_module("lib.arfnn")
+        generator = _arfnn.SimpleGenerator(p * dim, dim, hidden_dims, dim)
+        if "noise_std" in state:
+            generator.register_buffer(
+                "noise_std", state["noise_std"].detach().clone().float()
+            )
+        generator.load_state_dict(state)
+
+        device = resolve_device()
+        generator = generator.to(device).eval()
+        self._generator = generator
+        self._p = int(p)
+        self._device = str(device)
+        self.checkpoints = [path]
+        self._is_fitted = True
+        return {
+            "restored": True,
+            "checkpoint": str(path),
+            "num_channels": dim,
+            "p": int(p),
+            "hidden_dims": list(hidden_dims),
+            "noise_std": float(state.get("noise_std", torch.tensor(1.0))),
+            "base_length": checkpoint_seq_length(path),
+            "device": self._device,
         }
 
     # ------------------------------------------------------------------ generate
@@ -475,44 +596,61 @@ class ConditionalSigWGANAdapter(ModelAdapter):
         # non-finite, fall back to nan_to_num with a 3-sigma bound from the
         # available FINITE sub-tensor — this guarantees a finite artifact
         # without injecting post-hoc moment matching (just stability).
-        with torch.no_grad():
-            data: torch.Tensor | None = None
-            for attempt in range(6):
-                if attempt > 0:
-                    # Re-seed the global RNG so vendor ArFNN's noise draws
-                    # explore a different point in latent space.
-                    torch.manual_seed(seed + 1000 * attempt)
-                generated = self._generator.sample(
-                    int(generation_length), x_past
-                )  # (n_cond, q, C)
-                data = generated.detach().cpu().float()
-                if torch.isfinite(data).all():
-                    break
-            # Fallback: all 6 attempts produced at least one NaN/Inf. Replace
-            # with a 3-sigma bound using the empirical std of any finite
-            # elements (catches the seed-invariant collapse mode).
-            if data is None or not torch.isfinite(data).all():
-                finite_mask = torch.isfinite(data)
-                finite_values = data[finite_mask]
-                if finite_values.numel() > 1:
-                    std_val = float(finite_values.std() * 3.0)
-                else:
-                    std_val = 3.0  # absolute fallback
-                data = torch.nan_to_num(
-                    data, nan=0.0, posinf=std_val, neginf=-std_val
-                )
-
-        # If we need more samples than conditioning windows, tile
-        if num_samples > n_cond:
-            reps = (num_samples // n_cond) + 1
-            data = data.repeat(reps, 1, 1)[:num_samples]
+        #
+        # Unique-sample fix (2026-10-05): the test split only yields
+        # ``n_cond`` p=10 conditioning windows (260 steps -> 251 contexts),
+        # so requesting num_samples > n_cond used to TILE the draws
+        # (``data.repeat(...)``) — a n=500 artifact contained only 251
+        # unique samples. Instead, draw additional independent rollouts
+        # from the SAME conditioning windows (fresh AR noise per chunk; the
+        # vendor's sample() consumes the global RNG, as the retry loop
+        # below relies on). Chunks keep every sample unique up to
+        # ``num_samples``; chunk 0 attempt 0 is bit-identical to the old
+        # first draw (same seed, same contexts, same order).
+        chunks: list[torch.Tensor] = []
+        produced = 0
+        chunk_idx = 0
+        while produced < num_samples:
+            base_seed = seed + 10_000 * chunk_idx
+            with torch.no_grad():
+                data_k: torch.Tensor | None = None
+                for attempt in range(6):
+                    if base_seed != seed or attempt > 0:
+                        # Re-seed the global RNG so vendor ArFNN's noise
+                        # draws explore a different point in latent space.
+                        torch.manual_seed(base_seed + 1000 * attempt)
+                    generated = self._generator.sample(
+                        int(generation_length), x_past
+                    )  # (n_cond, L, C)
+                    data_k = generated.detach().cpu().float()
+                    if torch.isfinite(data_k).all():
+                        break
+                # Fallback: all 6 attempts produced at least one NaN/Inf.
+                # Replace with a 3-sigma bound using the empirical std of
+                # any finite elements (catches the seed-invariant collapse
+                # mode) — guarantees a finite artifact without post-hoc
+                # moment matching.
+                if data_k is None or not torch.isfinite(data_k).all():
+                    finite_mask = torch.isfinite(data_k)
+                    finite_values = data_k[finite_mask]
+                    if finite_values.numel() > 1:
+                        std_val = float(finite_values.std() * 3.0)
+                    else:
+                        std_val = 3.0  # absolute fallback
+                    data_k = torch.nan_to_num(
+                        data_k, nan=0.0, posinf=std_val, neginf=-std_val
+                    )
+            chunks.append(data_k)
+            produced += int(data_k.shape[0])
+            chunk_idx += 1
+        data = torch.cat(chunks, dim=0)[:num_samples]
 
         # No post-hoc moment match (vendor-faithful; 2026-07-29 cleanup mandate).
         # Generated samples are returned as-is from the AR rollout. Amplitude
         # issues are the model's fault, not patched here.
         return AdapterGenerateOutput(
             data=data,
-            checkpoints=[],
+            checkpoints=list(self.checkpoints),
             logs={"generator": "cond_sig_wgan"},
             extra_metadata={
                 "num_channels": data.shape[-1],

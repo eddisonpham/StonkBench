@@ -26,17 +26,24 @@ import torch
 
 from src.experiments.adapters.base_adapter import ModelAdapter
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
+from src.utils.epoch_events import emit_epoch
 from src.experiments.adapters.deep_learning.training_utils import (
     EarlyStopping,
     FitTrainingInfo,
     make_loader,
     parse_training_params,
+    reconcile_gluonts,
     resolve_device,
+    resolve_final_checkpoint,
 )
 
 
 def _import_timegrad():
     root = Path(__file__).resolve().parents[3] / "models" / "deep_learning" / "timegrad"
+    # Cross-vendor hygiene: if another adapter already imported the INSTALLED
+    # gluonts in this process, prefer our vendored copy (reverse of the
+    # utsd_adapter guard) so both orders work in a single-process run.
+    reconcile_gluonts(root, prefer_vendor=True)
     root_str = str(root)
     if root_str not in sys.path:
         sys.path.insert(0, root_str)
@@ -57,6 +64,7 @@ class TimeGradAdapter(ModelAdapter):
 
     model_name = "TimeGrad"
     supports_arbitrary_generation = True
+    can_regenerate_from_checkpoint = True
 
     # ------------------------------------------------------------------
     # STONKBENCH_PATCHES (2026-07-30): vendor-timegrad monkey-patch hooks
@@ -153,7 +161,46 @@ class TimeGradAdapter(ModelAdapter):
         self._DIFF_STEPS = int(meta_overrides.get("timegrad_diff_steps", self._DIFF_STEPS))
         self._CONDITIONING_LENGTH = self._NUM_CELLS
         n_windows, seq_len, channels = windows.shape
-        # TimeGrad requires at least timegrad_total=216 timesteps per window
+        # Native per-sequence-length training (simulation_v2): vendor defaults
+        # (context 24 + lags [1,24,168] + prediction 24 = 216) only fit
+        # windows >= 216. For SHORTER windows, scale the same structural
+        # components (context / lags / prediction) into the available budget
+        # so the model trains natively at seq_len instead of requiring 252-step
+        # windows that later get sliced. Windows >= vendor total (incl.
+        # production/fair W252 runs) keep the untouched vendor config.
+        if seq_len < self.timegrad_total:
+            vendor_hist = self.history_length       # context + max lag
+            vendor_total = self.timegrad_total      # history + prediction
+            pred = max(1, min(
+                self.prediction_length,
+                round(seq_len * self.prediction_length / vendor_total),
+            ))
+            hist_budget = seq_len - pred            # room for context + lags
+            ctx = max(1, round(hist_budget * self.context_length / vendor_hist))
+            max_lag = max(1, hist_budget - ctx)
+            vendor_lags = sorted(self.lags_seq)     # [1, 24, 168]
+            mid_lag = max(1, min(
+                vendor_lags[-2],
+                round(hist_budget * vendor_lags[-2] / vendor_hist),
+            ))
+            lags = sorted({1, mid_lag, max_lag})
+            if ctx + max_lag + pred != seq_len:
+                raise ValueError(
+                    f"timegrad native fit accounting error: context={ctx} "
+                    f"+ max_lag={max_lag} + pred={pred} != seq_len={seq_len}"
+                )
+            print(
+                f"[timegrad] native fit at seq_len={seq_len} (vendor total "
+                f"{vendor_total} > {seq_len}): context={ctx} lags={lags} "
+                f"prediction={pred}",
+                flush=True,
+            )
+            self.context_length = int(ctx)
+            self.prediction_length = int(pred)
+            self.lags_seq = [int(x) for x in lags]
+        # TimeGrad requires at least timegrad_total timesteps per window
+        # (vendor 216 = history 192 + prediction 24; native-fit above makes
+        # timegrad_total == seq_len for short windows).
         if seq_len < self.timegrad_total:
             raise ValueError(
                 f"TimeGradAdapter requires seq_len >= timegrad_total={self.timegrad_total} "
@@ -248,6 +295,13 @@ class TimeGradAdapter(ModelAdapter):
                 best_state = {k: v.detach().cpu().clone() for k, v in net.state_dict().items()}
             info.train_loss_history.append(avg_train)
             info.val_loss_history.append(avg_val)
+            # Live training-curve event (no-op unless $STONKBENCH_MINI_EVENTS set).
+            emit_epoch(
+                str((fit_input.metadata or {}).get("model_key", self.model_name)),
+                epoch + 1,
+                train_loss=avg_train,
+                val_loss=avg_val,
+            )
 
         net.load_state_dict(best_state)
         self.model = net
@@ -303,6 +357,103 @@ class TimeGradAdapter(ModelAdapter):
             num_cells=self._NUM_CELLS,
             num_layers=self._NUM_LAYERS,
         )
+
+    def load_state(self, checkpoints: List[Path]) -> Dict[str, Any]:
+        """Rebuild the joint TimeGrad network from a ``*_seq{L}_final.pt`` file.
+
+        This checkpoint carries every architectural hyper-parameter (lags,
+        context/prediction split, cells, diffusion schedule, ...), so the
+        network is reconstructed exactly as ``fit`` built it and the state is
+        loaded verbatim. The prediction network is built on the fly inside
+        ``_generate_inner`` from the same instance attributes.
+
+        NOTE: the persisted ``embedding_dimension`` mirrors ``num_channels``
+        for historical reasons, but ``fit`` constructs the embedding with
+        ``embedding_dimension=1`` (``nn.Embedding(target_dim, 1)``) — we mirror
+        ``fit``, not the metadata, so the state_dict keys/shapes match.
+        """
+        if not checkpoints:
+            raise ValueError("TimeGradAdapter.load_state received an empty checkpoint list.")
+        path = resolve_final_checkpoint(checkpoints)
+        payload = torch.load(path, map_location="cpu", weights_only=False)
+        if not isinstance(payload, dict) or "state_dict" not in payload or "lags_seq" not in payload:
+            raise ValueError(
+                f"{path.name} is not a consolidated TimeGrad checkpoint "
+                "(missing 'state_dict' / 'lags_seq')."
+            )
+
+        device = resolve_device()
+        channels = int(payload["num_channels"])
+        self.device = str(device)
+        self.num_channels = channels
+        self.base_length = int(payload["base_length"])
+        self.context_length = int(payload["context_length"])
+        self.prediction_length = int(payload["prediction_length"])
+        self.lags_seq = [int(x) for x in payload["lags_seq"]]
+        self._NUM_CELLS = int(payload["num_cells"])
+        self._NUM_LAYERS = int(payload["num_layers"])
+        self._CELL_TYPE = str(payload["cell_type"])
+        self._DIFF_STEPS = int(payload["diff_steps"])
+        self._LOSS_TYPE = str(payload["loss_type"])
+        self._BETA_END = float(payload["beta_end"])
+        self._BETA_SCHEDULE = str(payload["beta_schedule"])
+        self._RESIDUAL_LAYERS = int(payload["residual_layers"])
+        self._RESIDUAL_CHANNELS = int(payload["residual_channels"])
+        self._DILATION_CYCLE = int(payload["dilation_cycle_length"])
+        self._CONDITIONING_LENGTH = int(payload["conditioning_length"])
+        self._NUM_PARALLEL_SAMPLES = int(payload["num_parallel_samples"])
+
+        if int(payload["history_length"]) != self.history_length:
+            raise ValueError(
+                f"{path.name}: history_length={payload['history_length']} does not "
+                f"match context+max(lags)={self.history_length}."
+            )
+
+        input_size = len(self.lags_seq) * channels + channels * 1 + 1
+        net = self.TimeGradTrainingNetwork(
+            input_size=input_size,
+            num_layers=self._NUM_LAYERS,
+            num_cells=self._NUM_CELLS,
+            cell_type=self._CELL_TYPE,
+            history_length=self.history_length,
+            context_length=self.context_length,
+            prediction_length=self.prediction_length,
+            dropout_rate=self._DROPOUT_RATE,
+            lags_seq=list(self.lags_seq),
+            target_dim=channels,
+            conditioning_length=self._CONDITIONING_LENGTH,
+            diff_steps=self._DIFF_STEPS,
+            loss_type=self._LOSS_TYPE,
+            beta_end=self._BETA_END,
+            beta_schedule=self._BETA_SCHEDULE,
+            residual_layers=self._RESIDUAL_LAYERS,
+            residual_channels=self._RESIDUAL_CHANNELS,
+            dilation_cycle_length=self._DILATION_CYCLE,
+            cardinality=[1] * channels,
+            embedding_dimension=1,
+            scaling=False,
+        ).to(device)
+        net.load_state_dict(payload["state_dict"])
+        net.eval()
+
+        self.model = net
+        self.checkpoints = [path]
+        self._is_fitted = True
+        return {
+            "restored": True,
+            "checkpoint": str(path),
+            "num_channels": channels,
+            "base_length": self.base_length,
+            "history_length": self.history_length,
+            "context_length": self.context_length,
+            "prediction_length": self.prediction_length,
+            "lags_seq": list(self.lags_seq),
+            "num_cells": self._NUM_CELLS,
+            "num_layers": self._NUM_LAYERS,
+            "diff_steps": self._DIFF_STEPS,
+            "noise_dist": str(payload.get("timegrad_noise_dist", "gaussian")),
+            "device": self.device,
+        }
 
     def generate(self, num_samples: int, generation_length: int, seed: int) -> AdapterGenerateOutput:
         if not self._is_fitted or self.model is None:

@@ -114,14 +114,18 @@ def run_model_experiment(
         seed=seed,
         metadata=metadata,
     )
-    # Move any existing items for the same (model, seq) out of the live
-    # outputs tree into ``outputs/_legacy/{utc-ts}_{model}_seq{L}/`` so this
-    # retrain writes fresh. Idempotent: returns 0 (no-op) if nothing existed.
-    # The active ``outputs/results/{run_id}/{model}/`` and
-    # ``outputs/sanity/{run_id}/{model}/`` for this combo are then empty,
-    # which matches the user's standing instruction that "the outputs folder
-    # is completely clean and we dont have any confusing dated reruns."
-    archive_existing(model_key, generation_length, output_root)
+    # Move any existing items for the same (model, seqs about to be written)
+    # out of the live outputs tree into ``outputs/_legacy/{utc-ts}_{model}_seq{L}/``
+    # so this retrain writes fresh. Scoped to exactly the seq set this run
+    # will regenerate — parallel per-seq tasks of one model must not sweep
+    # each other's artifacts (simulation_v2 lesson, 2026-10-05).
+    # Idempotent: returns 0 (no-op) if nothing existed.
+    archive_existing(
+        model_key,
+        generation_length,
+        output_root,
+        seq_lengths=seq_lengths or [generation_length],
+    )
     # Wall-clock: capture per-model fit+generate duration. Emitted as
     # `run_start` + `run_end` events so log replay and run.jsonl summaries
     # can compute time-taken per model without scanning stdout.

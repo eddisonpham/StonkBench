@@ -16,6 +16,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 
 from src.utils.device import resolve_device
+from src.utils.epoch_events import emit_epoch
 
 
 class TemporalBlock(nn.Module):
@@ -246,6 +247,13 @@ class QuantGANTrainer:
             if valid_loader is not None:
                 val_loss = self._eval_val_loss(valid_loader)
                 val_history.append(val_loss)
+                # Live training-curve event (no-op unless $STONKBENCH_MINI_EVENTS set).
+                emit_epoch(
+                    getattr(self, "_emit_label", "quantgan"),
+                    epoch + 1,
+                    train_loss=train_history[-1],
+                    val_loss=val_loss,
+                )
                 if val_loss < best_val:
                     best_val = val_loss
                     best_epoch = epoch + 1
@@ -261,6 +269,11 @@ class QuantGANTrainer:
             else:
                 best_epoch = epoch + 1
                 best_val = train_history[-1]
+                emit_epoch(
+                    getattr(self, "_emit_label", "quantgan"),
+                    epoch + 1,
+                    train_loss=train_history[-1],
+                )
                 self._best_generator_state = {
                     k: v.detach().cpu().clone() for k, v in self.generator.state_dict().items()
                 }

@@ -1,10 +1,16 @@
 """Move existing per-(model, seq_length) outputs to a versioned legacy bucket.
 
 Before every retrain the pipeline calls :func:`archive_existing`, which scans
-``outputs/results/*/{model}/`` and ``outputs/sanity/*/{model}/`` (and the
-matching log files) for the (model_key, generation_length) we're about to
-overwrite and relocates them to a fresh
-``outputs/_legacy/{UTC-iso-ts}_{model}_seq{L}/`` directory.
+the ACTIVE run's ``outputs/results/{run_id}/{model}/`` and
+``outputs/sanity/{run_id}/{model}/`` (plus run-scoped log files) for the
+(model_key, generation_length) we're about to overwrite and relocates them to
+a fresh ``outputs/_legacy/{UTC-iso-ts}_{model}_seq{L}/`` directory.
+
+.. note::
+   Scoped to the active run since 2026-10-05 (see
+   ``_collect_active_sources``): an isolated-run retrain must never sweep
+   another run's outputs (production ``results/latest`` was hit by the
+   fair_20261004 retrains before this fix).
 
 The active ``outputs/results/{run_id}/`` and ``outputs/sanity/{run_id}/`` are
 then empty for that (model, seq), so the next retrain writes fresh items
@@ -80,69 +86,123 @@ def _unique_destination(dest_dir: Path, name: str) -> Path:
         attempt += 1
 
 
+def _seq_name_matches(name: str, model_key: str, seq_lengths: "set[int]") -> bool:
+    """True when ``name`` carries a ``_seq{L}`` token for one of ``seq_lengths``.
+
+    The trailing separator check (``.`` or ``_`` after the number) keeps
+    ``_seq2`` from matching ``_seq21``/``_seq252`` and vice versa.
+    Files without any seq token are treated as model-level and are NOT
+    matched (a seq-scoped retrain must not sweep them).
+    """
+    for length in seq_lengths:
+        tok = f"_seq{length}"
+        if name.startswith(f"{model_key}{tok}."):
+            return True
+        if f"{tok}." in name or f"{tok}_" in name:
+            return True
+    return False
+
+
 def _collect_active_sources(
-    output_root: Path, model_key: str
+    output_root: Path,
+    model_key: str,
+    run_id: str | None = None,
+    seq_lengths: "set[int] | None" = None,
 ) -> List[Path]:
-    """Walk ``output_root`` for every file owned by ``model_key`` that is NOT
-    under ``_legacy/`` and is therefore eligible for archival on rerun."""
+    """Walk ``output_root`` for files owned by ``model_key`` in the ACTIVE
+    run tree only (``run_id`` defaults to ``get_run_id()`` =
+    ``$STONKBENCH_RUN_ID`` or ``"latest"``).
+
+    Scoped 2026-10-05: the previous global scan across EVERY run tree moved
+    other runs' outputs (e.g. production ``results/latest/<model>/``) into
+    ``_legacy/`` whenever an isolated run retrained the same model — the
+    fair_20261004 retrains swept all 7 production DL artifact sets this way.
+    Now only ``results/{run_id}/{model}/``, ``sanity/{run_id}/{model}/`` and
+    the run-scoped ``logs/{run_id}/**`` files of the model are archived. The
+    append-only model-global ``logs/{model}/`` history is never touched.
+
+    Seq scoping (2026-10-05, simulation_v2): when ``seq_lengths`` is given,
+    results/sanity files are further filtered to exactly those sequence
+    lengths — this is what the module docstring's "per-(model, seq_length)"
+    always promised, and it makes PARALLEL per-seq retrains of the same
+    model safe (a seq-21 task must not sweep the seq-126 artifacts another
+    task wrote seconds earlier). ``None`` keeps the model-wide behaviour.
+    Run-scoped logs stay model-level (append-only telemetry).
+    """
     if not output_root.exists():
         return []
+    if run_id is None:
+        try:
+            from src.utils.env import get_run_id
 
-    direct_subtrees = ("results", "sanity", "logs")
+            run_id = get_run_id()
+        except Exception:  # noqa: BLE001 — never fail archival on import issues
+            run_id = "latest"
+
     sources: List[Path] = []
-    for top in direct_subtrees:
-        top_dir = output_root / top
-        if not top_dir.exists():
+    # results/ and sanity/ have per-{run_id}/{model}/ shape — active run only.
+    for top in ("results", "sanity"):
+        mdir = output_root / top / run_id / model_key
+        if not mdir.is_dir():
             continue
-        if top == "logs":
-            # Logs are sometimes flat per-run, sometimes per-model.
-            # Tightened 2026-07-27 (reviewer #3 sweep): only the canonical
-            # events log (`{model_key}.jsonl`) AND files whose PATH
-            # COMPONENT exactly equals the model key. Drop the substring
-            # `parts contains model_key` over-match (e.g. a hypothetical
-            # `cond_sig_wgan_v2_metrics.jsonl`) and the generic
-            # `{model_key}.<ext>.log` filename prefix.
-            for child in top_dir.rglob("*"):
-                if not child.is_file():
-                    continue
-                if child.name == f"{model_key}.jsonl":
-                    sources.append(child)
-                    continue
-                try:
-                    rel = child.relative_to(output_root)
-                except ValueError:
-                    continue
-                if any(part == model_key for part in rel.parts):
-                    sources.append(child)
-            continue
-        # results/ and sanity/ have per-{run_id}/{model}/ shape
-        for run_dir in top_dir.iterdir():
-            if not run_dir.is_dir() or run_dir.name.startswith("_"):
+        for p in mdir.rglob("*"):
+            if not p.is_file():
                 continue
-            mdir = run_dir / model_key
-            if not mdir.exists():
+            if seq_lengths is not None:
+                rel = p.relative_to(mdir)
+                if top == "sanity":
+                    if not any(part.startswith("seq") and part[3:].isdigit()
+                               and int(part[3:]) in seq_lengths
+                               for part in rel.parts):
+                        continue
+                elif not _seq_name_matches(p.name, model_key, seq_lengths):
+                    continue
+            sources.append(p)
+    # Run-scoped logs only: files whose PATH COMPONENT exactly equals the
+    # model key (2026-07-27 sweep: no substring over-match). The global
+    # ``logs/{model_key}/`` tree is shared append-only history across runs
+    # and must never be swept by an isolated run's retrain.
+    logs_run = output_root / "logs" / run_id
+    if logs_run.is_dir():
+        for child in logs_run.rglob("*"):
+            if not child.is_file():
                 continue
-            for p in mdir.rglob("*"):
-                if p.is_file():
-                    sources.append(p)
+            try:
+                rel = child.relative_to(logs_run)
+            except ValueError:
+                continue
+            if any(part == model_key for part in rel.parts):
+                sources.append(child)
     return sources
 
 
-def archive_existing(model_key: str, generation_length: int, output_root: Path) -> int:
-    """Move every active output for ``(model_key, generation_length)`` to a
-    fresh versioned subdir of ``output_root/_legacy/``.
+def archive_existing(
+    model_key: str,
+    generation_length: int,
+    output_root: Path,
+    seq_lengths: "List[int] | None" = None,
+) -> int:
+    """Move active output for ``(model_key, seq_lengths or [generation_length])``
+    to a fresh versioned subdir of ``output_root/_legacy/``.
 
     Parameters
     ----------
     model_key:
         directory immediately under ``results/{run_id}/``).
     generation_length:
-        Sequence length being retrained. Used to compose the legacy subdir
-        name (``{model_key}_seq{L}``) so a later grep over the legacy tree
+        Sequence length being retrained. Names the legacy subdir
+        (``{model_key}_seq{L}``) so a later grep over the legacy tree
         groups by (model, seq).
     output_root:
         StonkBench outputs root, normally ``outputs/`` (the value passed via
         ``--output_root`` to ``run_final_training``).
+    seq_lengths:
+        The full set of sequence lengths THIS run will regenerate (pipeline
+        passes its ``seq_lengths``). Defaults to ``[generation_length]``.
+        Only files belonging to those seqs are moved, so parallel per-seq
+        tasks of the same model never sweep each other's outputs, while a
+        multi-seq single-process run still evacuates everything it is about
+        to rewrite.
 
     Returns
     -------
@@ -151,7 +211,10 @@ def archive_existing(model_key: str, generation_length: int, output_root: Path) 
     """
     output_root = Path(output_root)
     seq_l = int(generation_length)
-    sources = _collect_active_sources(output_root, model_key)
+    seq_set = {int(x) for x in seq_lengths} if seq_lengths else {seq_l}
+    sources = _collect_active_sources(
+        output_root, model_key, seq_lengths=seq_set
+    )
     if not sources:
         return 0
 
@@ -181,6 +244,7 @@ def archive_existing(model_key: str, generation_length: int, output_root: Path) 
         "archived_at_utc": ts,
         "model_key": model_key,
         "generation_length": seq_l,
+        "seq_lengths": sorted(seq_set),
         "files_moved": move_count,
         "buckets": bucket_counts,
         "legacy_path": str(legacy_root),

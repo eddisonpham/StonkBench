@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import re
+import sys
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -16,10 +19,60 @@ __all__ = [
     "FitTrainingInfo",
     "TrainingParams",
     "average_loss_over_loader",
+    "checkpoint_seq_length",
     "make_loader",
     "parse_training_params",
+    "reconcile_gluonts",
     "resolve_device",
+    "resolve_final_checkpoint",
 ]
+
+# ``<model_key>_seq<L>_final.pt`` — the canonical one-checkpoint-per-(model,
+# seq_length) naming scheme introduced by the simulation_v2 training runs.
+_FINAL_CKPT_SEQ_RE = re.compile(r"seq(\d+)_final\.pt$")
+
+
+def checkpoint_seq_length(path: Path, default: Optional[int] = None) -> int:
+    """Parse ``L`` out of a ``*_seq{L}_final.pt`` checkpoint filename."""
+    match = _FINAL_CKPT_SEQ_RE.search(Path(path).name)
+    if match:
+        return int(match.group(1))
+    if default is not None:
+        return int(default)
+    raise ValueError(f"Cannot derive sequence length from checkpoint name: {Path(path).name}")
+
+
+def resolve_final_checkpoint(
+    checkpoints: Sequence[Path], seq_length: Optional[int] = None
+) -> Path:
+    """Pick the canonical checkpoint for ``load_state`` out of a manifest.
+
+    ``fit`` writes both a legacy name (``vrnn_checkpoint.pt``) and the
+    consolidated ``<model_key>_seq{L}_final.pt``; manifests and evaluator
+    regenerate flows may hand us either (or both). Resolution order:
+
+    1. a file ending in ``seq{seq_length}_final.pt`` when ``seq_length`` is given
+    2. the single ``*_final.pt`` file, if exactly one exists
+    3. the single path in the list
+    """
+    paths = [Path(p) for p in checkpoints]
+    if not paths:
+        raise ValueError("load_state received an empty checkpoint list.")
+    if seq_length is not None:
+        suffix = f"seq{int(seq_length)}_final.pt"
+        exact = [p for p in paths if p.name.endswith(suffix)]
+        if exact:
+            return exact[0]
+    finals = [p for p in paths if "_final" in p.name]
+    if len(finals) == 1:
+        return finals[0]
+    if len(paths) == 1:
+        return paths[0]
+    names = [p.name for p in paths]
+    raise ValueError(
+        f"Cannot resolve a unique final checkpoint (seq_length={seq_length}) "
+        f"from {names}."
+    )
 
 
 @dataclass
@@ -93,6 +146,46 @@ class EarlyStopping:
         if self.mode == "min":
             return val_loss < self.best - self.min_delta
         return val_loss > self.best + self.min_delta
+
+
+def reconcile_gluonts(vendor_root: Path, prefer_vendor: bool) -> None:
+    """Make ``gluonts`` resolve to the copy this adapter needs.
+
+    Several vendors ship their own ``gluonts`` (e.g. the TimeGrad tree roots a
+    vendored copy at ``src/models/deep_learning/timegrad/gluonts``). In a
+    single-process run over multiple models the first adapter to import wins
+    and later adapters fail with confusing ImportErrors (e.g. ``cannot import
+    name 'DataEntry'``). Called before each vendor import:
+
+    * ``prefer_vendor=True``  → drop cached non-vendor ``gluonts*`` modules so
+      the vendored copy is imported fresh.
+    * ``prefer_vendor=False`` → drop the vendor root from ``sys.path`` and
+      purge cached modules from it, so the installed gluonts is used.
+
+    Behavior-neutral when no conflicting modules are cached.
+    """
+    root = str(Path(vendor_root).resolve())
+    if not prefer_vendor:
+        sys.path[:] = [
+            p for p in sys.path if str(Path(p).resolve()) != root
+        ]
+    for name in [
+        m for m in list(sys.modules) if m == "gluonts" or m.startswith("gluonts.")
+    ]:
+        mod = sys.modules.get(name)
+        if mod is None:
+            continue
+        f = getattr(mod, "__file__", None) or ""
+        if f:
+            try:
+                under = str(Path(f).resolve()).startswith(root)
+            except OSError:
+                under = False
+        else:
+            paths = list(getattr(mod, "__path__", None) or [])
+            under = any(str(Path(p).resolve()).startswith(root) for p in paths)
+        if under != prefer_vendor:
+            del sys.modules[name]
 
 
 def parse_training_params(fit_input: AdapterFitInput) -> TrainingParams:
