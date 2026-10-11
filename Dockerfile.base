@@ -15,8 +15,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# Set working directory.  PYTHONPATH=/app so `python -m src...` works in any
+# derived service without each one having to set it.
 WORKDIR /app
+ENV PYTHONPATH=/app
 
 # Upgrade pip
 RUN python -m pip install --upgrade pip setuptools wheel
@@ -28,6 +30,10 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # Copy application code
 COPY src /app/src
 
-# Default entrypoint (can be overridden)
+# Default entrypoint (can be overridden per service)
 ENTRYPOINT ["python"]
+
+# `docker run sdgfts-base:latest` prints where to start instead of doing
+# nothing.  Real work is e.g. `docker run sdgfts-base:latest -m src.experiments.run_benchmark --help`.
+CMD ["-c", "import pathlib; [print(p.with_suffix('').as_posix().replace('/', '.')) for p in sorted(pathlib.Path('src').glob('*.py'))]"]
 

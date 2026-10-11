@@ -129,6 +129,49 @@ if [[ ${doc_bad} -eq 0 ]]; then
   pass "every path, module and glob named in README.md resolves"
 fi
 
+# -------------------------------------------------------------- 6. docker
+echo "[6] docker setup is self-consistent"
+docker_bad=0
+if ! docker_bad_out="$("${PY}" - <<'PY' 2>&1
+import json, pathlib, re
+
+bad = []
+# Dockerfile.base must keep a valid JSON CMD so the image has a sane default.
+df = pathlib.Path("Dockerfile.base").read_text()
+m = re.search(r"^CMD (\[.*\])$", df, re.M | re.S)
+if not m:
+    bad.append("Dockerfile.base has no CMD")
+else:
+    try:
+        json.loads(m.group(1))
+    except Exception as exc:  # noqa: BLE001
+        bad.append(f"Dockerfile.base CMD is not valid JSON: {exc}")
+if "PYTHONPATH=/app" not in df:
+    bad.append("Dockerfile.base does not set PYTHONPATH=/app")
+
+# Every service the README tells the user to run must exist in docker-compose.yml.
+compose = pathlib.Path("docker-compose.yml").read_text()
+services = set(re.findall(r"^  ([a-z0-9-]+):\s*$", compose, re.M))
+for name in sorted(set(re.findall(r"docker compose (?:up|run|build) ([a-z0-9 -]+)", pathlib.Path("README.md").read_text()))):
+    for svc in name.split():
+        if svc not in services:
+            bad.append(f"README.md references missing compose service: {svc}")
+if bad:
+    print("\n".join(bad))
+PY
+)"; then
+  fail "docker check errored"
+  printf '%s\n' "${docker_bad_out}" | detail
+  docker_bad=$((docker_bad + 1))
+elif [[ -n "${docker_bad_out}" ]]; then
+  fail "docker setup inconsistent"
+  printf '%s\n' "${docker_bad_out}" | detail
+  docker_bad=$((docker_bad + 1))
+fi
+if [[ ${docker_bad} -eq 0 ]]; then
+  pass "Dockerfile.base CMD is valid JSON, PYTHONPATH is set, compose services resolve"
+fi
+
 # -------------------------------------------------------------- summary
 echo
 if [[ ${FAILURES} -gt 0 ]]; then

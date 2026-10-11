@@ -29,6 +29,7 @@ mlruns/
 cache/*
 testing_files/*
 /gan_tests/
+generated_data/
 evaluation_plots/*
 notebooks/*
 docs/*

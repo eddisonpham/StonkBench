@@ -191,7 +191,8 @@ rebalancing history exists), and `weights` is the exact vector used.
 
 ```python
 import sys; sys.path.insert(0, ".")
-sys.modules.setdefault("torch", type("T", (), {"Tensor": type("Tensor", (), {})})())  # numpy-only paths
+from torch_stub import install_torch_stub
+install_torch_stub()                          # lets src.taxonomies import without torch
 from src.taxonomies.pnl import _pnl_metrics
 from load_handover import Handover
 h = Handover()
