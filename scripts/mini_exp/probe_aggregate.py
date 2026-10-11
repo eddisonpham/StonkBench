@@ -16,7 +16,7 @@ Interpretation guide (used by the audit):
 
 Usage:
     python scripts/mini_exp/probe_aggregate.py \
-        --root /scratch/$USER/stonkbench/mini_exp
+        --root /home/epham/StonkBench/outputs/mini_exp
 """
 
 from __future__ import annotations
@@ -46,13 +46,12 @@ def load_rows(report_dir: Path) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=None,
-                    help="default: /scratch/$USER/stonkbench/mini_exp")
+                    help="default: /home/epham/StonkBench/outputs/mini_exp")
     ap.add_argument("--salvage", action="store_true",
                     help="include the salvaged probe_seed tree (mixed seeds)")
     args = ap.parse_args()
 
-    import os
-    root = Path(args.root or f"/scratch/{os.environ.get('USER', 'epham')}/stonkbench/mini_exp")
+    root = Path(args.root or Path(__file__).resolve().parents[2] / "outputs" / "mini_exp")
 
     runs = RUNS if args.salvage else RUNS[:-1]
     data = {}  # (model, seq) -> {seed_label: (ratio, verdict)}

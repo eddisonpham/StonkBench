@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=1-00:00:00
 #SBATCH --array=0-6%4
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/train_dl_%A_%a.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/train_dl_%A_%a.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/train_dl_%A_%a.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/train_dl_%A_%a.err
 
 # Final DL training with best HP. Generation length defaults to 100.
 set -euo pipefail

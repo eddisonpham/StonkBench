@@ -15,7 +15,7 @@ Checks per (ablation, batch, model, seq) artifact:
 
 Usage:
     PYTHONPATH=. python scripts/mini_exp/verify_generation.py \
-        [--root /scratch/epham/stonkbench/output/generation] \
+        [--root /home/epham/StonkBench/outputs/generation] \
         [--ablation simulation_v2 ...]
 """
 from __future__ import annotations
@@ -45,7 +45,7 @@ STAT_MODELS = [
     "stationary_block_bootstrap",
     "merton_jump_diffusion",
     "de_jump_diffusion",
-    "garch11",
+    "dcc_garch",
 ]
 ALL_MODELS = MODELS + STAT_MODELS
 # The two bootstrap baselines draw blocks WITH replacement from a finite pool,
@@ -64,7 +64,7 @@ ABLATIONS = ["simulation_v2", "fair_20261004", "latest"]
 EXPECTED_SAMPLES = 500
 
 _REF_ROOTS = [
-    Path("/scratch/epham/stonkbench/output/results"),
+    Path("/home/epham/StonkBench/outputs/results"),
 ]
 
 

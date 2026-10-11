@@ -11,8 +11,8 @@ LOG=/tmp/simv2_watch.log
 RUN_ID=simulation_v2
 PY="$HOME/.venvs/stonkbench/bin/python"
 REPO="$HOME/StonkBench"
-REPORT_DIR=/scratch/epham/stonkbench/mini_exp/${RUN_ID}
-OUTPUT_ROOT=/scratch/epham/stonkbench/output
+REPORT_DIR=/home/epham/StonkBench/outputs/mini_exp/${RUN_ID}
+OUTPUT_ROOT=/home/epham/StonkBench/outputs
 
 : > "$LOG"
 echo "$(date -Is) WATCH_START jobs=1033384,1033486,1033541" >> "$LOG"
@@ -32,7 +32,7 @@ echo "$(date -Is) ARRAYS_LEFT_QUEUE" >> "$LOG"
 
 # task rc summary from the per-task logs
 ssh -o BatchMode=yes trig-login01 \
-  'grep -h "=== SIMV2 DONE" /scratch/epham/stonkbench/slurm_logs/simv2_*.out 2>/dev/null' \
+  'grep -h "=== SIMV2 DONE" /home/epham/StonkBench/slurm_logs/simv2_*.out 2>/dev/null' \
   >> "$LOG" 2>&1
 ok=$(grep -c "rc=0 " "$LOG" || true)
 bad=$(grep -c "SIMV2 DONE" "$LOG")
@@ -51,7 +51,7 @@ for m in ["unconditional_tsdiffusion","conditional_tsdiffusion","quantgan",
     for L in (21,42,126,252):
         expect[f"{m}_seq{L}.pt"] = L
 found = set()
-for p in sorted(glob.glob('/scratch/epham/stonkbench/output/results/simulation_v2/*/artifacts/*.pt')):
+for p in sorted(glob.glob('/home/epham/StonkBench/outputs/results/simulation_v2/*/artifacts/*.pt')):
     name = p.split('/')[-1]
     found.add(name)
     raw = torch.load(p, map_location='cpu', weights_only=False)

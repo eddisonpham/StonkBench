@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=04:00:00
 #SBATCH --array=0-27
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/simv2_%A_%a.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/simv2_%A_%a.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/simv2_%A_%a.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/simv2_%A_%a.err
 
 # NATIVE per-sequence-length retraining (simulation_v2).
 #

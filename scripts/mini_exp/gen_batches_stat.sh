@@ -7,12 +7,12 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --time=02:00:00
 #SBATCH --array=0-59
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/genstat_%A_%a.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/genstat_%A_%a.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/genstat_%A_%a.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/genstat_%A_%a.err
 
 # Multi-batch generation for the 5 STATISTICAL baselines so every ablation tree
 # is complete for the evaluative stage (block_bootstrap,
-# stationary_block_bootstrap, merton_jump_diffusion, de_jump_diffusion, garch11).
+# stationary_block_bootstrap, merton_jump_diffusion, de_jump_diffusion, dcc_garch).
 #
 # These adapters have no checkpoints: generate_sequences.py re-fits them on the
 # stats_set train split inside the job (sub-second) and samples at the native
@@ -29,7 +29,7 @@ source "${PROJECT_ROOT:-$HOME/StonkBench}/scripts/slurm/common.sh"
 cd "${PROJECT_ROOT}"
 
 ABLATIONS=(simulation_v2 fair_20261004 latest)
-MODELS=(block_bootstrap stationary_block_bootstrap merton_jump_diffusion de_jump_diffusion garch11)
+MODELS=(block_bootstrap stationary_block_bootstrap merton_jump_diffusion de_jump_diffusion dcc_garch)
 LENS=(21 42 126 252)
 TID="${SLURM_ARRAY_TASK_ID:-0}"
 

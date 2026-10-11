@@ -4,17 +4,17 @@
 #   2) HP aggregate
 #   3) DL final train (gen_length=100) on best HP
 #   4) Statistical fit+generate (gen_length=100)
-#   5) Sync scratch outputs -> /home/epham/StonkBench/output (dated results only)
+#   5) Report output status for the dated run
 #
 # Usage:
 #   STONKBENCH_RUN_ID=2026-07-11_window100 bash scripts/run_paper_train.sh --submit-only
-#   bash scripts/run_paper_train.sh sync
+#   bash scripts/run_paper_train.sh status
 set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-$HOME/StonkBench}"
-SCRATCH_ROOT="${SCRATCH:-/scratch/$USER}"
-STAGING_ROOT="${SCRATCH_ROOT}/stonkbench/output"
-CANONICAL_OUTPUT="/home/epham/StonkBench/output"
+# Single canonical output tree: <repo>/outputs/. There is no scratch staging
+# copy and no post-hoc rsync — training jobs write here directly.
+CANONICAL_OUTPUT="${STONKBENCH_OUTPUT_ROOT:-${PROJECT_ROOT}/outputs}"
 SLURM_DIR="${PROJECT_ROOT}/scripts/slurm"
 SUBMIT_ONLY=0
 GENERATION_LENGTH="${GENERATION_LENGTH:-100}"
@@ -43,31 +43,15 @@ sbatch_gpu() {
     "$@"
 }
 
-sync_to_home() {
+report_status() {
   local run_id="${STONKBENCH_RUN_ID}"
-  if [[ ! -d "${STAGING_ROOT}/results/${run_id}" ]]; then
-    echo "No staged results at ${STAGING_ROOT}/results/${run_id}"
+  if [[ ! -d "${CANONICAL_OUTPUT}/results/${run_id}" ]]; then
+    echo "No results at ${CANONICAL_OUTPUT}/results/${run_id}"
     exit 1
   fi
-  mkdir -p "${CANONICAL_OUTPUT}/results/${run_id}" \
-    "${CANONICAL_OUTPUT}/checkpoints/${run_id}" \
-    "${CANONICAL_OUTPUT}/logs/${run_id}" \
-    "${CANONICAL_OUTPUT}/sanity/${run_id}" \
-    "${CANONICAL_OUTPUT}/experiments/${run_id}"
-
-  echo "Syncing run ${run_id} (no --delete of sibling dated runs)"
-  rsync -av "${STAGING_ROOT}/results/${run_id}/" "${CANONICAL_OUTPUT}/results/${run_id}/"
-  [[ -d "${STAGING_ROOT}/checkpoints/${run_id}" ]] && \
-    rsync -av "${STAGING_ROOT}/checkpoints/${run_id}/" "${CANONICAL_OUTPUT}/checkpoints/${run_id}/"
-  [[ -d "${STAGING_ROOT}/logs/${run_id}" ]] && \
-    rsync -av "${STAGING_ROOT}/logs/${run_id}/" "${CANONICAL_OUTPUT}/logs/${run_id}/"
-  [[ -d "${STAGING_ROOT}/sanity/${run_id}" ]] && \
-    rsync -av "${STAGING_ROOT}/sanity/${run_id}/" "${CANONICAL_OUTPUT}/sanity/${run_id}/"
-  [[ -d "${STAGING_ROOT}/experiments/${run_id}" ]] && \
-    rsync -av "${STAGING_ROOT}/experiments/${run_id}/" "${CANONICAL_OUTPUT}/experiments/${run_id}/"
 
   echo ""
-  echo "Artifacts in home for run ${run_id}:"
+  echo "Artifacts for run ${run_id}:"
   find "${CANONICAL_OUTPUT}/results/${run_id}" -path '*/artifacts/*.pt' 2>/dev/null | sort
   local n
   n=$(find "${CANONICAL_OUTPUT}/results/${run_id}" -path '*/artifacts/*.pt' 2>/dev/null | wc -l)
@@ -99,7 +83,7 @@ wait_for_job() {
 
 submit_pipeline() {
   require_gpu_login
-  mkdir -p "${SCRATCH_ROOT}/stonkbench/slurm_logs" "${STAGING_ROOT}/results/${STONKBENCH_RUN_ID}"
+  mkdir -p "${PROJECT_ROOT}/slurm_logs" "${CANONICAL_OUTPUT}/results/${STONKBENCH_RUN_ID}"
   cd "${PROJECT_ROOT}"
 
   local hp_id agg_id dl_id stat_id
@@ -116,15 +100,14 @@ submit_pipeline() {
   echo "  3 DL final train (8 models):        ${dl_id}  (afterok:${agg_id})"
   echo "  4 Statistical fit (6 models):       ${stat_id}  (afterok:${agg_id})"
   echo ""
-  echo "Scratch results: ${STAGING_ROOT}/results/${STONKBENCH_RUN_ID}"
-  echo "Home results:    ${CANONICAL_OUTPUT}/results/${STONKBENCH_RUN_ID}"
-  echo "Logs: ${SCRATCH_ROOT}/stonkbench/slurm_logs/"
-  echo "${hp_id} ${agg_id} ${dl_id} ${stat_id}" > "${SCRATCH_ROOT}/stonkbench/paper_train_job_ids.txt"
-  echo "${STONKBENCH_RUN_ID}" > "${SCRATCH_ROOT}/stonkbench/paper_train_run_id.txt"
+  echo "Results: ${CANONICAL_OUTPUT}/results/${STONKBENCH_RUN_ID}"
+  echo "Logs:    ${PROJECT_ROOT}/slurm_logs/"
+  echo "${hp_id} ${agg_id} ${dl_id} ${stat_id}" > "${PROJECT_ROOT}/slurm_logs/paper_train_job_ids.txt"
+  echo "${STONKBENCH_RUN_ID}" > "${PROJECT_ROOT}/slurm_logs/paper_train_run_id.txt"
 
-  # Watcher syncs only this run_id when jobs finish.
+  # Watcher reports status for this run_id when jobs finish.
   nohup bash -c "
-    IDS=\$(cat ${SCRATCH_ROOT}/stonkbench/paper_train_job_ids.txt)
+    IDS=\$(cat ${PROJECT_ROOT}/slurm_logs/paper_train_job_ids.txt)
     RUN=${STONKBENCH_RUN_ID}
     while squeue -u \$USER -h | grep -E \"\$(echo \$IDS | tr ' ' '|')\" >/dev/null 2>&1; do
       date -Is
@@ -132,11 +115,11 @@ submit_pipeline() {
       sleep 300
     done
     cd ${PROJECT_ROOT}
-    STONKBENCH_RUN_ID=\$RUN bash scripts/run_paper_train.sh sync
-  " > "${SCRATCH_ROOT}/stonkbench/slurm_logs/watch_and_sync_${STONKBENCH_RUN_ID}.log" 2>&1 &
+    STONKBENCH_RUN_ID=\$RUN bash scripts/run_paper_train.sh status
+  " > "${PROJECT_ROOT}/slurm_logs/watch_and_report_${STONKBENCH_RUN_ID}.log" 2>&1 &
 
   if [[ "${SUBMIT_ONLY}" == "1" ]]; then
-    echo "Submit-only done. Watcher syncing to home when finished."
+    echo "Submit-only done. Watcher reports status when finished."
     return 0
   fi
 
@@ -144,12 +127,12 @@ submit_pipeline() {
   wait_for_job "${agg_id}" "HP aggregate"
   wait_for_array "${dl_id}" "DL final training"
   wait_for_array "${stat_id}" "Statistical training"
-  sync_to_home
+  report_status
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    sync) sync_to_home; exit 0 ;;
+    status) report_status; exit 0 ;;
     --submit-only) SUBMIT_ONLY=1; shift ;;
     -h|--help)
       echo "Usage: STONKBENCH_RUN_ID=<id> bash scripts/run_paper_train.sh [--submit-only | sync]"

@@ -11,7 +11,7 @@ STATISTICAL_MODEL_KEYS = frozenset(
         "stationary_block_bootstrap",
         "merton_jump_diffusion",
         "de_jump_diffusion",
-        "garch11",
+        "dcc_garch",
     }
 )
 
@@ -20,7 +20,7 @@ ADAPTER_REGISTRY: Dict[str, str] = {
     "stationary_block_bootstrap": "src.experiments.adapters.statistical_adapter.StationaryBlockBootstrapAdapter",
     "merton_jump_diffusion": "src.experiments.adapters.statistical_adapter.StatisticalMertonAdapter",
     "de_jump_diffusion": "src.experiments.adapters.statistical_adapter.StatisticalDEJDAdapter",
-    "garch11": "src.experiments.adapters.statistical_adapter.StatisticalGARCH11Adapter",
+    "dcc_garch": "src.experiments.adapters.statistical_adapter.StatisticalDCCGARCHAdapter",
     "quantgan": "src.experiments.adapters.deep_learning.quantgan_adapter.QuantGANAdapter",
     "kalman_vae": "src.experiments.adapters.deep_learning.kalman_vae_adapter.KalmanVAEAdapter",
     "unconditional_tsdiffusion": "src.experiments.adapters.deep_learning.utsd_adapter.UnconditionalTSDiffusionAdapter",

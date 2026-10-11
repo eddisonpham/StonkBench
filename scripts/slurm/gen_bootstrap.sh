@@ -6,8 +6,8 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=4
 #SBATCH --time=01:00:00
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/bootstrap_%j.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/bootstrap_%j.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/bootstrap_%j.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/bootstrap_%j.err
 
 # Quick generation of missing block_bootstrap and stationary_block_bootstrap
 # artifacts at seq_lengths 21, 42, 126, 252.

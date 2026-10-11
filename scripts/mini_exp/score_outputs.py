@@ -21,8 +21,8 @@ training (partial results) and re-run any time.
 Usage:
     python scripts/mini_exp/score_outputs.py \
         --run_id fair_20261004 \
-        --output_root /scratch/epham/stonkbench/output \
-        --report_dir /scratch/epham/stonkbench/mini_exp/fair_20261004
+        --output_root /home/epham/StonkBench/outputs \
+        --report_dir /home/epham/StonkBench/outputs/mini_exp/fair_20261004
 """
 
 from __future__ import annotations
@@ -128,14 +128,14 @@ def main() -> int:
     p.add_argument("--output_root", default=None,
                    help="default: $STONKBENCH_OUTPUT_ROOT or <repo>/outputs")
     p.add_argument("--report_dir", default=None,
-                   help="default: /scratch/$USER/stonkbench/mini_exp/<run_id>")
+                   help="default: /home/epham/StonkBench/outputs/mini_exp/<run_id>")
     p.add_argument("--seq_lengths", default="21,42,126,252")
     args = p.parse_args()
 
     output_root = Path(args.output_root) if args.output_root else get_output_root()
     results_dir = output_root / "results" / args.run_id
-    report_dir = Path(args.report_dir) if args.report_dir else Path(
-        f"/scratch/{__import__('os').environ.get('USER', 'epham')}/stonkbench/mini_exp/{args.run_id}"
+    report_dir = Path(args.report_dir) if args.report_dir else (
+        get_output_root() / "mini_exp" / args.run_id
     )
     report_dir.mkdir(parents=True, exist_ok=True)
     seq_lengths = [int(x) for x in args.seq_lengths.split(",") if x.strip()]

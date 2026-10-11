@@ -5,7 +5,7 @@ artifacts/ for new .pt artifacts. When one lands (or its mtime changes since
 last seen), runs a per-channel collapse diagnostic against the train reference:
 
 - Train reference is auto-selected:
-    1) /scratch/epham/stonkbench/output/ground_truth/ground_truth_seq{N}.pt (matches the
+    1) /home/epham/StonkBench/outputs/ground_truth/ground_truth_seq{N}.pt (matches the
        z-scored files used by sanity plots)
     2) Fallback to /home/epham/StonkBench/data/preprocessed/dl_set_W252.pt
 - Per-channel metrics: std_ratio, KS, AC1, skew, kurtosis.
@@ -24,7 +24,7 @@ ONLY for NaN/Inf DIVERGED — same as monitor_active_job.py.
 
 Output:
 - stdout: human-readable per-event log with verdict + per-channel summary
-- /scratch/epham/stonkbench/slurm_logs/gan_collapse_results.jsonl: append-only
+- /home/epham/StonkBench/slurm_logs/gan_collapse_results.jsonl: append-only
   one JSON object per detection (path, mtime, model_key, seq_length, ts,
   per-channel ratios, mean_ratio, verdict, error).
 
@@ -51,11 +51,11 @@ import numpy as np
 import torch
 from scipy.stats import ks_2samp, skew, kurtosis
 
-DEFAULT_LATEST_DIR = Path("/scratch/epham/stonkbench/output/results/latest")
-DEFAULT_GROUND_TRUTH_DIR = Path("/scratch/epham/stonkbench/output/ground_truth")
+DEFAULT_LATEST_DIR = Path("/home/epham/StonkBench/outputs/results/latest")
+DEFAULT_GROUND_TRUTH_DIR = Path("/home/epham/StonkBench/outputs/ground_truth")
 DEFAULT_DL_SET_PATH = Path("/home/epham/StonkBench/data/preprocessed/dl_set_W252.pt")
-DEFAULT_RESULTS_JSONL = Path("/scratch/epham/stonkbench/slurm_logs/gan_collapse_results.jsonl")
-DEFAULT_LOG_PATH = Path("/scratch/epham/stonkbench/slurm_logs/gan_collapse_monitor.log")
+DEFAULT_RESULTS_JSONL = Path("/home/epham/StonkBench/slurm_logs/gan_collapse_results.jsonl")
+DEFAULT_LOG_PATH = Path("/home/epham/StonkBench/slurm_logs/gan_collapse_monitor.log")
 
 WATCHED_SEQ_LENGTHS = (21, 42, 126, 252)
 

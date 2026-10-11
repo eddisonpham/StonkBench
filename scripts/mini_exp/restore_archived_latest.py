@@ -34,7 +34,7 @@ from pathlib import Path
 
 import torch
 
-OUTPUT_ROOT = Path("/scratch/epham/stonkbench/output")
+OUTPUT_ROOT = Path("/home/epham/StonkBench/outputs")
 ROUND_CUTOFF = "2026-10-04"  # only buckets created by the fair-retrain round
 PRODUCTION_NUM_SAMPLES = {9, 1000}
 DL_MODELS = {

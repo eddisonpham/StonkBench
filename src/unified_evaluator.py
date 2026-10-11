@@ -785,11 +785,27 @@ class UnifiedEvaluator:
             artifacts = [p for p in sorted(self.generated_dir.glob("*/*.pt"))
                          if "ground_truth" not in str(p)]
 
-        # Apply model filter for parallel evaluation
+        # Apply model filter for parallel evaluation. MATCH EXACTLY: a
+        # substring test would make ``--model block_bootstrap`` also pick up
+        # ``stationary_block_bootstrap`` and quietly evaluate two artifacts into
+        # a cell that is supposed to hold one.
         if self.model_filter:
-            artifacts = [p for p in artifacts
-                         if self.model_filter in p.parent.name
-                         or self.model_filter in p.name]
+            wanted = self.model_filter
+
+            def _matches_model(path: Path) -> bool:
+                model_dir = (
+                    path.parent.parent.name
+                    if path.parent.name == "artifacts"
+                    else path.parent.name
+                )
+                stem = path.stem
+                return (
+                    model_dir == wanted
+                    or stem == wanted
+                    or stem.startswith(f"{wanted}_seq")
+                )
+
+            artifacts = [p for p in artifacts if _matches_model(p)]
 
         # Apply single-seq_length filter: keep only the artifact whose NATIVE
         # length equals the requested length. Artifacts are named

@@ -33,8 +33,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-DEFAULT_SLURM_LOG_DIR = Path("/scratch/epham/stonkbench/slurm_logs")
-DEFAULT_LATEST_DIR = Path("/scratch/epham/stonkbench/output/results/latest")
+DEFAULT_SLURM_LOG_DIR = Path("/home/epham/StonkBench/slurm_logs")
+DEFAULT_LATEST_DIR = Path("/home/epham/StonkBench/outputs/results/latest")
 DEFAULT_DL_SET_PATH = Path("/home/epham/StonkBench/data/preprocessed/dl_set_W252.pt")
 
 

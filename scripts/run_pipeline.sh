@@ -1,17 +1,17 @@
 #!/bin/bash
 # End-to-end StonkBench pipeline on Trillium GPU login (trig-login01):
-#   HP search -> aggregate -> final training -> eval -> sync to home
+#   HP search -> aggregate -> final training -> eval -> report status
 #
 # Usage (from trig-login01):
 #   bash scripts/run_pipeline.sh --smoke --submit-only   # short GPU sanity pipeline
 #   bash scripts/run_pipeline.sh --submit-only            # full GPU pipeline
-#   bash scripts/run_pipeline.sh sync                    # sync scratch -> home
+#   bash scripts/run_pipeline.sh status                   # print output summary
 set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-$HOME/StonkBench}"
-SCRATCH_ROOT="${SCRATCH:-/scratch/$USER}"
-STAGING_ROOT="${SCRATCH_ROOT}/stonkbench/output"
-CANONICAL_OUTPUT="/home/epham/StonkBench/output"
+# Single canonical output tree: <repo>/outputs/. There is no scratch staging
+# copy and no post-hoc rsync — jobs write here directly.
+CANONICAL_OUTPUT="${STONKBENCH_OUTPUT_ROOT:-${PROJECT_ROOT}/outputs}"
 SLURM_DIR="${PROJECT_ROOT}/scripts/slurm"
 SUBMIT_ONLY=0
 SMOKE=0
@@ -32,15 +32,11 @@ require_gpu_login() {
     "cd $(printf '%q' "${PROJECT_ROOT}") && bash scripts/run_pipeline.sh $(printf '%q ' "${fwd_args[@]}")"
 }
 
-sync_to_home() {
-  if [[ ! -d "${STAGING_ROOT}" ]]; then
-    echo "No staged outputs at ${STAGING_ROOT}"
+report_status() {
+  if [[ ! -d "${CANONICAL_OUTPUT}" ]]; then
+    echo "No outputs at ${CANONICAL_OUTPUT}"
     exit 1
   fi
-
-  mkdir -p "${CANONICAL_OUTPUT}"
-  echo "Syncing ${STAGING_ROOT} -> ${CANONICAL_OUTPUT}"
-  rsync -av "${STAGING_ROOT}/" "${CANONICAL_OUTPUT}/"
 
   echo ""
   echo "Output summary:"
@@ -87,7 +83,7 @@ wait_for_job() {
   exit_code=$(sacct -j "${job_id}" --format=ExitCode --noheader -P 2>/dev/null | head -1 | cut -d'|' -f1)
   echo "${label} finished: state=${state} exit=${exit_code}"
   if [[ "${state}" != "COMPLETED" ]] || [[ "${exit_code}" != "0:0" ]]; then
-    echo "ERROR: ${label} did not succeed. Check ${SCRATCH_ROOT}/stonkbench/slurm_logs/"
+    echo "ERROR: ${label} did not succeed. Check ${PROJECT_ROOT}/slurm_logs/"
     exit 1
   fi
 }
@@ -101,7 +97,7 @@ sbatch_gpu() {
 
 submit_pipeline() {
   require_gpu_login
-  mkdir -p "${SCRATCH_ROOT}/stonkbench/slurm_logs"
+  mkdir -p "${PROJECT_ROOT}/slurm_logs"
   cd "${PROJECT_ROOT}"
 
   local hp_id agg_id train_id eval_id
@@ -145,13 +141,12 @@ submit_pipeline() {
   fi
 
   echo ""
-  echo "Staged on compute: ${STAGING_ROOT}"
-  echo "Final destination: ${CANONICAL_OUTPUT}"
-  echo "Logs: ${SCRATCH_ROOT}/stonkbench/slurm_logs/"
+  echo "Output: ${CANONICAL_OUTPUT}"
+  echo "Logs: ${PROJECT_ROOT}/slurm_logs/"
 
   if [[ "${SUBMIT_ONLY}" == "1" ]]; then
     echo ""
-    echo "Jobs submitted. When finished, run: bash scripts/run_pipeline.sh sync"
+    echo "Jobs submitted. When finished, run: bash scripts/run_pipeline.sh status"
     return 0
   fi
 
@@ -159,13 +154,13 @@ submit_pipeline() {
   wait_for_job "${agg_id}" "HP aggregate"
   wait_for_array "${train_id}" "Final training"
   wait_for_job "${eval_id}" "Evaluation"
-  sync_to_home
+  report_status
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    sync)
-      sync_to_home
+    status)
+      report_status
       exit 0
       ;;
     --submit-only)
@@ -180,11 +175,11 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     -h|--help)
-      echo "Usage: bash scripts/run_pipeline.sh [--smoke] [--submit-only | sync]"
+      echo "Usage: bash scripts/run_pipeline.sh [--smoke] [--submit-only | status]"
       exit 0
       ;;
     *)
-      echo "Usage: bash scripts/run_pipeline.sh [--smoke] [--submit-only | sync]"
+      echo "Usage: bash scripts/run_pipeline.sh [--smoke] [--submit-only | status]"
       exit 1
       ;;
   esac

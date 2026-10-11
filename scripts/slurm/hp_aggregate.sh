@@ -6,8 +6,8 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=2
 #SBATCH --time=00:30:00
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/hp_agg_%j.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/hp_agg_%j.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/hp_agg_%j.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/hp_agg_%j.err
 
 set -euo pipefail
 source "${PROJECT_ROOT:-$HOME/StonkBench}/scripts/slurm/common.sh"

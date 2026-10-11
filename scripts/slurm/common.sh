@@ -6,12 +6,9 @@ PROJECT_ROOT="${PROJECT_ROOT:-$HOME/StonkBench}"
 # STONKBENCH_OUTPUT_ROOT in src/utils/env.py). Override via $STONKBENCH_OUTPUT_ROOT
 # or the per-script --output_root flag if you must point elsewhere.
 CANONICAL_OUTPUT="${STONKBENCH_OUTPUT_ROOT:-${PROJECT_ROOT}/outputs}"
-SCRATCH_ROOT="${SCRATCH:-/scratch/$USER}"
-STAGING_ROOT="${SCRATCH_ROOT}/stonkbench/output"
-if [[ "${STONKBENCH_SMOKE:-0}" == "1" ]]; then
-  STAGING_ROOT="${SCRATCH_ROOT}/stonkbench/output_smoke"
-fi
-SLURM_LOG_DIR="${SCRATCH_ROOT}/stonkbench/slurm_logs"
+# Job logs live inside the repo too. Previously they went to a parallel
+# $SCRATCH/stonkbench/slurm_logs tree that the repo could not see.
+SLURM_LOG_DIR="${PROJECT_ROOT}/slurm_logs"
 
 # Run id token. Default is "latest" so re-runs overwrite in-place;
 # ``archive_existing`` evacuates the prior active contents to ``_legacy/``.
@@ -20,18 +17,12 @@ SLURM_LOG_DIR="${SCRATCH_ROOT}/stonkbench/slurm_logs"
 STONKBENCH_RUN_ID="${STONKBENCH_RUN_ID:-latest}"
 export STONKBENCH_RUN_ID
 
-# On compute nodes /home is typically read-only, so we write to scratch
-# during computation and symlink ~/outputs -> scratch after completion.
-# Detect compute vs login: if /home is not writable, fall back to scratch.
-if mkdir -p "${CANONICAL_OUTPUT}/.write_test" 2>/dev/null; then
-  rmdir "${CANONICAL_OUTPUT}/.write_test" 2>/dev/null || true
-  OUTPUT_ROOT="${CANONICAL_OUTPUT}"
-  _ON_COMPUTE=0
-else
-  OUTPUT_ROOT="${STAGING_ROOT}"
-  _ON_COMPUTE=1
-fi
-export _ON_COMPUTE
+# Everything is written straight to <repo>/outputs/ — there is no compute/login
+# split and no silent staging mirror. That split is exactly what previously put
+# the code on one root while every artifact sat on another, unobserved tree.
+# mkdir is allowed to fail loudly (`set -e`) rather than quietly redirect.
+mkdir -p "${CANONICAL_OUTPUT}"
+OUTPUT_ROOT="${CANONICAL_OUTPUT}"
 
 export PYTHONPATH="${PROJECT_ROOT}:${PYTHONPATH:-}"
 export STONKBENCH_OUTPUT_ROOT="${OUTPUT_ROOT}"
@@ -67,10 +58,8 @@ fi
 
 # Pre-flight: fail loud if neither env path is available. Saves debugging
 # time on accounts/staging where the install hasn't been done.
-if [[ ! -f "${HOME}/.venvs/stonkbench/bin/activate" ]] \
-   && [[ ! -f "${HOME}/miniconda/etc/profile.d/conda.sh" ]] \
-   && [[ ! -f "${HOME}/miniconda/bin/activate" ]]; then
-  echo "[common.sh] ERROR: no usable env (missing \$HOME/.venvs/stonkbench and \$HOME/miniconda)." >&2
+if [[ ! -f "${HOME}/.venvs/stonkbench/bin/activate" ]]; then
+  echo "[common.sh] ERROR: missing venv \$HOME/.venvs/stonkbench (run scripts/install_stonkbench.sh)." >&2
   exit 2
 fi
 
@@ -81,20 +70,8 @@ fi
 # deps are still expected from the host (typically via `module load
 # level-zero` or system ldconfig — calling modules below covers the common
 # case; if a compute node diverges, add `module load level-zero` here).
-if [[ -f "${HOME}/.venvs/stonkbench/bin/activate" ]]; then
-  # shellcheck source=/dev/null
-  source "${HOME}/.venvs/stonkbench/bin/activate"
-else
-  # Legacy conda path for accounts that DO have conda-stonkbench.
-  if [[ -f "${HOME}/miniconda/etc/profile.d/conda.sh" ]]; then
-    # shellcheck source=/dev/null
-    source "${HOME}/miniconda/etc/profile.d/conda.sh"
-  else
-    # shellcheck source=/dev/null
-    source "${HOME}/miniconda/bin/activate"
-  fi
-  conda activate stonkbench
-fi
+# shellcheck source=/dev/null
+source "${HOME}/.venvs/stonkbench/bin/activate"
 
 # Alliance CUDA modules expose LIBRARY_PATH, not LD_LIBRARY_PATH. Torch needs the latter.
 _cuda_lib_dirs=()

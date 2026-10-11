@@ -6,7 +6,7 @@
 # Sets BOTH ``OUTPUT_ROOT`` (consumed by ``scripts/vm/run_parallel.sh``)
 # AND ``STONKBENCH_OUTPUT_ROOT`` (consumed by ``src/utils/env.py`` and
 # every other Python entrypoint). Without setting ``OUTPUT_ROOT`` too,
-# ``run_parallel.sh`` defaults to ``/scratch/stonkbench/output`` which is
+# ``run_parallel.sh`` defaults to ``/home/epham/StonkBench/outputs`` which is
 # unwritable on a vanilla VM and silently falls back to
 # ``$HOME/stonkbench_output_vm`` — putting artifacts OUTSIDE the
 # canonical ``<repo>/outputs/`` directory and violating the user's

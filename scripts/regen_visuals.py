@@ -13,8 +13,8 @@ alongside the already-computed metrics.
 
 Usage:
     python scripts/regen_visuals.py \
-        --generated_dir /scratch/epham/stonkbench/output/results/latest \
-        --results_dir /scratch/epham/stonkbench/output/results/latest/evaluation \
+        --generated_dir <repo>/outputs/results/latest \
+        --results_dir <repo>/outputs/results/latest/evaluation \
         [--workers 8]
 """
 
@@ -82,8 +82,8 @@ def main() -> None:
 
     # Build a lookup of canonical artifacts keyed by (metadata model_name, seq):
     # the evaluator's --seq_length L filter keeps exactly ``<name>_seq<L>.pt``
-    # and reports results under metadata model_name (which may differ from the
-    # on-disk artifact dir, e.g. cond_sig_wgan -> csigwgan_noise10).
+    # and reports results under metadata model_name, which now always equals
+    # the on-disk artifact dir name.
     artifact_lookup: dict[tuple[str, int], Path] = {}
     for model_dir in sorted(generated_dir.iterdir()):
         if not model_dir.is_dir() or model_dir.name == "ground_truth":

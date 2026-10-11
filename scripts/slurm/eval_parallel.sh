@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=24:00:00
 #SBATCH --array=0-47
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/eval_%A_%a.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/eval_%A_%a.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/eval_%A_%a.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/eval_%A_%a.err
 
 # 48 parallel evaluation tasks: 12 models × 4 seq_lengths.
 # Task ID maps to: model_idx = TASK_ID // 4, seq_idx = TASK_ID % 4
@@ -28,7 +28,7 @@ MODELS=(
   stationary_block_bootstrap
   merton_jump_diffusion
   de_jump_diffusion
-  garch11
+  dcc_garch
 )
 
 SEQ_LENGTHS=(21 42 126 252)

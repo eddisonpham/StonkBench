@@ -28,8 +28,8 @@ import torch  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-RESULTS = Path("/scratch/epham/stonkbench/output/results/latest")
-SANITY = Path("/scratch/epham/stonkbench/output/sanity/latest/cond_sig_wgan")
+RESULTS = Path("/home/epham/StonkBench/outputs/results/latest")
+SANITY = Path("/home/epham/StonkBench/outputs/sanity/latest/cond_sig_wgan")
 MODEL = "cond_sig_wgan"
 SEQ_LENGTHS = [21, 42, 126, 252]
 

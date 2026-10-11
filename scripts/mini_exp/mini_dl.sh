@@ -6,8 +6,8 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=01:55:00
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/mini_dl_%j.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/mini_dl_%j.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/mini_dl_%j.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/mini_dl_%j.err
 
 # Mini DL validation runs (debug partition; qos=debug allows only 1 job per
 # user, so this is ONE sequential job over a selectable model batch).
@@ -55,7 +55,7 @@ esac
 SELECTED="${SELECTED//,/ }"
 
 RUN_ID="${STONKBENCH_RUN_ID:?STONKBENCH_RUN_ID must be set (e.g. mini_20261004a)}"
-MINI_ROOT="${STONKBENCH_MINI_ROOT:-/scratch/$USER/stonkbench/mini_exp}"
+MINI_ROOT="${STONKBENCH_MINI_ROOT:-/home/epham/StonkBench/outputs/mini_exp}"
 mkdir -p "${MINI_ROOT}/${RUN_ID}/events"
 
 RC=0

@@ -6,8 +6,8 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=04:00:00
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/fair_train_%j.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/fair_train_%j.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/fair_train_%j.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/fair_train_%j.err
 
 # FULL-BUDGET fair retraining of the DL models, production path
 # (run_final_training -> run_model_experiment), with the fairness fix:
@@ -29,7 +29,7 @@ source "${PROJECT_ROOT:-$HOME/StonkBench}/scripts/slurm/common.sh"
 cd "${PROJECT_ROOT}"
 
 RUN_ID="${STONKBENCH_RUN_ID:?STONKBENCH_RUN_ID must be set (e.g. fair_20261004)}"
-MINI_ROOT="${STONKBENCH_MINI_ROOT:-/scratch/$USER/stonkbench/mini_exp}"
+MINI_ROOT="${STONKBENCH_MINI_ROOT:-/home/epham/StonkBench/outputs/mini_exp}"
 RUN_DIR="${MINI_ROOT}/${RUN_ID}"
 mkdir -p "${RUN_DIR}/events"
 

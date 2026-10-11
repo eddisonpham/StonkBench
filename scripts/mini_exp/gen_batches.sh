@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=08:00:00
 #SBATCH --array=0-83
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/gen_%A_%a.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/gen_%A_%a.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/gen_%A_%a.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/gen_%A_%a.err
 
 # Multi-batch sequence generation for the full-scale ablation evaluation.
 #

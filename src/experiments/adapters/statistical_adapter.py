@@ -10,7 +10,7 @@ sibling to Moving Block Bootstrap preserving cross-channel structure.
 |----------------------------------|---------------------------|-------------------------------------------------------|
 | StatisticalMertonAdapter         | MertonJumpDiffusion       | Per-channel params + Cholesky-of-cov diffusion       |
 | StatisticalDEJDAdapter           | DoubleExponentialJumpDiff | Per-channel params + Cholesky-of-cov diffusion       |
-| StatisticalGARCH11Adapter        | GARCH11                   | Per-channel GARCH(1,1) + Cholesky-of-resid-corr      |
+| StatisticalDCCGARCHAdapter     | DCC-GARCH(1,1)            | Engle (2002): GARCH vol + time-varying DCC correlation |
 | BlockBootstrapAdapter            | BlockBootstrap (MBB)      | Multivariate block resample (Kunsch 1989)             |
 | StationaryBlockBootstrapAdapter  | StationaryBlockBootstrap  | Multivariate Geometric-length block resample (Politis & Romano 1994) |
 """
@@ -25,7 +25,7 @@ from src.experiments.adapters.base_adapter import ModelAdapter
 from src.experiments.core.contracts import AdapterFitInput, AdapterGenerateOutput
 from src.models.statistical.block_bootstrap import BlockBootstrap
 from src.models.statistical.de_jump_diffusion import DoubleExponentialJumpDiffusion
-from src.models.statistical.garch11 import GARCH11
+from src.models.statistical.dcc_garch import DCCGARCH
 from src.models.statistical.merton_jump_diffusion import MertonJumpDiffusion
 from src.models.statistical.stationary_block_bootstrap import StationaryBlockBootstrap
 
@@ -117,15 +117,20 @@ class StatisticalDEJDAdapter(ModelAdapter):
 # ---------------------------------------------------------------------------
 
 
-class StatisticalGARCH11Adapter(ModelAdapter):
-    """Multivariate GARCH(1,1) — per-channel GARCH vol + Cholesky-of-residual correlation."""
+class StatisticalDCCGARCHAdapter(ModelAdapter):
+    """Multivariate DCC-GARCH(1,1) — Engle (2002): per-channel GARCH vol + time-varying DCC correlation.
 
-    model_name = "GARCH11Adapter"
+    Natively multivariate: the cross-channel dependence is carried by the Q_t / R_t
+    matrices that evolve jointly via the DCC recursion, not by a static Cholesky
+    overlay on per-channel draws.
+    """
+
+    model_name = "DCCGARCHAdapter"
     supports_arbitrary_generation = True
 
     def __init__(self) -> None:
         super().__init__()
-        self.model: GARCH11 | None = None
+        self.model: DCCGARCH | None = None
         self.num_channels = 0
 
     def fit(self, fit_input: AdapterFitInput, checkpoints_dir: Path, logs_dir: Path) -> Dict[str, Any]:
@@ -133,12 +138,17 @@ class StatisticalGARCH11Adapter(ModelAdapter):
         if train.ndim == 1:
             train = train.unsqueeze(-1)
         if train.ndim != 2:
-            raise ValueError("StatisticalGARCH11Adapter expects train split shaped (L, C)")
+            raise ValueError("StatisticalDCCGARCHAdapter expects train split shaped (L, C)")
         self.num_channels = train.shape[1]
-        self.model = GARCH11()
+        self.model = DCCGARCH()
         self.model.fit(train)
         self._is_fitted = True
-        return {"num_channels": self.num_channels, "multivariate": True}
+        return {
+            "num_channels": self.num_channels,
+            "multivariate": True,
+            "dcc_alpha": self.model.alpha_dcc,
+            "dcc_beta": self.model.beta_dcc,
+        }
 
     def generate(self, num_samples: int, generation_length: int, seed: int) -> AdapterGenerateOutput:
         if not self._is_fitted or self.model is None:
@@ -148,8 +158,13 @@ class StatisticalGARCH11Adapter(ModelAdapter):
             data = data.unsqueeze(-1)
         return AdapterGenerateOutput(
             data=data.float(),
-            logs={"generator": "multivariate_garch11_frozen_corr"},
-            extra_metadata={"num_channels": self.num_channels, "multivariate": True},
+            logs={"generator": "dcc_garch_engle2002"},
+            extra_metadata={
+                "num_channels": self.num_channels,
+                "multivariate": True,
+                "dcc_alpha": self.model.alpha_dcc,
+                "dcc_beta": self.model.beta_dcc,
+            },
         )
 
 

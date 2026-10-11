@@ -7,15 +7,15 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=8:00:00
 #SBATCH --array=0-11%4
-#SBATCH --output=/scratch/epham/stonkbench/slurm_logs/exp_%A_%a.out
-#SBATCH --error=/scratch/epham/stonkbench/slurm_logs/exp_%A_%a.err
+#SBATCH --output=/home/epham/StonkBench/slurm_logs/exp_%A_%a.out
+#SBATCH --error=/home/epham/StonkBench/slurm_logs/exp_%A_%a.err
 
 # Unified experiment: HP search + final train + generate per model.
 # DL models get HP tuning; stat models get full-history training.
 set -euo pipefail
 source "${PROJECT_ROOT:-$HOME/StonkBench}/scripts/slurm/common.sh"
 cd "${PROJECT_ROOT}"
-mkdir -p /scratch/epham/stonkbench/slurm_logs
+mkdir -p "${HOME}/StonkBench/slurm_logs"
 
 MODELS=(
   # --- DL models (7) ---
@@ -31,7 +31,7 @@ MODELS=(
   stationary_block_bootstrap
   merton_jump_diffusion
   de_jump_diffusion
-  garch11
+  dcc_garch
 )
 
 if [[ "${SLURM_ARRAY_TASK_ID}" -ge "${#MODELS[@]}" ]]; then
@@ -52,7 +52,7 @@ HP_ARGS=()
 # run_experiment.py handles this internally, but we pass --skip-hp for stat
 # models to avoid unnecessary trial spawning.
 case "${MODEL}" in
-  block_bootstrap|stationary_block_bootstrap|merton_jump_diffusion|de_jump_diffusion|garch11)
+  block_bootstrap|stationary_block_bootstrap|merton_jump_diffusion|de_jump_diffusion|dcc_garch)
     HP_ARGS+=(--skip-hp)
     ;;
 esac

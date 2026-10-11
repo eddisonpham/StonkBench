@@ -84,7 +84,7 @@ STAT_MODELS=(
     "stationary_block_bootstrap"
     "merton_jump_diffusion"
     "de_jump_diffusion"
-    "garch11"
+    "dcc_garch"
 )
 
 # GPU sanity check: real CUDA ops, not just torch import

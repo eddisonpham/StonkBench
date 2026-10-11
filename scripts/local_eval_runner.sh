@@ -18,7 +18,9 @@ set -uo pipefail
 ulimit -t "${LOCAL_EVAL_CPU_LIMIT:-5400}" 2>/dev/null || true
 
 PROJECT_ROOT="${PROJECT_ROOT:-$HOME/StonkBench}"
-LOG_DIR="${SCRATCH:-/scratch/$USER}/stonkbench/local_eval"
+# Eval logs live inside the repo outputs tree. This previously pointed at a
+# parallel $SCRATCH/stonkbench/local_eval tree the repo could not see.
+LOG_DIR="${PROJECT_ROOT}/outputs/logs/local_eval"
 mkdir -p "${LOG_DIR}"  # must exist before any redirect into it
 cd "${PROJECT_ROOT}"
 # shellcheck source=scripts/slurm/common.sh
@@ -28,18 +30,12 @@ source scripts/slurm/common.sh  # venv, modules, env vars
 set +e
 
 RUN_ID="${STONKBENCH_RUN_ID:-latest}"
-SCRATCH_OUT="/scratch/${USER}/stonkbench/output"
-if [[ -d "${SCRATCH_OUT}/results/${RUN_ID}" ]]; then
-  GENERATED_DIR="${SCRATCH_OUT}/results/${RUN_ID}"
-else
-  GENERATED_DIR="${OUTPUT_ROOT}/results/${RUN_ID}"
-fi
+GENERATED_DIR="${OUTPUT_ROOT}/results/${RUN_ID}"
 RESULTS_DIR="${GENERATED_DIR}/evaluation"
 mkdir -p "${RESULTS_DIR}"
 
-# Artifact dir names on disk (the csigwgan variant lives under cond_sig_wgan;
-# its metadata model_name is csigwgan_noise10, which the evaluator reports in
-# outputs but which would NOT match the parent-dir artifact filter).
+# Artifact dir names on disk. These are the same strings written into artifact
+# metadata as model_name, so evaluation output dirs always match artifact dirs.
 MODELS=(
   quantgan
   timegrad
@@ -52,15 +48,29 @@ MODELS=(
   stationary_block_bootstrap
   merton_jump_diffusion
   de_jump_diffusion
-  garch11
+  dcc_garch
 )
 SEQ_LENGTHS=( 21 42 126 252 )
 CONCURRENCY="${LOCAL_EVAL_CONCURRENCY:-12}"
-THREADS="${LOCAL_EVAL_THREADS:-8}"
+THREADS="${LOCAL_EVAL_THREADS:-4}"
 # Per-channel parallel evaluation workers (spawned processes). Speeds up the
 # DTW + hedging phases ~10x and keeps per-process CPU time under the login-node
 # hard cap, which previously SIGKILL'd long seq_126 stat-model tasks.
-EVAL_WORKERS="${LOCAL_EVAL_WORKERS:-8}"
+#
+# IMPORTANT: the login node caps the user at 1024 tasks via ``ulimit -u``, and
+# Linux counts *threads* as tasks. Spawned pool workers inherit OMP_NUM_THREADS,
+# so the peak task count is roughly
+#   CONCURRENCY * (EVAL_WORKERS * THREADS + THREADS + ~3).
+# The original 12/8/8 combination asked for ~900 tasks on top of the session
+# baseline, tripped the limit, and the resulting fork() failure deadlocked
+# ``multiprocessing.Pool`` (tasks hung forever with zero CPU use). Keep the
+# product comfortably below ~500 tasks.
+EVAL_WORKERS="${LOCAL_EVAL_WORKERS:-4}"
+if (( CONCURRENCY * (EVAL_WORKERS * THREADS + THREADS + 3) > 500 )); then
+  echo "$(date -Is) WARN thread budget ${CONCURRENCY}x(${EVAL_WORKERS}x${THREADS}+${THREADS}+3)" \
+    "may exceed the 1024-task ulimit -u; lower LOCAL_EVAL_CONCURRENCY/THREADS/WORKERS" \
+    >> "${LOG_DIR}/progress.log"
+fi
 
 export PYTHONUNBUFFERED=1
 export OMP_NUM_THREADS="${THREADS}"
@@ -73,14 +83,11 @@ echo "$(date -Is) START runner concurrency=${CONCURRENCY} threads=${THREADS} gpu
   >> "${LOG_DIR}/progress.log"
 
 # Skip tasks whose metrics.json already exists and is complete (all six
-# top-level categories). Output dir uses the artifact's metadata model_name
-# (csigwgan_noise10 for the cond_sig_wgan artifacts).
+# top-level categories). The output dir is the model key itself.
 metric_done() {
   local model="$1"
   local seq="$2"
-  local out_model="$model"
-  [[ "$model" == "cond_sig_wgan" ]] && out_model="csigwgan_noise10"
-  local f="${RESULTS_DIR}/seq_${seq}/${out_model}/metrics.json"
+  local f="${RESULTS_DIR}/seq_${seq}/${model}/metrics.json"
   [[ -f "$f" ]] && grep -q '"FidelityEvaluator"' "$f" 2>/dev/null && grep -q '"utility"' "$f" 2>/dev/null
 }
 

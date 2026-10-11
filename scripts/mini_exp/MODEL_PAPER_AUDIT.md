@@ -170,7 +170,7 @@ Production artifacts under the **same metric code** (GT = evaluator's
 fresh dl_set test windows): timegrad 0.73–0.79 (n=9), utsd 0.93–0.94 (n=9),
 csd 0.86–0.87 (n=9), quantgan 1.13–1.42 (n=9), sigwgan 0.97–0.98 (n=9),
 vrnn 0.78–0.89 (n=1000), kalman 0.73–1.02 (n=1000). Statistical reference:
-bootstraps 1.10–1.16, garch11 1.75–2.35 (over-dispersed), merton/de_jump
+bootstraps 1.10–1.16, dcc_garch 1.75–2.35 (over-dispersed), merton/de_jump
 KS 0.46–0.49 (nonsense tails).
 
 Verdict: **all 7 mini DL models produce finite, sensible outputs** in the
@@ -662,10 +662,63 @@ seeds, native lengths, checkpoints, GT references, ready-to-run eval commands)
 with 0 missing, so the evaluation stage can enumerate its inputs without
 walking the tree.
 
-### Evals staged but NOT run
+### Evals restarted as one job per artifact (2026-10-06)
 
-`scripts/mini_exp/eval_gen_batches.sh` (array 0-8 = ablation × batch, each with
-its own `results_dir` so `complete_evaluation.json` never races) and
-`scripts/mini_exp/EVAL_PLAN.md`. Per the operator decision the taxonomy +
-downstream evaluation is **prepared only** — it stays unsubmitted until
-explicitly green-lit.
+Green-lit by the operator ("I want jobs running. Including statistical
+models"). `scripts/mini_exp/eval_gen_batches.sh` now submits **array 0-431 =
+one artifact per task**: 3 ablations × 3 batches × 12 models × 4 sequence
+lengths. Each task runs that single cell end to end (fidelity / diversity /
+stylized facts / visual + the downstream metrics the evaluator owns — utility
+and hedging, portfolio optimisation, P&L) and then writes that cell's plots.
+
+Every task owns `results_dir =
+<ablation>/evaluation_batch<k>/<model>_seq<L>/`, because the evaluator
+**overwrites** `complete_evaluation.json` on each run; one cell per directory
+means the 432 writers never race and there is **no shard-merge step** —
+`scripts/mini_exp/aggregate_batch_metrics.py` reads the per-cell summaries
+directly. The earlier 36-task sharded layout (and its
+`merge_eval_shards.py`) was retired; its 17 partial summaries are preserved
+under `<ablation>/_superseded_shard_evals/`.
+
+Two real bugs were found and fixed before the full submission:
+
+* **Thread starvation.** This script never exported `OMP_NUM_THREADS` (the
+generation drivers did), so torch/OpenMP sized their pools from the node's ~96
+cores instead of the 8 CPUs slurm allocated. The oversized pool spin-waited
+inside the 8-CPU affinity mask and starved the working thread: affected tasks
+burned 7–9 CPU-hours per artifact (a seq126 shard needed 80 min for an artifact
+that takes ~5). `OMP_NUM_THREADS` / `MKL_NUM_THREADS` /
+`OPENBLAS_NUM_THREADS` / `NUMEXPR_NUM_THREADS` = 8 and
+`OMP_WAIT_POLICY=passive` are now exported, and the job logs them: smoke job
+1040042 prints `slots=8 OMP_NUM_THREADS=8 MKL_NUM_THREADS=8
+OMP_WAIT_POLICY=passive`. With the clamp, statistical cells complete in ~6 min
+and DL cells land in single-digit minutes instead of tens.
+* **Model-filter collision.** `--model` matched as a *substring*, so
+  `--model block_bootstrap` also matched `stationary_block_bootstrap_seq*.pt`
+  and would have written two artifacts into a one-cell directory. The filter
+  in `src/unified_evaluator.py` now matches the model directory / file stem
+  exactly, and each job re-checks that its summary holds exactly its own cell
+  (`[ok] block_bootstrap_seq21: 22 metric blocks`).
+
+* smoke job **1040042** (debug, `block_bootstrap` @ seq21): rc=0 in 6:13, all
+  22 metric blocks present (`FidelityEvaluator`, `DiversityEvaluator`,
+  `StylizedFactsEvaluator`, `utility`, `portfolio`, `pnl`, …), plots written to
+  `plots/{comparison,downstream,per_asset,scatter,window_size}`.
+* full job **1040043**: array 0-431 on `compute`, 06:00:00 limit each,
+  submitted from `trig-login01` with
+  `--export=ALL,GEN_ROOT=/scratch/epham/stonkbench/output/generation`.
+  Its not-yet-started tasks were re-submitted as **1040158**
+  (`--array=24-431`, 02:00:00) once per-cell cost was measured; unfinished
+  cells are skipped, so nothing is recomputed. Task 26 timed out at the
+  40-min limit and was re-queued as **1040509**; four tasks cancelled after
+  starting (153/154/157/159) were topped up as **1044081**. Finisher
+  **1044082** (`--dependency=afterany:1040158:1040509:1044081`) checks
+  coverage and aggregates when the grid ends.
+  Per-cell cost is dominated by the downstream window loop, which peaks at
+  `L = 126` — see `EVAL_PLAN.md` §2 for the measured table.
+* progress: `scripts/mini_exp/await_eval_jobs.sh 1040158,1044081,1040509`
+  (report only — it never resubmits; a previous version did and piled up
+  duplicate array jobs, and an even earlier one exited on sticky `sacct`
+  TIMEOUT history instead of reporting progress).
+* post-run: `aggregate_batch_metrics.py --root <root> --ablation …` produces
+  the mean ± std tables. See `scripts/mini_exp/EVAL_PLAN.md` §2–§3.

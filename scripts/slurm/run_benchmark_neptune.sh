@@ -2,8 +2,8 @@
 #SBATCH --job-name=stonkbench-neptune
 #SBATCH --account=def-yqhuang
 #SBATCH --nodes=1
-#SBATCH --output=/scratch/%u/stonkbench/logs/neptune_benchmark_%j.out
-#SBATCH --error=/scratch/%u/stonkbench/logs/neptune_benchmark_%j.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/neptune_benchmark_%j.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/neptune_benchmark_%j.err
 #SBATCH --partition=compute_neptune
 #SBATCH --qos=neptune
 #SBATCH --nodes=1

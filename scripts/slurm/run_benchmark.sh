@@ -6,8 +6,8 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=12:00:00
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/benchmark_%j.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/benchmark_%j.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/benchmark_%j.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/benchmark_%j.err
 
 set -euo pipefail
 PROJECT_ROOT="${PROJECT_ROOT:-$HOME/StonkBench}"

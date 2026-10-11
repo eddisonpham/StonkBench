@@ -78,7 +78,7 @@ def _load_reference(ablation: str, model: str, seq_len: int) -> torch.Tensor | N
     env_root = os.environ.get("OUTPUT_ROOT")
     if env_root:
         roots.append(Path(env_root))
-    roots.append(Path(f"/scratch/epham/stonkbench/output/results"))
+    roots.append(Path(f"/home/epham/StonkBench/outputs/results"))
     for root in roots:
         cand = root / ablation / model / "artifacts" / f"{model}_seq{seq_len}.pt"
         if cand.exists():

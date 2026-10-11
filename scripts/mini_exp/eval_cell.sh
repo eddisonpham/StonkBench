@@ -6,8 +6,8 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=04:00:00
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/simeval_cell_%j.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/simeval_cell_%j.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/simeval_cell_%j.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/simeval_cell_%j.err
 
 # Re-evaluate ONE (model, seq_length) cell of simulation_v2.
 #

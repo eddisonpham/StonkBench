@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=1-00:00:00
 #SBATCH --array=0-71%8
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/hp_%A_%a.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/hp_%A_%a.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/hp_%A_%a.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/hp_%A_%a.err
 
 # One HP trial per GPU. Full grid = 72 trials (8 DL models x 9 configs).
 set -euo pipefail

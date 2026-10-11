@@ -6,8 +6,8 @@ set -u
 LOG=/tmp/sigwgan_watch.log
 RUN_ID=fair_20261004
 PY="$HOME/.venvs/stonkbench/bin/python"
-REPORT_DIR=/scratch/epham/stonkbench/mini_exp/${RUN_ID}
-OUTPUT_ROOT=/scratch/epham/stonkbench/output
+REPORT_DIR=/home/epham/StonkBench/outputs/mini_exp/${RUN_ID}
+OUTPUT_ROOT=/home/epham/StonkBench/outputs
 
 : > "$LOG"
 echo "$(date -Is) WATCH_START job=1032854" >> "$LOG"
@@ -23,7 +23,7 @@ if [ "${done_flag}" != 1 ]; then
   exit 1
 fi
 echo "$(date -Is) JOB_LEFT_QUEUE" >> "$LOG"
-ssh -o BatchMode=yes trig-login01 'grep -E "TRAIN DONE|SCORE rc|REFRESH_REPORT rc|Traceback" /scratch/epham/stonkbench/slurm_logs/fair_train_1032854.out | tail -6' >> "$LOG" 2>&1
+ssh -o BatchMode=yes trig-login01 'grep -E "TRAIN DONE|SCORE rc|REFRESH_REPORT rc|Traceback" /home/epham/StonkBench/slurm_logs/fair_train_1032854.out | tail -6' >> "$LOG" 2>&1
 
 # 1. uniqueness of regenerated artifacts
 cd "$HOME/StonkBench" || exit 1
@@ -31,7 +31,7 @@ set +e
 "$PY" - <<'PYEOF' >> "$LOG" 2>&1
 import numpy as np, torch, glob
 ok = True
-for p in sorted(glob.glob('/scratch/epham/stonkbench/output/results/fair_20261004/cond_sig_wgan/artifacts/*.pt')):
+for p in sorted(glob.glob('/home/epham/StonkBench/outputs/results/fair_20261004/cond_sig_wgan/artifacts/*.pt')):
     raw = torch.load(p, map_location='cpu', weights_only=False)
     arr = raw['data'].float().numpy() if isinstance(raw, dict) else np.asarray(raw)
     flat = arr.reshape(arr.shape[0], -1)

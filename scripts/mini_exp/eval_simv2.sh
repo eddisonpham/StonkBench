@@ -6,8 +6,8 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=12:00:00
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/simeval_%j.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/simeval_%j.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/simeval_%j.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/simeval_%j.err
 
 # Unified evaluation suite over the 28 simulation_v2 artifacts (artifact-only,
 # skip_regenerate default = evaluate the stored tensors as-is). Writes the

@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=12:00:00
 #SBATCH --array=0-5%4
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/benchmark_array_%A_%a.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/benchmark_array_%A_%a.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/benchmark_array_%A_%a.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/benchmark_array_%A_%a.err
 
 set -euo pipefail
 PROJECT_ROOT="${PROJECT_ROOT:-$HOME/StonkBench}"

@@ -5,8 +5,8 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=12
 #SBATCH --time=24:00:00
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/eval_%j.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/eval_%j.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/eval_%j.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/eval_%j.err
 # ---------------------------------------------------------------------------
 # StonkBench — Full Evaluation + Downstream Tasks + Plot Generation
 #

@@ -6,7 +6,7 @@
 set -euo pipefail
 RUN_ID="${1:?usage: monitor.sh <run_id> [--follow]}"
 FOLLOW="${2:-}"
-MINI_ROOT="${STONKBENCH_MINI_ROOT:-/scratch/epham/stonkbench/mini_exp}"
+MINI_ROOT="${STONKBENCH_MINI_ROOT:-/home/epham/StonkBench/outputs/mini_exp}"
 RUN_DIR="${MINI_ROOT}/${RUN_ID}"
 
 echo "=== queue ==="

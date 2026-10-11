@@ -33,9 +33,9 @@ from src.utils.env import project_root  # noqa: E402
 ROOT = project_root().resolve()
 DEFAULT_RUN_ID_FALLBACK = "latest"  # mirror get_run_id() default so --run-id without arg keeps working
 
-# Canonical 14 final models (post 2026-07-23 cleanup + 2026-07-27 timegrad
-# re-added).  timevae / sig_wgan / timegan are decommissioned and live
-# under outputs_legacy2/ — kept out of the shipped peer bundle.
+# Canonical final models (post 2026-07-23 cleanup + 2026-07-27 timegrad
+# re-added).  timevae / sig_wgan / timegan are decommissioned and kept
+# out of the shipped peer bundle.
 KEEP_DL = [
     "quantgan",
     "vrnn",
@@ -50,7 +50,7 @@ KEEP_STAT = [
     "stationary_block_bootstrap",
     "merton_jump_diffusion",
     "de_jump_diffusion",
-    "garch11",
+    "dcc_garch",
 ]
 ALL_14 = KEEP_DL + KEEP_STAT
 

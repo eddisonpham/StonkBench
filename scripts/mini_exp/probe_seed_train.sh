@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=04:00:00
 #SBATCH --array=0-43
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/probe_%A_%a.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/probe_%A_%a.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/probe_%A_%a.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/probe_%A_%a.err
 
 # SEED-SWEEP PROBES for simulation_v2 WARN resolution (fairness audit).
 #

@@ -28,7 +28,7 @@ from src.utils.preprocessed_data_utils import (  # noqa: E402
 )
 
 SEQ = 252
-RESULTS = Path("/scratch/epham/stonkbench/output/results/fair_20261004")
+RESULTS = Path("/home/epham/StonkBench/outputs/results/fair_20261004")
 MODELS = [
     "unconditional_tsdiffusion",
     "conditional_tsdiffusion",

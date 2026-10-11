@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=04:00:00
 #SBATCH --array=0-4%4
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/train_stat_%A_%a.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/train_stat_%A_%a.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/train_stat_%A_%a.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/train_stat_%A_%a.err
 
 # Statistical model fit + generate (no HP search). Generates at all 4 canonical
 # seq lengths (21, 42, 126, 252). Bootstrap models generate natively at each
@@ -22,7 +22,7 @@ MODELS=(
   stationary_block_bootstrap
   merton_jump_diffusion
   de_jump_diffusion
-  garch11
+  dcc_garch
 )
 
 MODEL="${MODELS[${SLURM_ARRAY_TASK_ID}]}"

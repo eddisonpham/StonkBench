@@ -8,8 +8,8 @@ from src.experiments.adapters.statistical_adapter import (
     BlockBootstrapAdapter,
     StationaryBlockBootstrapAdapter,
     StatisticalDEJDAdapter,
-    StatisticalGARCH11Adapter,
     StatisticalMertonAdapter,
+    StatisticalDCCGARCHAdapter,
 )
 
 __all__ = [
@@ -17,5 +17,5 @@ __all__ = [
     "StationaryBlockBootstrapAdapter",
     "StatisticalMertonAdapter",
     "StatisticalDEJDAdapter",
-    "StatisticalGARCH11Adapter",
+    "StatisticalDCCGARCHAdapter",
 ]

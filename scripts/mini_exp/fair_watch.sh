@@ -5,8 +5,8 @@
 set -u
 LOG=/tmp/fair_watch.log
 RUN_ID=fair_20261004
-REPORT_DIR=/scratch/epham/stonkbench/mini_exp/${RUN_ID}
-OUTPUT_ROOT=/scratch/epham/stonkbench/output
+REPORT_DIR=/home/epham/StonkBench/outputs/mini_exp/${RUN_ID}
+OUTPUT_ROOT=/home/epham/StonkBench/outputs
 PY="$HOME/.venvs/stonkbench/bin/python"
 JOBS="1031776,1031588"
 

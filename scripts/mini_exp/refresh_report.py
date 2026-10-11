@@ -20,7 +20,7 @@ def main() -> int:
     p.add_argument(
         "--run_dir",
         required=True,
-        help="Mini run dir, e.g. /scratch/epham/stonkbench/mini_exp/<run_id>",
+        help="Mini run dir, e.g. /home/epham/StonkBench/outputs/mini_exp/<run_id>",
     )
     args = p.parse_args()
     report = refresh_report(Path(args.run_dir))

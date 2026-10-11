@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=1-00:00:00   # Trillium `compute` partition max is 1 day; fits worst-case (timegrad 100ep ~8h on H100).
 #SBATCH --array=0-7%8
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/train_%A_%a.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/train_%A_%a.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/train_%A_%a.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/train_%A_%a.err
 
 # One DL model per GPU. 8 canonical DL models (the ones in MODEL_HP_CONFIGS)
 # are trained in parallel (~1-3h each; 4d wall clock is generous headroom for

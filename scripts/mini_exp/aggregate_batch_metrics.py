@@ -1,10 +1,18 @@
 """Aggregate the 3 replicate evaluation runs per ablation into mean ± std.
 
-Reads ``<root>/<ablation>/evaluation_batch{1,2,3}/complete_evaluation.json``
-(produced by ``scripts/mini_exp/eval_gen_batches.sh`` — STAGED, not run yet)
-and flattens every numeric metric of every ``<model>_seq<L>`` cell, so the
-batch-to-batch spread can be compared against the tolerance bands that
-produced the §10 WARN list.
+Reads one ``complete_evaluation.json`` per evaluated cell:
+
+    <root>/<ablation>/evaluation_batch{1,2,3}/<model>_seq<L>/complete_evaluation.json
+
+``scripts/mini_exp/eval_gen_batches.sh`` writes exactly that layout (one array
+task per artifact, each into its own results directory — the evaluator
+overwrites ``complete_evaluation.json`` on every run, so per-cell directories
+are what makes the 432 tasks safe to run concurrently). Older trees that kept a
+single batch-level summary are still accepted as a fallback.
+
+Every numeric metric of every ``<model>_seq<L>`` cell is flattened so the
+batch-to-batch spread can be compared against the tolerance bands that produced
+the §10 WARN list.
 
 Non-numeric leaves, booleans, and the ``metadata`` / ``*_per_channel`` blocks
 are skipped (they are provenance/per-asset detail, not headline metrics).
@@ -15,7 +23,7 @@ Outputs:
 
 Usage:
     python scripts/mini_exp/aggregate_batch_metrics.py \
-        --root /scratch/epham/stonkbench/output/generation \
+        --root /home/epham/StonkBench/outputs/generation \
         --ablation simulation_v2 fair_20261004 latest
 """
 from __future__ import annotations
@@ -56,24 +64,49 @@ def _load(path: Path) -> Dict[str, Any]:
     return json.loads(path.read_text())
 
 
+def _batch_summaries(ablation: str, root: Path, batch: int) -> List[Path]:
+    """Per-cell summaries for one batch, falling back to a batch-level one."""
+    batch_dir = root / ablation / f"evaluation_batch{batch}"
+    summaries = [
+        path
+        for path in sorted(batch_dir.glob("*/complete_evaluation.json"))
+        # ``shard_*`` directories are the superseded sharded layout (partial
+        # summaries that overlap the per-cell ones); never mix the two.
+        if not path.parent.name.startswith("shard_")
+    ]
+    if summaries:
+        return summaries
+    legacy = batch_dir / "complete_evaluation.json"
+    return [legacy] if legacy.exists() else []
+
+
 def aggregate(ablation: str, root: Path, batches: Iterable[int]) -> Tuple[Dict[str, Any], List[dict]]:
     per_cell: Dict[str, Dict[str, List[float]]] = {}
     sources: Dict[str, List[int]] = {}
+    missing: List[int] = []
     for batch in batches:
-        summary = root / ablation / f"evaluation_batch{batch}" / "complete_evaluation.json"
-        if not summary.exists():
-            print(f"[agg] {ablation}: missing {summary} (skipped)")
+        summaries = _batch_summaries(ablation, root, batch)
+        if not summaries:
+            print(f"[agg] {ablation}: no cell summaries in evaluation_batch{batch} (skipped)")
+            missing.append(batch)
             continue
-        data = _load(summary)
-        for cell, payload in data.items():
-            flat = _flatten(payload)
-            bucket = per_cell.setdefault(cell, {})
-            for metric, value in flat.items():
-                bucket.setdefault(metric, []).append(float(value))
-            sources.setdefault(cell, []).append(batch)
+        for summary in summaries:
+            data = _load(summary)
+            for cell, payload in data.items():
+                flat = _flatten(payload)
+                if not flat:
+                    print(f"[agg] {ablation}: empty metrics for {cell} in {summary}")
+                bucket = per_cell.setdefault(cell, {})
+                for metric, value in flat.items():
+                    bucket.setdefault(metric, []).append(float(value))
+                sources.setdefault(cell, []).append(batch)
 
     rows: List[dict] = []
-    table: Dict[str, Any] = {"ablation": ablation, "cells": {}}
+    table: Dict[str, Any] = {
+        "ablation": ablation,
+        "batches_missing": missing,
+        "cells": {},
+    }
     for cell in sorted(per_cell):
         metrics_out: Dict[str, Any] = {}
         for metric, values in sorted(per_cell[cell].items()):
@@ -141,6 +174,8 @@ def main() -> int:
             writer.writerows(rows)
 
         print(f"\n[agg] {ablation}: {len(table['cells'])} cells, {len(rows)} metric series")
+        if table["batches_missing"]:
+            print(f"      [WARN] batches without summaries: {table['batches_missing']}")
         print(f"      -> {out_json}\n      -> {out_csv}")
         for cell, payload in sorted(table["cells"].items()):
             shown = []

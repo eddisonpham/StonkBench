@@ -16,8 +16,8 @@ spike or outlier is hidden from inspection.
 Usage:
     python scripts/mini_exp/plot_simulations.py \
         --run_id fair_20261004 \
-        --output_root /scratch/epham/stonkbench/output \
-        --report_dir /scratch/epham/stonkbench/mini_exp/fair_20261004
+        --output_root /home/epham/StonkBench/outputs \
+        --report_dir /home/epham/StonkBench/outputs/mini_exp/fair_20261004
 """
 from __future__ import annotations
 
@@ -70,9 +70,9 @@ def load_artifact(path: Path) -> np.ndarray:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--run_id", default="fair_20261004")
-    p.add_argument("--output_root", default="/scratch/epham/stonkbench/output")
+    p.add_argument("--output_root", default="/home/epham/StonkBench/outputs")
     p.add_argument("--report_dir",
-                   default="/scratch/epham/stonkbench/mini_exp/fair_20261004")
+                   default="/home/epham/StonkBench/outputs/mini_exp/fair_20261004")
     p.add_argument("--seq_lengths", default="21,42,126,252")
     p.add_argument("--models", nargs="*", default=None)
     p.add_argument("--n_sims", type=int, default=25,

@@ -73,7 +73,7 @@ STAT_MODELS = [
     "stationary_block_bootstrap",
     "merton_jump_diffusion",
     "de_jump_diffusion",
-    "garch11",
+    "dcc_garch",
 ]
 SEQS = [21, 42, 126, 252]
 ABLATIONS = ["simulation_v2", "fair_20261004", "latest"]

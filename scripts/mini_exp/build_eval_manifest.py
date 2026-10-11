@@ -43,7 +43,7 @@ STAT_MODELS = [
     "stationary_block_bootstrap",
     "merton_jump_diffusion",
     "de_jump_diffusion",
-    "garch11",
+    "dcc_garch",
 ]
 SEQS = [21, 42, 126, 252]
 BATCHES = [1, 2, 3]
@@ -152,20 +152,37 @@ def build(root: Path) -> Dict[str, Any]:
         "cells": cells,
         "eval": {
             "staged_script": "scripts/mini_exp/eval_gen_batches.sh",
-            "status": "STAGED — not submitted",
+            "status": (
+                "RUNNING — 1040043 (array 0-431) + 1040158 (array 24-431, "
+                "2h backfill re-submission) + 1040509 (timeout requeue, cell 26) "
+                "+ 1044081 (top-up cells 153,154,157,159); finisher 1044082 "
+                "chained afterany on 1040158/1040509/1044081"
+            ),
+            "cell_map": (
+                "tid%4 -> seq index into [21,42,126,252]; (tid/4)%12 -> model; "
+                "(tid/48)%3+1 -> batch; tid/144 -> ablation"
+            ),
             "aggregator": "scripts/mini_exp/aggregate_batch_metrics.py",
             "commands": {
                 ablation: (
                     f"python -m src.unified_evaluator "
                     f"--generated_dir <root>/{ablation}/batch1 "
-                    f"--results_dir <root>/{ablation}/evaluation_batch1"
+                    f"--results_dir <root>/{ablation}/evaluation_batch1/block_bootstrap_seq21 "
+                    f"--model block_bootstrap --seq_length 21 --skip_regenerate"
                 )
                 for ablation in ABLATIONS
             },
             "note": (
-                "No --seq_lengths filter: every artifact is stored at its target "
-                "length. Real-data side resolves from $STONKBENCH_DL_SET_PATH "
-                "(dl_set.pt = W252), matching the accepted simulation_v2 protocol."
+                "One artifact per array task, each with its OWN results_dir "
+                "(<root>/<ablation>/evaluation_batch<k>/<model>_seq<L>/) because the "
+                "evaluator OVERWRITES complete_evaluation.json per run; the "
+                "aggregator reads those per-cell summaries directly, so there is no "
+                "shard-merge step. Every task also writes its cell's plots. No "
+                "--seq_lengths (plural) filter: that would trim the last L steps. "
+                "--model is matched EXACTLY (a substring test would let "
+                "block_bootstrap pick up stationary_block_bootstrap). Real-data side "
+                "resolves from $STONKBENCH_DL_SET_PATH (dl_set.pt = W252), matching "
+                "the accepted simulation_v2 protocol."
             ),
         },
     }

@@ -4,7 +4,7 @@
 Usage:
   python scripts/dev/sigwgan_fix_monitor.py \
     --job-ids 702891,702892,702893,702894,702895,702896 \
-    --output-root /scratch/epham/stonkbench/gan_tests/sigwgan_fixes \
+    --output-root /home/epham/StonkBench/gan_tests/sigwgan_fixes \
     --poll-interval 300 \
     --max-wait 3600
 """
@@ -60,7 +60,7 @@ def check_job_status(job_ids: list[str]) -> dict[str, str]:
 def load_ground_truth() -> np.ndarray:
     """Load ground truth from the main results/latest (or fallback from scratch)."""
     gt_paths = [
-        Path("/scratch/epham/stonkbench/output/results/latest/ground_truth/ground_truth_seq252.pt"),
+        Path("/home/epham/StonkBench/outputs/results/latest/ground_truth/ground_truth_seq252.pt"),
         Path("/home/epham/StonkBench/outputs/results/latest/ground_truth/ground_truth_seq252.pt"),
     ]
     for p in gt_paths:
@@ -102,7 +102,7 @@ def run_diagnostics(pt_path: Path, gt: np.ndarray) -> dict:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--job-ids", required=True, help="Comma-separated Slurm job IDs")
-    parser.add_argument("--output-root", default="/scratch/epham/stonkbench/gan_tests/sigwgan_fixes")
+    parser.add_argument("--output-root", default="/home/epham/StonkBench/gan_tests/sigwgan_fixes")
     parser.add_argument("--poll-interval", type=int, default=300)
     parser.add_argument("--max-wait", type=int, default=3600)
     parser.add_argument("--variants", default=",".join(VARIANTS),
@@ -150,7 +150,7 @@ def main():
             search_paths = [
                 output_root / "results" / "latest" / variant / "artifacts" / f"{variant}_seq252.pt",
                 output_root / variant / "artifacts" / f"{variant}_seq252.pt",
-                Path("/scratch/epham/stonkbench/output/results/latest") / variant / "artifacts" / f"{variant}_seq252.pt",
+                Path("/home/epham/StonkBench/outputs/results/latest") / variant / "artifacts" / f"{variant}_seq252.pt",
             ]
             for pt_path in search_paths:
                 if pt_path.exists():

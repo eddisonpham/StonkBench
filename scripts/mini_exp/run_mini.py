@@ -71,7 +71,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--run_id", required=True)
     p.add_argument(
         "--out_root",
-        default=os.environ.get("STONKBENCH_MINI_ROOT", "/scratch/epham/stonkbench/mini_exp"),
+        default=os.environ.get("STONKBENCH_MINI_ROOT", "/home/epham/StonkBench/outputs/mini_exp"),
     )
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument(

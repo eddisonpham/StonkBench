@@ -24,7 +24,7 @@
 #
 # Env vars used (with defaults):
 #   PROJECT_ROOT=$HOME/StonkBench
-#   OUTPUT_ROOT=/scratch/stonkbench/output        (auto-fallback if not writable)
+#   OUTPUT_ROOT=/home/epham/StonkBench/outputs        (env override allowed)
 #   STONKBENCH_RUN_ID=$(date +%F)_vm              (override with --run-id)
 #   STONKBENCH_DL_SET_PATH=$PROJECT_ROOT/data/preprocessed/dl_set.pt
 #   STONKBENCH_STATS_SET_PATH=$PROJECT_ROOT/data/preprocessed/statsmodel_set.pt
@@ -44,22 +44,13 @@ SCRIPT_DIR="${PROJECT_ROOT}/scripts/vm"
 RUN_ON_GPU="${SCRIPT_DIR}/run_on_gpu.sh"
 
 # Defaults (env vars still override)
-OUTPUT_ROOT="${OUTPUT_ROOT:-/scratch/stonkbench/output}"
-# Probe writability — fall back to a guaranteed-user-owned directory if the
-# default path is not writable on this VM. This prevents broken `mkdir -p`
-# in the orchestrator body when /scratch is not present. Avoid /tmp on
-# multi-user VMs (world-readable); fall back to the current working
-# directory if HOME is unset, which keeps artifacts under the user's
-# launch shell.
+OUTPUT_ROOT="${OUTPUT_ROOT:-/home/epham/StonkBench/outputs}"
+# Everything lives under <repo>/outputs/. Fail loudly rather than quietly
+# redirecting artifacts somewhere outside the repo.
 if ! mkdir -p "${OUTPUT_ROOT}" 2>/dev/null; then
-    FALLBACK="${HOME:-$(pwd)}/stonkbench_output_vm"
-    echo "[run_parallel] WARN: cannot create OUTPUT_ROOT=${OUTPUT_ROOT}; using ${FALLBACK}" >&2
-    OUTPUT_ROOT="${FALLBACK}"
-    if ! mkdir -p "${OUTPUT_ROOT}" 2>/dev/null; then
-        echo "[run_parallel] ERROR: cannot create fallback OUTPUT_ROOT=${OUTPUT_ROOT}" >&2
-        echo "[run_parallel] pass --output-root or export OUTPUT_ROOT=/writable/path" >&2
-        exit 1
-    fi
+    echo "[run_parallel] ERROR: cannot create OUTPUT_ROOT=${OUTPUT_ROOT}" >&2
+    echo "[run_parallel] pass --output-root or export OUTPUT_ROOT=<repo>/outputs" >&2
+    exit 1
 fi
 # Defense in depth: re-export OUTPUT_ROOT after the writability probe so any
 # forked child (HP-search workers, final-train workers, eval) that re-reads
@@ -154,7 +145,7 @@ BG_PIDS=()
 REAPED_FAILURES=()
 
 # MODELS_DL mirrors DL_MODEL_KEYS in src/experiments/hp_configs.py.
-MODELS_STAT=(block_bootstrap stationary_block_bootstrap merton_jump_diffusion de_jump_diffusion garch11)
+MODELS_STAT=(block_bootstrap stationary_block_bootstrap merton_jump_diffusion de_jump_diffusion dcc_garch)
 MODELS_ALL=("${MODELS_DL[@]}" "${MODELS_STAT[@]}")
 
 # Number of HP trials (8 DL models × 9 configs = 72 today). Derived from

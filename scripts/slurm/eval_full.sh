@@ -6,8 +6,8 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=12
 #SBATCH --time=24:00:00
-#SBATCH --output=/scratch/%u/stonkbench/slurm_logs/eval_full_%j.out
-#SBATCH --error=/scratch/%u/stonkbench/slurm_logs/eval_full_%j.err
+#SBATCH --output=/home/%u/StonkBench/slurm_logs/eval_full_%j.out
+#SBATCH --error=/home/%u/StonkBench/slurm_logs/eval_full_%j.err
 
 # Full evaluation of all models at all sequence lengths (21, 42, 126, 252)
 # followed by downstream task evaluation and plot generation.
