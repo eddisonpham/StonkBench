@@ -1,63 +1,81 @@
+# --- environments -----------------------------------------------------------
 .env
 env
 .venv
 venv
+ENV/
 
-# Ignore Python cache
+# --- python -----------------------------------------------------------------
 __pycache__/
 *.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
 
+# --- OS / editor / tooling state -------------------------------------------
+.DS_Store
+.vscode/
+.idea/
+.freebuff/
+.git_backup_*/
+Agent Context
+
+# --- generated artifacts (regenerable; never commit) ------------------------
 mlruns/
 **/mlruns/
-
-# Ignore data type files: .csv, .txt, .pkl in all directories
-*.csv
-*.txt
-*.pkl
-
-results/*
-evaluation_plots/*
-
-testing_files/*
-
 cache/*
-
+testing_files/*
+/gan_tests/
+evaluation_plots/*
 notebooks/*
+docs/*
+data/*
+slurm_logs/
+/outputs/
+output*/*/**
+results/*
+*/**/run.jsonl
+*/**/run_manifest.json
 */**/*.pt
 */**/*.pth
 
-docs/*
-data/*
+# Data artifacts by extension: keep generated tables out of git ...
+*.csv
+*.txt
+*.pkl
+# ... but never hide files the code or the tests actually need.
+!requirements*.txt
+!**/requirements*.txt
+!scripts/handover/data/*
+!tests/**
+# ... but never the caches those directories generate.
+tests/**/__pycache__/
+tests/**/*.pyc
 
-*/**/run.jsonl
-*/**/run_manifest.json
+# --- handover bundle --------------------------------------------------------
+# The bundle is regenerated from outputs/ by scripts/handover/; only its docs
+# are source.  Everything under the four data folders is reproducible data.
+/handover/MANIFEST.json
+/handover/01_model_checkpoints/
+/handover/02_generated_outputs/
+/handover/03_ground_truth/
+/handover/04_evaluation_results/
 
-notebooks/*
-# Agent Context (gitignored planner working folder)
-Agent Context
+# Trained checkpoints deliberately live in the repo (weights must not live only
+# in scratch).  Re-include the checkpoint trees that */**/*.pt would drop.
+!checkpoints/**/*.pt
+!checkpoints/**/*.pth
+
+# Vendored model repos keep their own VCS metadata out of ours
 /src/models/deep_learning/*/.git/
 /src/models/deep_learning/*/.gitignore
 /src/models/deep_learning/*/.gitattributes
 
-# Canonical pipeline artifacts (regenerable, kept locally under <repo>/outputs/ on each run)
-/outputs/
-/outputs_legacy*/
-# Catch every numbered legacy dir (outputs_legacy2, outputs_legacy3, ..., outputs_legacyN)
-# in a single rule. Without this, future re-runs that create outputs_legacy5/ etc.
-# would re-appear as untracked entries in git status.
-
-# Ignore every folder of the form output*/*/** (depth >= 2 contents under any output* dir).
-# Covers /outputs/, /outputs_legacy/, /outputs_legacy2/, /output_v3/, etc., at any depth in the
-# tree. The leading-/less pattern matches nested output* dirs (e.g. src/output_foo/sub/x.pt)
-# in addition to top-level ones. Keep this additive to /outputs/ + /outputs_legacy/ above so the
-# existing canonical rules remain explicit.
-output*/*/**
-
-# Slurm log artifacts (regenerable on each run)
-/slurm_logs/
-
-# Personal spec/doc files
-spec.md
+# In-repo pip wheel cache
+.cache/
 
 # Throwaway diagnostic scripts (one-off collapse/scale checks)
 scripts/dev/_diag_*.py
@@ -68,12 +86,5 @@ scripts/dev/crossseq_summary.py
 scripts/dev/multiref_sanity_rerun.py
 scripts/dev/repro_check_condsig.py
 
-# GAN test artifacts in scratch
-/gan_tests/
-
-# Trained checkpoints are deliberately kept inside the repo (durability
-# mandate: weights must not live only in scratch). This re-includes the
-# checkpoint trees that the generic *.pt/*.pth rules above would otherwise
-# drop; everything outside checkpoints/ stays ignored.
-!checkpoints/**/*.pt
-!checkpoints/**/*.pth
+# Personal spec
+spec.md

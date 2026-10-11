@@ -1,31 +1,50 @@
-# StonkBench runtime dependencies (CCDB / SciNet Trillium)
+# StonkBench runtime dependencies.
 #
-# Recommended install (handles conda-forge binaries + PyTorch):
+# Recommended install (handles the CUDA torch wheel on CCDB / SciNet Trillium):
 #   bash scripts/install_stonkbench.sh
 #
-# Manual equivalent:
-#   source ~/miniconda/bin/activate
-#   conda create -n stonkbench python=3.11 -y && conda activate stonkbench
-#   conda install -y -c conda-forge numpy=2.2.2 scipy pandas scikit-learn matplotlib seaborn statsmodels arch-py \
-#     joblib tqdm pyyaml xgboost requests toolz typing_extensions pydantic lightning pytorch-lightning einops opt_einsum
-#   pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
-#   pip install --no-deps gluonts==0.16.2 dtaidistance==2.3.9
-#   pip install yfinance==1.5.1
+# Manual / pip-only equivalent (what the Docker image uses):
+#   python3 -m venv ~/.venvs/stonkbench && source ~/.venvs/stonkbench/bin/activate
+#   pip install -r requirements.txt
+#   pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu   # or cu126 on GPU nodes
 #
-# GPU compute nodes (CUDA 12.6): pip install --force-reinstall torch==2.6.0 --index-url https://download.pytorch.org/whl/cu126
+# GPU compute nodes (CUDA 12.6):
+#   pip install --force-reinstall torch==2.6.0 --index-url https://download.pytorch.org/whl/cu126
 #
-# Login-node runtime:
+# Login-node runtime may need:
 #   export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 
-gluonts==0.16.2
-yfinance==1.5.1
-dtaidistance==2.3.9
+# --- scientific stack -------------------------------------------------------
+numpy==2.2.2
+scipy
+pandas
+scikit-learn
+matplotlib
+seaborn
+statsmodels
+arch
+joblib
+tqdm
+pyyaml
+requests
+toolz
+typing_extensions
+pydantic
+xgboost
+
+# --- deep learning ----------------------------------------------------------
 torch==2.6.0
 lightning==2.6.5
 pytorch-lightning==2.6.5
 einops==0.8.2
 opt_einsum==3.4.0
+
+# --- model-specific ---------------------------------------------------------
+gluonts==0.16.2
+yfinance==1.5.1
+dtaidistance==2.3.9
 # PCF-GAN vendor import (config helpers)
 ml_collections>=0.1.1
-# Sig-Wasserstein-GANs prefers signatory (torch-coupled wheels; unavailable for torch 2.6).
-# Adapter falls back to a pure-PyTorch truncated signature when signatory is missing.
+# Sig-Wasserstein-GANs prefers signatory (torch-coupled wheels; unavailable for
+# torch 2.6). The adapter falls back to a pure-PyTorch truncated signature when
+# signatory is missing.

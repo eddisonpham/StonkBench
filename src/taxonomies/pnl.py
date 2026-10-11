@@ -51,16 +51,33 @@ def _log_returns_from_prices(prices: np.ndarray) -> np.ndarray:
 def _pnl_metrics(
     returns: np.ndarray,
     periods_per_year: int = 252,
+    mar: float = 0.0,
 ) -> Dict[str, float]:
     """Compute standard P&L evaluation metrics for a return series.
 
     Args:
-        returns: (T,) or (R, T) array of period log returns.
+        returns: (T,) or (R, T) array of period **log** returns.
             If 2D, metrics are averaged across paths.
         periods_per_year: Annualization factor.
+        mar: minimum acceptable return (target) for the downside measures.
 
     Returns:
         Dict of aggregated metrics.
+
+    Notes on conventions (all deliberate, see ``DOWNSTREAM_AUDIT``):
+
+    * The input is a *log*-return series, so wealth compounds as
+      ``exp(cumsum(r))`` and terminal wealth is ``exp(r.sum())``.  The previous
+      implementation used ``cumprod(1 + r)`` / ``prod(1 + r)``, i.e. it treated
+      log returns as simple returns, which disagreed with
+      ``_accumulate_returns`` (used for the Wasserstein distance) on the very
+      same output.
+    * Ratio metrics (Sortino, Omega, tail ratio) have a denominator that can be
+      (near) zero for a path with no / few losses.  Such a path is genuinely
+      undefined, so it is recorded as ``inf`` (or ``nan`` when the numerator is
+      also non-positive) and excluded from the average, and the counts are
+      reported.  The previous ``+ 1e-15`` epsilon converted an undefined value
+      into an arbitrarily large finite one (observed: 6.65e12).
     """
     r = np.asarray(returns, dtype=np.float64)
     if r.ndim == 1:
@@ -76,51 +93,63 @@ def _pnl_metrics(
     # Annualized Sharpe
     sharpe = np.mean(mean_ret / (std_ret + 1e-15)) * np.sqrt(periods_per_year)
 
-    # Annualized return
+    # Annualized (arithmetic) mean return and vol, retained for continuity
     ann_return = np.mean(mean_ret) * periods_per_year
-
-    # Annualized vol
     ann_vol = np.mean(std_ret) * np.sqrt(periods_per_year)
 
-    # Maximum Drawdown (per path, then average)
+    # Maximum Drawdown on the correct log-return wealth path (per path, averaged)
     max_dds = []
     for i in range(R):
-        cumulative = np.cumprod(1.0 + r[i])
+        cumulative = np.exp(np.cumsum(r[i]))
         hwm = np.maximum.accumulate(cumulative)
-        drawdowns = (cumulative - hwm) / (hwm + 1e-15)
+        drawdowns = (cumulative - hwm) / np.maximum(hwm, 1e-15)
         max_dds.append(float(np.min(drawdowns)))
     max_dd = float(np.mean(max_dds))
 
     # Calmar ratio
     calmar = ann_return / abs(max_dd) if abs(max_dd) > 1e-12 else 0.0
 
-    # Sortino ratio (matching quantstats: sqrt(mean(min(0,r)^2)))
-    sortinos = []
+    # Sortino ratio: downside deviation of (r - mar), defined paths only
+    sortinos, n_sortino_defined, n_sortino_undefined = [], 0, 0
     for i in range(R):
-        neg = np.minimum(r[i], 0.0)
-        d_std = np.sqrt(np.mean(neg ** 2))
-        sortinos.append(mean_ret[i] / (d_std + 1e-15))
-    sortino = np.mean(sortinos) * np.sqrt(periods_per_year)
+        excess = r[i] - mar
+        d_std = float(np.sqrt(np.mean(np.minimum(excess, 0.0) ** 2)))
+        tol = 1e-12 * max(float(std_ret[i]), 1e-12)
+        if d_std <= tol:
+            n_sortino_undefined += 1
+            sortinos.append(np.inf if mean_ret[i] > mar else np.nan)
+            continue
+        n_sortino_defined += 1
+        sortinos.append((mean_ret[i] - mar) / d_std)
+    finite_sortino = [s for s in sortinos if np.isfinite(s)]
+    sortino = float(np.mean(finite_sortino)) * np.sqrt(periods_per_year) if finite_sortino else float("nan")
 
-    # Omega ratio (threshold = 0)
+    # Omega ratio (threshold = mar)
     omegas = []
     for i in range(R):
-        gains = r[i][r[i] > 0].sum()
-        losses = abs(r[i][r[i] < 0].sum())
-        omegas.append(float(gains / losses) if losses > 1e-15 else float("inf"))
-    omega = float(np.mean([o for o in omegas if np.isfinite(o)])) if omegas else 0.0
+        excess = r[i] - mar
+        gains = excess[excess > 0].sum()
+        losses = abs(excess[excess < 0].sum())
+        omegas.append(float(gains / losses) if losses > 0 else float("inf"))
+    finite_omega = [o for o in omegas if np.isfinite(o)]
+    if not omegas:
+        omega, n_omega_infinite = 0.0, 0
+    elif not finite_omega:
+        omega, n_omega_infinite = float("inf"), len(omegas)
+    else:
+        omega, n_omega_infinite = float(np.mean(finite_omega)), len(omegas) - len(finite_omega)
 
-    # Tail ratio: P95 / |P5| (averaged)
+    # Tail ratio: P95 / |P5| (mean over paths that have a non-zero P5)
     tail_ratios = []
     for i in range(R):
-        p95 = np.percentile(r[i], 95)
-        p05 = np.percentile(r[i], 5)
-        tr = p95 / abs(p05) if abs(p05) > 1e-12 else float("inf")
-        tail_ratios.append(tr)
-    tail_ratio = float(np.mean([t for t in tail_ratios if np.isfinite(t)]))
+        p95 = float(np.percentile(r[i], 95))
+        p05 = float(np.percentile(r[i], 5))
+        tail_ratios.append(p95 / abs(p05) if abs(p05) > 0 else float("inf"))
+    finite_tail = [t for t in tail_ratios if np.isfinite(t)]
+    tail_ratio = float(np.mean(finite_tail)) if finite_tail else float("inf")
 
-    # Terminal wealth
-    terminal_wealth = np.prod(1.0 + r, axis=1)
+    # Terminal wealth over the log-return path (consistent with _accumulate_returns)
+    terminal_wealth = np.exp(r.sum(axis=1))
 
     return {
         "sharpe_ratio": float(sharpe),
@@ -136,6 +165,11 @@ def _pnl_metrics(
         "terminal_wealth_min": float(np.min(terminal_wealth)),
         "terminal_wealth_max": float(np.max(terminal_wealth)),
         "prob_positive_return": float(np.mean(terminal_wealth > 1.0)),
+        # transparency: how many paths the ratios were actually defined on
+        "n_paths": int(R),
+        "n_sortino_defined": int(n_sortino_defined),
+        "n_sortino_undefined": int(n_sortino_undefined),
+        "n_omega_infinite": int(n_omega_infinite),
     }
 
 

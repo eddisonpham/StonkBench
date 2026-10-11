@@ -1,0 +1,38 @@
+path,taxonomy,direction,note,status
+FidelityEvaluator.kd,fidelity,lower,kurtosis distance; discriminative fidelity dimension,ok
+FidelityEvaluator.md,fidelity,lower,mean distance,ok
+FidelityEvaluator.mdd,fidelity,lower,Wasserstein marginal distance,ok
+FidelityEvaluator.sd,fidelity,lower,"skewness distance (sd = skewness, sdd = std)",ok
+FidelityEvaluator.sdd,fidelity,lower,standard-deviation distance,ok
+FidelityEvaluator.cmd,fidelity,lower,correlation-matrix distance; only cross-channel (linear) measure,ok
+FidelityEvaluator.dcor_diff,fidelity,lower,distance-correlation difference; cross-channel (non-linear),ok
+DiversityEvaluator.icd_dtw,diversity,descriptive,raw ICD has no target; rank only a deviation from real ICD,ok
+DiversityEvaluator.icd_euclidean,diversity,descriptive,raw ICD has no target; rank only a deviation from real ICD,ok
+StylizedFactsEvaluator.autocorr_returns.diff,stylized_facts,lower,|synthetic - real|; SNR ~5.6 so 2-3 place distinctions only,ok
+StylizedFactsEvaluator.volatility_clustering.diff,stylized_facts,lower,|synthetic - real|; SNR ~3.9,ok
+StylizedFactsEvaluator.long_memory_volatility.diff,stylized_facts,lower,|synthetic - real|; SNR ~3.7,ok
+pairs:pnl.real,pnl,reference,the real series; never a model score,suspect
+pairs:pnl.synthetic,pnl,descriptive,nobody trades the synthetic series; use the gap,suspect
+derived:sharpe_gap,pnl,lower,synthetic - real annualised Sharpe,suspect
+derived:vol_gap,pnl,lower,synthetic - real annualised volatility,suspect
+pnl.terminal_wealth_wasserstein,pnl,lower,synthetic vs real terminal-wealth distribution,suspect
+pnl.*.sortino_ratio,pnl,higher,denominator collapses on paths with no downside; some shipped values are meaningless (audit B2),broken
+pnl.*.calmar_ratio,pnl,higher,inherits the same ratio-denominator sensitivity (audit B2),broken
+pnl.*.omega_ratio,pnl,higher,inf paths silently dropped from the mean (audit B2),broken
+pnl.*.terminal_wealth_*,pnl,descriptive,log returns compounded with prod(1+r) (audit B1),suspect
+derived:win_share_mean,hedging_utility,higher,share of 8 hedgers improved on mean replication error,ok
+derived:win_share_cvar95,hedging_utility,higher,share improved on CVaR 95,ok
+derived:win_share_cvar99,hedging_utility,higher,share improved on CVaR 99,ok
+utility.summary.augmented_testing.*.real_train,hedging_utility,treatment,control arm; only the paired difference matters,ok
+utility.summary.augmented_testing.*.mixed_train,hedging_utility,treatment,augmented arm; only the paired difference matters,ok
+portfolio.*.1N,portfolio,reference,1/N benchmark; constant given the real panel,reference
+portfolio.*.GMV_LongOnly,portfolio,higher,"BROKEN: the solver stalled at 1/N, so this equals the 1/N row in 144/144 cells (audit P1)",degenerate
+portfolio.*.Real_GT_RealGMV,portfolio,reference,in the shipped results this is the long-only run and equals 1/N (audit P1+P2),degenerate
+portfolio.*.Real_GT_RealTangency,portfolio,reference,"in the shipped results this is long-only, not the unconstrained oracle (audit P2)",suspect
+portfolio.*.GMV,portfolio,higher,"unconstrained GMV on synthetic weights; huge shorts, no out-of-sample discipline (audit P4)",suspect
+portfolio.*.Tangency*,portfolio,higher,no out-of-sample re-estimation or transaction costs (audit P4),suspect
+portfolio.*.turnover,portfolio,descriptive,structurally 0: no weight history is ever built (audit P3),broken
+derived:portfolio_excess_naive_gmv,portfolio,higher,identically 0 -- dead column (audit P1),degenerate
+derived:portfolio_excess_naive_tangency,portfolio,higher,tangency Sharpe - 1/N Sharpe at n_assets=25,suspect
+derived:portfolio_excess_oracle_tangency,portfolio,higher,"tangency Sharpe - real-panel tangency Sharpe (which is long-only here, audit P2)",suspect
+portfolio.*.herfindahl,portfolio,descriptive,"concentration, no direction",ok

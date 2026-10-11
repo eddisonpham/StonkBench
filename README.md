@@ -1,158 +1,134 @@
-# StonkBench: Unified Benchmark for Synthetic Data Generation in Financial Time Series (SDGFTS)
+# StonkBench — unified benchmark for synthetic financial time series
 
-> A unified, reproducible benchmark for evaluating synthetic time series generators in finance.
+A reproducible benchmark for **generating** and **evaluating** synthetic
+multivariate financial time series: 12 generator models, 25 assets, and four
+metric families (fidelity, diversity, stylised facts, P&L) plus two downstream
+tasks (portfolio construction, option hedging).
+
+```bash
+bash scripts/check_repo.sh        # preflight: syntax, unit tests, docs, bundle
+```
 
 ---
 
-## Quickstart (CCDB / SciNet Trillium)
+## Quickstart
 
-### 1. Create the `stonkbench` conda environment
-
-Do **not** use the legacy `stonk` environment.
+### 1. Environment (once)
 
 ```bash
-source ~/miniconda/bin/activate
-cd ~/StonkBench
 bash scripts/install_stonkbench.sh
+source ~/.venvs/stonkbench/bin/activate
 export PYTHONPATH=.
-export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH   # only inside a conda shell
 ```
 
-On **GPU compute nodes**, reinstall PyTorch with CUDA 12.6 wheels after activation:
+`scripts/install_stonkbench.sh` builds `~/.venvs/stonkbench` with the scientific
+stack and a CUDA torch wheel. `scripts/slurm/common.sh` activates that same venv,
+so Slurm jobs and local runs share one environment. To use PyTorch on CPU only:
 
 ```bash
-pip install --force-reinstall torch==2.6.0 --index-url https://download.pytorch.org/whl/cu126
+pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
 ```
 
-Device resolution is automatic via `src/utils/device.py` (`cuda` when available, else `cpu`).
+Device selection is automatic (`src/utils/device.py` picks `cuda` when available,
+else `cpu`); override with `--device cpu` or `export STONKBENCH_DEVICE=cuda`.
 
-### 2. Download and preprocess data
+### 2. Data (once)
 
 ```bash
-python src/data_downloader.py --index SPY QQQ IWM XLF XLV AAPL MSFT NVDA AVGO JPM LLY UNH AMZN TSLA CAT UNP META NFLX PG COST XOM CVX NEE PLD LIN --start 2010-01-01 --end 2025-01-01
+python src/data_downloader.py \
+  --index SPY QQQ IWM XLF XLV AAPL MSFT NVDA AVGO JPM LLY UNH AMZN TSLA CAT \
+         UNP META NFLX PG COST XOM CVX NEE PLD LIN \
+  --start 2010-01-01 --end 2025-01-01
 
 python src/data_preprocessing.py \
   --input_csv data/combined_data.csv \
   --output_dir data/preprocessed \
-  --window_size 100 \
-  --stride 1 \
-  --train_ratio 0.8
+  --window_size 100 --stride 1 --train_ratio 0.8
 ```
 
-Outputs:
+This writes both formats the adapters need:
 
-- `data/preprocessed/dl_set.pt` — sliding windows `(N, L, C)` for deep learning adapters
-- `data/preprocessed/statsmodel_set.pt` — full train series `(T, C)` for statistical adapters
+| file | shape | used by |
+|------|-------|---------|
+| `data/preprocessed/dl_set.pt` | `(N, L, C)` windows | deep learning models |
+| `data/preprocessed/statsmodel_set.pt` | `(T, C)` series | statistical models |
 
-### 3. Run locally (CPU or GPU)
+### 3. Train, generate, evaluate
 
 ```bash
+# quick sanity run (CPU or GPU, a few minutes)
 python -m src.experiments.run_benchmark \
-  --models quantgan gbm_adapter \
-  --generation_length 100 \
-  --num_samples 128 \
-  --num_epochs 3 \
-  --smoke_test
+  --models quantgan gbm_adapter --generation_length 100 \
+  --num_samples 128 --num_epochs 3 --smoke_test
+
+# evaluate the generated artifacts
+python -m src.unified_evaluator \
+  --generated_dir outputs/results/latest \
+  --results_dir outputs/results/latest/evaluation \
+  --seq_lengths 100 --skip_regenerate
 ```
 
-Device is resolved automatically (`cuda` when available, else `cpu`). Override with `--device cpu` or `export STONKBENCH_DEVICE=cuda`.
+Everything a run produces lands under `outputs/`; re-running with the same
+`STONKBENCH_RUN_ID` (default `latest`) overwrites in place.
 
-### 4. Evaluate
+---
+
+## Pipeline at a glance
+
+| stage | command | notes |
+|-------|---------|-------|
+| preflight | `bash scripts/check_repo.sh` | run before and after any rerun |
+| data | `python src/data_downloader.py` → `python src/data_preprocessing.py` | once per date range |
+| hyperparameter search | `python -m src.experiments.hp_search --models <keys> --smoke` | `--list_trials` shows the grid |
+| train + generate | `python -m src.experiments.run_benchmark` | the main entry point |
+| final training | `python -m src.experiments.run_final_training --hp_summary <csv>` | from a search summary |
+| evaluate | `python -m src.unified_evaluator` | all four metric families + downstream |
+| figures | `python src/plot_statistics/evaluation_plotter.py` | writes `evaluation_plots/` |
+| smoke test | `bash scripts/slurm/gpu_smoke_test.sh` | minimal training + device probe |
+| end-to-end | `bash scripts/run_pipeline.sh --smoke --submit-only` | search → train → eval |
+
+Run any entry point with `--help` (or `-h`) for the full flag list. Every stage
+honours `PYTHONPATH=.` and resolves paths through `src/utils/env.py`, which
+accepts `STONKBENCH_OUTPUT_ROOT`, `STONKBENCH_DL_SET_PATH`,
+`STONKBENCH_STATS_SET_PATH` and `STONKBENCH_RUN_ID`.
+
+---
+
+## Slurm (CCDB / SciNet Trillium)
+
+CCDB Trillium has **no GPU GRES** (`sinfo` shows `GRES=(null)` on every
+partition). The largest CPU nodes are **Neptune** (`compute_neptune`, 160 logical
+cores) and **tri** (`compute`, 192 cores); Neptune jobs need `--qos=neptune`.
+Jobs request a full node and never pass `--mem`. Logs go to `slurm_logs/` and
+artifacts to `outputs/` — there is no scratch staging tree.
 
 ```bash
-python -m src.unified_evaluator \
-  --generated_dir output/<RUN_ID>/results \
-  --results_dir output/<RUN_ID>/evaluation \
-  --seq_lengths 100 \
-  --skip_regenerate
+mkdir -p slurm_logs
+sbatch scripts/slurm/gpu_smoke_test.sh        # device + training check first
+sbatch scripts/slurm/run_benchmark.sh         # one generation length
+sbatch scripts/slurm/run_benchmark_array.sh   # array over sequence lengths
+sbatch --dependency=afterok:<array_id> scripts/slurm/eval.sh
 ```
 
-Flags:
+| script | purpose |
+|--------|---------|
+| `scripts/slurm/gpu_smoke_test.sh` | minimal training + device probe |
+| `scripts/slurm/run_benchmark.sh` | single benchmark run |
+| `scripts/slurm/run_benchmark_array.sh` | array over sequence lengths |
+| `scripts/slurm/eval.sh` | unified evaluation |
+| `scripts/slurm/eval_all.sh` / `eval_parallel.sh` / `eval_full.sh` | full / parallel evaluation |
+| `scripts/slurm/hp_search.sh` | hyperparameter search array |
+| `scripts/slurm/hp_aggregate.sh` | aggregate search results |
+| `scripts/slurm/final_training*.sh` | final training (all / DL / statistical) |
+| `scripts/slurm/run_all_models.sh` | every model in one submission |
 
-- `--skip_regenerate` / `--no_skip_regenerate` — use existing artifacts as-is vs. regenerate from latest checkpoint. Only adapters that implement `ModelAdapter.load_state` (currently `ChannelBootstrapAdapter`) regenerate.
-- The unified evaluator uses the legacy vendor `UtilityEvaluator` (mse-only) post-Fecamp-revert (commit `9c4b980` was reverted in this branch). The `--hedger_loss/--loss_alpha/--data_modes/--augmented_mix_ratios` flags from earlier docs have been removed.
-
-### 5. Submit to Slurm (Neptune nodes)
-
-CCDB Trillium has **no GPU GRES** in Slurm (`sinfo` shows `GRES=(null)` on all partitions). The largest CPU nodes are **Neptune** (`compute_neptune`, 160 logical cores, ~467 GiB) and **tri** (`compute`, 192 cores, ~745 GiB). Neptune jobs require `--qos=neptune`.
-
-Slurm scripts write logs to `$SCRATCH/stonkbench/logs/` (home is read-only on compute nodes). Do not pass `--mem` on Trillium. Jobs request a full node (`--nodes=1`).
-
-If `sbatch` fails with *"User is not known to the scheduler"*, CCDB may not have synced yet (up to ~24h after being added to `def-yqhuang`). Verify with:
+All scripts default to `--account=def-yqhuang`; override with
+`sbatch --account=...`. If `sbatch` reports *"User is not known to the
+scheduler"*, CCDB may need up to 24h to sync a new account:
 
 ```bash
 sacctmgr show assoc user=$USER format=Account,QOS,Partition
-```
-
-| Script | Purpose |
-|--------|---------|
-| `run_benchmark.sh` | Single generation-length benchmark |
-| `run_benchmark_array.sh` | Array over seq lengths 52–300 (replaces `parallelizer_script.py`) |
-| `run_eval.sh` | Unified evaluation |
-| `gpu_smoke_test.sh` | Minimal training + device probe |
-
-```bash
-mkdir -p $SCRATCH/stonkbench/logs
-sbatch scripts/slurm/gpu_smoke_test.sh          # quick device + training check
-sbatch scripts/slurm/run_benchmark.sh
-sbatch scripts/slurm/run_benchmark_array.sh
-sbatch --dependency=afterok:<array_job_id> scripts/slurm/run_eval.sh
-```
-
-All Slurm scripts use `--account=def-yqhuang` by default. Override with `sbatch --account=...` if needed.
-
-Hyperparameter search array:
-
-```bash
-sbatch scripts/hp_search_slurm.sh
-```
-
----
-
-## Architecture
-
-### Data flow
-
-`data_downloader.py` → `data_preprocessing.py` → adapter training/generation → `unified_evaluator.py`
-
-### Statistical vs deep learning inputs
-
-| Kind | Preprocessed file | Tensor shape | Used by |
-|------|-------------------|--------------|---------|
-| Statistical | `statsmodel_set.pt` | `(T, C)` train series | GBM, GARCH, bootstrap, … |
-| Deep learning | `dl_set.pt` | `(N, L, C)` windows | QuantGAN, TimeGAN, … |
-
-`data_preprocessing.py` writes both artifacts from one CSV pass; adapters select the correct format via `STATISTICAL_MODEL_KEYS` in the pipeline.
-
-### Device strategy
-
-One module — `src/utils/device.py` — provides `get_device()` / `resolve_device()`:
-
-- Entry points (`run_benchmark`, `hp_search`, pipeline) resolve the device once and pass it through `AdapterFitInput.device`.
-- DL adapters call `resolve_device()` before `.to(device)` and DataLoader transfers.
-- No scattered `torch.cuda.is_available()` branches elsewhere.
-
-### Adapter layer
-
-External repos stay vendored under `src/models/deep_learning/`; adapters in `src/experiments/adapters/` wrap clone-and-train APIs without removing the shim pattern.
-
----
-
-## Evaluate and plot
-
-```bash
-python src/unified_evaluator.py \
-  --generated_dir src/experiments \
-  --results_dir results \
-  --seq_lengths 52 60 120 180 240 300
-
-python src/plot_statistics/evaluation_plotter.py
-```
-
-Smoke test:
-
-```bash
-python -m src.experiments.smoke_test
 ```
 
 ---
@@ -160,8 +136,52 @@ python -m src.experiments.smoke_test
 ## Docker (optional)
 
 ```bash
-docker-compose build base
-docker-compose up
+docker compose build base     # image with the full dependency stack
+docker compose up data-download data-preprocess   # data pipeline
+docker compose up generate-data eval plot          # generate -> evaluate -> figures
+```
+
+`docker-compose.yml` wires the stages together with healthchecks and shared
+volumes; each service is `docker compose run <service>` for a one-off run. GPU
+passthrough needs `CUDA_VISIBLE_DEVICES` set on the host.
+
+---
+
+## Tests and preflight
+
+```bash
+bash scripts/check_repo.sh                       # everything below in one command
+python3 -m unittest discover -s tests -v         # unit tests (numpy only, no torch)
+pytest tests/                                    # same suite, if you prefer pytest
+```
+
+The suite covers the P&L and portfolio evaluators — compounding conventions,
+undefined-ratio handling, the optimiser stalling at 1/N, real-baseline key
+collisions, turnover — and the bundle reader in `scripts/handover/`.
+`tests/_bootstrap.py` installs a torch stub so nothing here needs a GPU or a
+PyTorch install.
+
+---
+
+## Evaluation results and the handover bundle
+
+`handover/` is a data-only bundle with the trained checkpoints, the generated
+samples, the real data each cell was scored against, and the full evaluation JSON
+for 48 cells (12 models × 4 sequence lengths). Its docs are the fastest way into
+the numbers:
+
+* [`handover/README.md`](handover/README.md) — what is in it
+* [`handover/GUIDE.md`](handover/GUIDE.md) — recipes for comparisons, ablations
+  and visualisations, including a task table for coding agents
+* [`handover/KNOWN_ISSUES.md`](handover/KNOWN_ISSUES.md) — which evaluator
+  defects were found and fixed, and what is still unfixed
+
+Regenerate and verify it with:
+
+```bash
+python3 scripts/handover/recompute_downstream.py   # corrected P&L + portfolio blocks
+python3 scripts/handover/build_manifest.py
+python3 scripts/handover/verify_bundle.py
 ```
 
 ---
@@ -170,21 +190,33 @@ docker-compose up
 
 ```
 StonkBench/
-  data/                          # Raw + preprocessed datasets
-  results/                       # Evaluation JSON
-  evaluation_plots/              # Figures
-  scripts/slurm/                 # Slurm submission scripts
+  data/                        raw + preprocessed datasets (gitignored)
+  outputs/                     every run's artifacts (gitignored)
+  handover/                    evaluation bundle + its docs
+  scripts/
+    check_repo.sh              preflight for any rerun
+    install_stonkbench.sh      build the ~/.venvs/stonkbench environment
+    run_pipeline.sh            end-to-end submission driver
+    slurm/                     Slurm submission scripts
+    handover/                  bundle tooling (reader, verifier, recomputation)
   src/
-    utils/device.py              # Unified CPU/GPU resolution
-    data_downloader.py
-    data_preprocessing.py
-    experiments/
-      run_benchmark.py           # Main training/generation entry
-      adapters/                  # Statistical + DL adapter shims
-    unified_evaluator.py
-    models/
+    data_downloader.py         fetch price history
+    data_preprocessing.py      one CSV pass -> dl_set.pt + statsmodel_set.pt
+    experiments/               run_benchmark, hp_search, run_final_training, smoke_test
+      adapters/                statistical + DL adapter shims
+    models/                    statistical models and vendored DL repos
+    taxonomies/                fidelity, diversity, stylised facts, P&L, portfolio
+    unified_evaluator.py       the evaluation entry point
+    plot_statistics/           figures
+    utils/                     device, env paths, preprocessing helpers
+  tests/                       unit tests (torch-free)
   requirements.txt
 ```
+
+External model repos stay vendored under `src/models/deep_learning/`; adapters in
+`src/experiments/adapters/` wrap their clone-and-train APIs. One module,
+`src/utils/device.py`, resolves the device and passes it down — there are no
+scattered `torch.cuda.is_available()` branches.
 
 ---
 
